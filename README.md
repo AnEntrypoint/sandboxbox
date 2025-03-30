@@ -19,7 +19,7 @@ A secure JavaScript REPL (Read-Eval-Print-Loop) for executing code snippets with
 Run the REPL without installing it:
 
 ```bash
-npx simple-js-repl
+npx mcp-repl
 ```
 
 This will start an interactive REPL where you can enter JavaScript code:
