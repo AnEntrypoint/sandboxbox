@@ -89,4 +89,21 @@ github copilot
 }
 ```
 
+vscode
+```json
+{
+	"servers": {
+		"repl": {
+			"command": "node",
+			"args": [
+				"c:/dev/mcp-repl/src/direct-executor-server.js"
+			],
+			"env": {},
+			"type": "stdio"
+		}
+	},
+	"inputs": []
+}
+```
+
 
