@@ -29,7 +29,8 @@ Cursor
       ],
       "env": {},
       "disabled": false,
-      "autoApprove": ["executenodejs",
+      "autoApprove": [
+        "executenodejs",
         "executedeno",
         "executebash",
         "retrieve_overflow",
