@@ -34,4 +34,39 @@ claude mcp add repl -- "npx" "-y" "-s" "user" "mcp-repl"
 }
 ```
 
+github copilot
+```json
+{
+  "mcpServers": {
+    "repl": {
+      "command": "npx",
+      "args": ["-y", "@anentrypoint/mcp-repl"],
+      "env": {},
+      "type": "local",
+      "tools": [
+        "executenodejs",
+        "executedeno",
+        "executebash",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "astgrep_analyze",
+        "astgrep_enhanced_search",
+        "astgrep_multi_pattern",
+        "astgrep_constraint_search",
+        "astgrep_project_init",
+        "astgrep_project_scan",
+        "astgrep_test",
+        "astgrep_validate_rules",
+        "astgrep_debug_rule",
+        "batch_execute",
+        "sequentialthinking"
+      ]
+    }
+  }
+}
+```
+
 
