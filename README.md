@@ -16,8 +16,9 @@ A streamlined direct Node.js execution environment that enables seamless code ex
 ## 🧩 Configuration
 
 For Claude Code:
-claude mcp add repl -- "npx" "-y" "-s" "user" "mcp-repl"
+claude mcp add -s uer repl -- "npx" "-y" "-s" "user" "mcp-repl"
 
+Cursor
 ```json
 {
   "mcpServers": {
@@ -28,7 +29,25 @@ claude mcp add repl -- "npx" "-y" "-s" "user" "mcp-repl"
       ],
       "env": {},
       "disabled": false,
-      "autoApprove": ["executenode", "executedeno"]
+      "autoApprove": ["executenodejs",
+        "executedeno",
+        "executebash",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "astgrep_analyze",
+        "astgrep_enhanced_search",
+        "astgrep_multi_pattern",
+        "astgrep_constraint_search",
+        "astgrep_project_init",
+        "astgrep_project_scan",
+        "astgrep_test",
+        "astgrep_validate_rules",
+        "astgrep_debug_rule",
+        "batch_execute",
+        "sequentialthinking"]
     }
   }
 }
