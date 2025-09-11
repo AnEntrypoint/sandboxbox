@@ -6,15 +6,15 @@
 process.env.TFJS_BACKEND = 'wasm';
 process.env.SHARP = 'false';
 
+// Detect ARM64 architecture for compatibility handling
+const isARM64 = process.arch === 'arm64' || process.platform === 'linux' && process.arch === 'arm64';
+
 import fs from 'fs/promises';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
-import { pipeline, env } from '@xenova/transformers';
 
-// Configure transformers to use WASM backend and avoid sharp
-env.backends.onnx.wasm.numThreads = 1;
-env.allowRemoteModels = true;
-env.allowLocalModels = true;
+// Global transformers variables - will be loaded conditionally
+let pipeline, env;
 
 // Configuration constants
 const INDEX_DIR = './code_search_index';
@@ -118,28 +118,38 @@ export async function initialize(indexDir = INDEX_DIR) {
       mkdirSync(indexDir, { recursive: true });
     }
 
-    // Initialize embedding model with WASM backend (with timeout)
-    try {
-      const modelPromise = pipeline('feature-extraction', DEFAULT_MODEL, {
-        env: {
-          backends: {
-            onnx: {
-              wasm: {
-                numThreads: 1
-              }
-            }
-          }
-        }
-      });
-      
-      embedder = await Promise.race([
-        modelPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Model loading timeout')), 30000))
-      ]);
-    } catch (modelError) {
-      console.warn('Failed to load default model, trying fallback:', modelError.message);
+    // Load transformers conditionally for ARM64 compatibility
+    // On ARM64, skip transformers entirely to prevent double-free corruption
+    if (!isARM64) {
       try {
-        const fallbackPromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+        // Check if transformers is available before importing
+        const transformers = await import('@xenova/transformers');
+        pipeline = transformers.pipeline;
+        env = transformers.env;
+        
+        // Configure transformers to use WASM backend and avoid sharp
+        if (env && env.backends && env.backends.onnx) {
+          env.backends.onnx.wasm.numThreads = 1;
+          env.allowRemoteModels = true;
+          env.allowLocalModels = true;
+        }
+        
+        console.log('[DEBUG] Transformers loaded successfully');
+      } catch (transformerImportError) {
+        console.warn(`[DEBUG] Failed to load transformers: ${transformerImportError.message}`);
+        pipeline = null;
+        env = null;
+      }
+    } else {
+      console.warn('[DEBUG] ARM64 detected - skipping transformers entirely to prevent double-free corruption');
+      pipeline = null;
+      env = null;
+    }
+
+    // Initialize embedding model with WASM backend (with timeout) - only if pipeline is available
+    if (pipeline) {
+      try {
+        const modelPromise = pipeline('feature-extraction', DEFAULT_MODEL, {
           env: {
             backends: {
               onnx: {
@@ -152,13 +162,38 @@ export async function initialize(indexDir = INDEX_DIR) {
         });
         
         embedder = await Promise.race([
-          fallbackPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback model timeout')), 30000))
+          modelPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Model loading timeout')), 30000))
         ]);
-      } catch (fallbackError) {
-        console.warn('Failed to load fallback model, running without embeddings:', fallbackError.message);
-        embedder = null; // Continue without embeddings
+        console.log('[DEBUG] Embedder model loaded successfully');
+      } catch (modelError) {
+        console.warn('Failed to load default model, trying fallback:', modelError.message);
+        try {
+          const fallbackPromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+            env: {
+              backends: {
+                onnx: {
+                  wasm: {
+                    numThreads: 1
+                  }
+                }
+              }
+            }
+          });
+          
+          embedder = await Promise.race([
+            fallbackPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback model timeout')), 30000))
+          ]);
+          console.log('[DEBUG] Fallback embedder model loaded successfully');
+        } catch (fallbackError) {
+          console.warn('Failed to load fallback model, running without embeddings:', fallbackError.message);
+          embedder = null; // Continue without embeddings
+        }
       }
+    } else {
+      console.warn('[DEBUG] Pipeline not available - running without embeddings');
+      embedder = null;
     }
 
     // Load existing index if available
