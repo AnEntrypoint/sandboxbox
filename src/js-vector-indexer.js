@@ -144,43 +144,55 @@ export async function initialize(indexDir = INDEX_DIR) {
     }
 
     // Initialize compatible embedding engine for all architectures
-    // Try multiple approaches with fallbacks for maximum compatibility
+    // Use safer approach for ARM64 to prevent memory corruption
     let embeddingEngine = null;
     
-    // Try TensorFlow.js first - works well on ARM64
-    try {
-      const tf = await import('@tensorflow/tfjs');
-      await tf.setBackend('wasm');
-      const use = await import('@tensorflow-models/universal-sentence-encoder');
-      embeddingEngine = {
-        type: 'tfjs',
-        model: await use.load(),
-        embed: async (text) => {
-          const embeddings = await embeddingEngine.model.embed([text]);
-          return embeddings.arraySync()[0];
-        }
-      };
-      console.log('[DEBUG] TensorFlow.js embedding engine loaded');
-    } catch (tfError) {
-      console.log(`[DEBUG] TensorFlow.js not available: ${tfError.message}`);
+    // Skip TensorFlow.js on ARM64 to avoid memory corruption issues
+    if (!isARM64) {
+      try {
+        const tf = await import('@tensorflow/tfjs');
+        await tf.setBackend('wasm');
+        const use = await import('@tensorflow-models/universal-sentence-encoder');
+        embeddingEngine = {
+          type: 'tfjs',
+          model: await use.load(),
+          embed: async (text) => {
+            const embeddings = await embeddingEngine.model.embed([text]);
+            return embeddings.arraySync()[0];
+          }
+        };
+        console.log('[DEBUG] TensorFlow.js embedding engine loaded');
+      } catch (tfError) {
+        console.log(`[DEBUG] TensorFlow.js not available: ${tfError.message}`);
+      }
+    } else {
+      console.log('[DEBUG] Skipping TensorFlow.js on ARM64 to prevent memory issues');
     }
     
-    // Fallback to transformers only on non-ARM64 with specific configuration
-    if (!embeddingEngine && !isARM64) {
+    // Fallback to transformers with ARM64-safe configuration
+    if (!embeddingEngine) {
       try {
         const transformers = await import('@xenova/transformers');
         pipeline = transformers.pipeline;
         env = transformers.env;
         
-        // Safe configuration for transformers
+        // ARM64-safe configuration for transformers based on official ONNX Runtime docs
         if (env) {
           env.backends = env.backends || {};
           env.backends.onnx = env.backends.onnx || {};
           env.backends.onnx.wasm = env.backends.onnx.wasm || {};
-          env.backends.onnx.wasm.numThreads = 1;
-          env.backends.onnx.wasm.simd = false; // Disable SIMD for compatibility
+          env.backends.onnx.wasm.numThreads = isARM64 ? 1 : 4; // Single thread on ARM64
+          env.backends.onnx.wasm.simd = !isARM64; // Disable SIMD on ARM64
           env.allowRemoteModels = false; // Use local models only
           env.allowLocalModels = true;
+          env.useBrowserCache = false; // Disable cache to prevent corruption
+          env.cacheDir = null; // No cache directory
+          // Critical ARM64 fixes for memory corruption
+          env.sessionOptions = {
+            enableCpuMemArena: false, // Disable memory arena to prevent corruption
+            enableMemPattern: false,  // Disable memory pattern optimization 
+            graphOptimizationLevel: 'basic' // Use basic optimization only
+          };
         }
         
         embeddingEngine = {
@@ -188,7 +200,16 @@ export async function initialize(indexDir = INDEX_DIR) {
           pipeline: pipeline,
           model: await pipeline('feature-extraction', DEFAULT_MODEL, {
             quantized: false, // Avoid quantization issues
-            device: 'wasm'
+            device: 'wasm',
+            cache_dir: null, // No cache to prevent corruption
+            local_files_only: true, // Use only local models
+            trust_remote_code: false, // Security precaution
+            // Pass the ARM64 session options to prevent memory corruption
+            session_options: isARM64 ? {
+              enableCpuMemArena: false,
+              enableMemPattern: false,
+              graphOptimizationLevel: 'basic'
+            } : undefined
           }),
           embed: async (text) => {
             try {
