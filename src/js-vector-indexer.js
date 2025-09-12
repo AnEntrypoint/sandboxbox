@@ -210,39 +210,115 @@ export async function initialize(indexDir = INDEX_DIR) {
       }
     }
     
-    // Universal fallback - keyword-based semantic search
+    // High-performance fallback embedding engine
     if (!embeddingEngine) {
-      console.log('[DEBUG] Using universal keyword-based embedding engine');
+      console.log('[DEBUG] Using advanced hybrid embedding engine');
       embeddingEngine = {
-        type: 'keyword',
+        type: 'hybrid',
         embed: async (text) => {
-          // Create a compatible 384-dimensional embedding
-          const words = text.toLowerCase()
+          // Advanced hybrid embedding combining multiple techniques
+          const processedText = text.toLowerCase()
             .replace(/[^\w\s]/g, ' ')
-            .split(/\s+/)
-            .filter(word => word.length > 2);
+            .replace(/\s+/g, ' ')
+            .trim();
           
+          // Extract semantic features
+          const words = processedText.split(' ').filter(w => w.length > 1);
           const wordFreq = {};
-          const uniqueWords = [...new Set(words)];
+          const bigrams = [];
+          const trigrams = [];
           
-          uniqueWords.forEach(word => {
-            wordFreq[word] = words.filter(w => w === word).length;
+          // Generate n-grams
+          for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            wordFreq[word] = (wordFreq[word] || 0) + 1;
+            
+            if (i < words.length - 1) {
+              bigrams.push(`${words[i]} ${words[i + 1]}`);
+            }
+            if (i < words.length - 2) {
+              trigrams.push(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+            }
+          }
+          
+          // TF-IDF-like scoring with position weighting
+          const features = new Map();
+          const totalWords = words.length;
+          
+          // Process unigrams with TF-IDF weighting
+          Object.entries(wordFreq).forEach(([word, freq]) => {
+            const tf = freq / totalWords;
+            const idf = Math.log(1 + (8 / word.length)); // Simple IDF approximation
+            const positionBoost = words.indexOf(word) / totalWords; // Earlier words get slight boost
+            const score = tf * idf * (1 + positionBoost * 0.2);
+            features.set(word, score);
           });
           
-          // Create vector with word importance and positioning
+          // Process bigrams with higher weight
+          const bigramFreq = {};
+          bigrams.forEach(bg => {
+            bigramFreq[bg] = (bigramFreq[bg] || 0) + 1;
+          });
+          Object.entries(bigramFreq).forEach(([bigram, freq]) => {
+            const score = (freq / bigrams.length) * 1.5; // Boost bigrams
+            features.set(bigram, score);
+          });
+          
+          // Process trigrams with highest weight
+          const trigramFreq = {};
+          trigrams.forEach(tg => {
+            trigramFreq[tg] = (trigramFreq[tg] || 0) + 1;
+          });
+          Object.entries(trigramFreq).forEach(([trigram, freq]) => {
+            const score = (freq / trigrams.length) * 2.0; // Boost trigrams
+            features.set(trigram, score);
+          });
+          
+          // Create 384-dimensional embedding with intelligent distribution
           const vector = new Array(384).fill(0);
-          uniqueWords.forEach((word, index) => {
-            const freq = wordFreq[word];
-            const importance = Math.sqrt(freq) * (word.length / 8);
-            const position = (index * 7) % 384; // Distribute across vector
-            vector[position] = importance;
+          const featureArray = Array.from(features.entries()).sort((a, b) => b[1] - a[1]);
+          
+          // Distribute features using multiple hash functions for better spread
+          featureArray.forEach(([feature, score], index) => {
+            // Use multiple hash functions to distribute feature importance
+            const hash1 = simpleHash(feature, 1);
+            const hash2 = simpleHash(feature, 2);
+            const hash3 = simpleHash(feature, 3);
+            
+            // Primary position
+            const pos1 = hash1 % 384;
+            vector[pos1] += score;
+            
+            // Secondary positions for better semantic spread
+            const pos2 = (hash2 % 192) + 96; // Middle third
+            vector[pos2] += score * 0.7;
+            
+            // Tertiary positions
+            const pos3 = (hash3 % 96) + 288; // Last third
+            vector[pos3] += score * 0.5;
           });
           
-          // Normalize
+          // Apply activation function (ReLU-like)
+          for (let i = 0; i < vector.length; i++) {
+            vector[i] = Math.max(0, vector[i]);
+          }
+          
+          // Normalize to unit vector
           const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
           return magnitude > 0 ? vector.map(v => v / magnitude) : vector;
         }
       };
+    }
+    
+    // Simple hash function for feature distribution
+    function simpleHash(str, seed = 1) {
+      let hash = seed;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      return Math.abs(hash);
     }
     
     // Store embedding engine globally

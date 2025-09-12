@@ -7,7 +7,7 @@ import { createSearchSchema, createAstSchema, createToolDefinition } from './too
 export const searchTools = [
   createToolDefinition(
     "searchcode",
-    "**INTELLIGENT CODE DISCOVERY** - AI-powered semantic search with structural understanding. **ALWAYS USE THIS FIRST** for code exploration.",
+    "Semantic code search - USE FIRST",
     createSearchSchema()
   )
 ];
@@ -16,72 +16,72 @@ export const searchTools = [
 export const astTools = [
   createToolDefinition(
     "astgrep_search",
-    "**STRUCTURAL CODE ANALYSIS** - AST-based pattern matching for precise code discovery.",
+    "AST pattern matching",
     createAstSchema({
       context: {
         type: "number",
-        description: "Optional number of context lines (default: 3, recommended: 3-5)"
+        description: "Context lines (default: 3)"
       },
       strictness: {
         type: "string",
         enum: ["cst", "smart", "ast", "relaxed"],
-        description: "Pattern matching strictness: 'smart' (recommended), 'ast' (precise)"
+        description: "Strictness: 'smart' (recommended)"
       },
       outputFormat: {
         type: "string", 
         enum: ["compact", "pretty"],
-        description: "Output format: 'compact' (scanning), 'pretty' (detailed)"
+        description: "Format: 'compact' or 'pretty'"
       }
     })
   ),
 
   createToolDefinition(
     "astgrep_replace",
-    "**INTELLIGENT CODE TRANSFORMATION** - AST-based code rewriting with meta-variable substitution.",
+    "AST code rewriting",
     createAstSchema({
       replacement: {
         type: "string",
-        description: "Replacement pattern with meta-variable substitutions"
+        description: "Replacement pattern"
       },
       dryRun: {
         type: "boolean",
-        description: "**RECOMMENDED** - Preview changes without applying (always use first)"
+        description: "Preview mode (recommended)"
       },
       interactive: {
         type: "boolean",
-        description: "Enable interactive confirmation for each transformation"
+        description: "Interactive confirmations"
       }
     })
   ),
 
   createToolDefinition(
     "astgrep_lint", 
-    "**COMPREHENSIVE CODE QUALITY ENFORCEMENT** - YAML-based rule engine for structural code validation.",
+    "YAML rule validation",
     {
       type: "object",
       properties: {
         rules: {
           type: "string",
-          description: "YAML rule content or path to rule file within working directory"
+          description: "YAML rules or file path"
         },
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory containing code to validate"
+          description: "Target directory"
         },
         paths: {
           type: "array",
           items: { type: "string" },
-          description: "Optional specific paths within working directory to validate"
+          description: "Specific paths"
         },
         severity: {
           type: "string",
           enum: ["error", "warning", "info", "hint"],
-          description: "Minimum severity level to report (recommended: start with 'error')"
+          description: "Min severity (default: error)"
         },
         format: {
           type: "string",
           enum: ["json", "text"],
-          description: "Output format: 'json' (programmatic), 'text' (human-readable)"
+          description: "Output format"
         }
       },
       required: ["rules", "workingDirectory"]
@@ -90,12 +90,12 @@ export const astTools = [
 
   createToolDefinition(
     "astgrep_analyze",
-    "**DEEP STRUCTURAL CODE INVESTIGATION** - AST exploration and pattern debugging tool.",
+    "AST analysis/debugging",
     createAstSchema({
       analysisType: {
         type: "string",
         enum: ["pattern", "structure", "debug"],
-        description: "Type of analysis: 'pattern' (pattern testing), 'structure' (AST exploration)"
+        description: "Analysis type"
       }
     })
   )
@@ -105,32 +105,32 @@ export const astTools = [
 export const enhancedAstTools = [
   createToolDefinition(
     "astgrep_enhanced_search",
-    "**ENHANCED AST-GREP SEARCH** - Advanced pattern search with structured JSON output, metadata, and performance insights.",
+    "Advanced AST search + JSON metadata",
     createAstSchema({
       jsonFormat: {
         type: "string",
         enum: ["compact", "stream", "pretty"],
-        description: "Enhanced JSON output format: 'compact' (efficiency), 'stream' (large data), 'pretty' (readable)"
+        description: "JSON format"
       },
       includeMetadata: {
         type: "boolean",
-        description: "Include comprehensive metadata and performance insights (recommended: true)"
+        description: "Include metadata"
       },
       strictness: {
         type: "string",
         enum: ["cst", "smart", "ast", "relaxed"],
-        description: "Pattern matching strictness for enhanced analysis precision"
+        description: "Matching strictness"
       },
       context: {
         type: "number",
-        description: "Number of context lines for enhanced output (default: 3, affects output size)"
+        description: "Context lines"
       }
     })
   ),
 
   createToolDefinition(
     "astgrep_multi_pattern",
-    "**MULTI-PATTERN AST SEARCH** - Search for multiple patterns with logical operators (AND, OR, NOT).",
+    "Multi-pattern AST search",
     {
       type: "object",
       properties: {
@@ -138,38 +138,38 @@ export const enhancedAstTools = [
           type: "array",
           items: { type: "string" },
           minItems: 1,
-          description: "Array of AST patterns to search for"
+          description: "AST patterns array"
         },
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for multi-pattern search operations."
+          description: "Target directory"
         },
         operator: {
           type: "string",
           enum: ["any", "all", "not"],
-          description: "Logical operator to combine patterns (default: any)"
+          description: "Logic operator (default: any)"
         },
         language: {
           type: "string",
-          description: "Programming language"
+          description: "Language"
         },
         paths: {
           type: "array",
           items: { type: "string" },
-          description: "Specific paths to search"
+          description: "Target paths"
         },
         context: {
           type: "number",
-          description: "Number of context lines to include"
+          description: "Context lines"
         },
         strictness: {
           type: "string",
           enum: ["cst", "smart", "ast", "relaxed"],
-          description: "Pattern matching strictness level"
+          description: "Strictness level"
         },
         includeMetadata: {
           type: "boolean",
-          description: "Include search metadata (default: true)"
+          description: "Include metadata"
         }
       },
       required: ["patterns", "workingDirectory"]
@@ -178,11 +178,11 @@ export const enhancedAstTools = [
 
   createToolDefinition(
     "astgrep_constraint_search", 
-    "**CONSTRAINT-BASED AST SEARCH** - Advanced search with validation constraints, performance thresholds, and meta-variable validation.",
+    "Constraint-based AST search",
     createAstSchema({
       constraints: {
         type: "object",
-        description: "Constraint object with validation rules",
+        description: "Validation constraints",
         properties: {
           minMatches: { type: "number" },
           maxMatches: { type: "number" },
@@ -195,11 +195,11 @@ export const enhancedAstTools = [
       strictness: {
         type: "string",
         enum: ["cst", "smart", "ast", "relaxed"],
-        description: "Pattern matching strictness level"
+        description: "Strictness level"
       },
       context: {
         type: "number",
-        description: "Number of context lines to include"
+        description: "Context lines"
       }
     })
   ),
