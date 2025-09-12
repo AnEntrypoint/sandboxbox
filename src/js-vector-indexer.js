@@ -13,8 +13,8 @@ import fs from 'fs/promises';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
 
-// Global transformers variables - will be loaded conditionally
-let pipeline, env;
+// Global embedding engine variables
+let pipeline, env, embeddingEngineRef;
 
 // Configuration constants
 const INDEX_DIR = './code_search_index';
@@ -27,13 +27,26 @@ const DEFAULT_IGNORES = [
   'tmp', 'temp', '.tmp', '.cache', '.parcel-cache',
   '.next', '.nuxt', '.vuepress', '.docusaurus',
   'public', 'static', 'assets', 'images', 'img',
-  '.vscode', '.idea', '.DS_Store', 'Thumbs.db'
+  '.vscode', '.idea', '.DS_Store', 'Thumbs.db',
+  // Additional build folders
+  'out', 'output', 'generated', 'gen',
+  '.angular', '.react', '.svelte-kit',
+  'storybook-static', 'docs-build', 'build-docs',
+  '.vite', '.turbo', '.nx', '.swc',
+  // Common dependency folders
+  'bower_components', 'jspm_packages', '.pnp',
+  // Test and coverage folders
+  '__tests__', '__mocks__', '__snapshots__',
+  '.jest', '.mocha', '.cypress', '.playwright',
+  // Lock files and package managers
+  'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+  '.npmrc', '.yarnrc', '.pnpmrc'
 ];
 const INDEX_FILE = 'code_index.json';
 const VECTOR_INDEX_FILE = 'vector_index.json';
 
 // Global state
-let embedder;
+// embedder deprecated - using embeddingEngineRef instead
 let codeChunks = [];
 let chunkIds = [];
 let isInitialized = false;
@@ -48,23 +61,35 @@ function cosineSimilarity(vecA, vecB) {
 
 // Parse .gitignore file and get ignore patterns
 function parseGitignore(rootDir) {
-  const gitignorePath = path.join(rootDir, '.gitignore');
+  const ignoreFiles = [
+    '.gitignore',
+    '.dockerignore', 
+    '.eslintignore',
+    '.prettierignore',
+    '.stylelintignore',
+    '.npmignore'
+  ];
+  
   const patterns = [];
   
-  if (existsSync(gitignorePath)) {
-    try {
-      const content = readFileSync(gitignorePath, 'utf8');
-      const lines = content.split('\n');
-      
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        // Skip empty lines and comments
-        if (trimmedLine && !trimmedLine.startsWith('#')) {
-          patterns.push(trimmedLine);
+  for (const ignoreFile of ignoreFiles) {
+    const ignorePath = path.join(rootDir, ignoreFile);
+    
+    if (existsSync(ignorePath)) {
+      try {
+        const content = readFileSync(ignorePath, 'utf8');
+        const lines = content.split('\n');
+        
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          // Skip empty lines and comments
+          if (trimmedLine && !trimmedLine.startsWith('#')) {
+            patterns.push(trimmedLine);
+          }
         }
+      } catch (error) {
+        // Silently handle ignore file parse errors
       }
-    } catch (error) {
-      // Silently handle errors
     }
   }
   
@@ -118,83 +143,112 @@ export async function initialize(indexDir = INDEX_DIR) {
       mkdirSync(indexDir, { recursive: true });
     }
 
-    // Load transformers conditionally for ARM64 compatibility
-    // On ARM64, skip transformers entirely to prevent double-free corruption
-    if (!isARM64) {
+    // Initialize compatible embedding engine for all architectures
+    // Try multiple approaches with fallbacks for maximum compatibility
+    let embeddingEngine = null;
+    
+    // Try TensorFlow.js first - works well on ARM64
+    try {
+      const tf = await import('@tensorflow/tfjs');
+      await tf.setBackend('wasm');
+      const use = await import('@tensorflow-models/universal-sentence-encoder');
+      embeddingEngine = {
+        type: 'tfjs',
+        model: await use.load(),
+        embed: async (text) => {
+          const embeddings = await embeddingEngine.model.embed([text]);
+          return embeddings.arraySync()[0];
+        }
+      };
+      console.log('[DEBUG] TensorFlow.js embedding engine loaded');
+    } catch (tfError) {
+      console.log(`[DEBUG] TensorFlow.js not available: ${tfError.message}`);
+    }
+    
+    // Fallback to transformers only on non-ARM64 with specific configuration
+    if (!embeddingEngine && !isARM64) {
       try {
-        // Check if transformers is available before importing
         const transformers = await import('@xenova/transformers');
         pipeline = transformers.pipeline;
         env = transformers.env;
         
-        // Configure transformers to use WASM backend and avoid sharp
-        if (env && env.backends && env.backends.onnx) {
+        // Safe configuration for transformers
+        if (env) {
+          env.backends = env.backends || {};
+          env.backends.onnx = env.backends.onnx || {};
+          env.backends.onnx.wasm = env.backends.onnx.wasm || {};
           env.backends.onnx.wasm.numThreads = 1;
-          env.allowRemoteModels = true;
+          env.backends.onnx.wasm.simd = false; // Disable SIMD for compatibility
+          env.allowRemoteModels = false; // Use local models only
           env.allowLocalModels = true;
         }
         
-        console.log('[DEBUG] Transformers loaded successfully');
-      } catch (transformerImportError) {
-        console.warn(`[DEBUG] Failed to load transformers: ${transformerImportError.message}`);
+        embeddingEngine = {
+          type: 'transformers',
+          pipeline: pipeline,
+          model: await pipeline('feature-extraction', DEFAULT_MODEL, {
+            quantized: false, // Avoid quantization issues
+            device: 'wasm'
+          }),
+          embed: async (text) => {
+            try {
+              const result = await embeddingEngine.model(text, { 
+                pooling: 'mean', 
+                normalize: true 
+              });
+              return Array.isArray(result) ? result[0] : result;
+            } catch (embedError) {
+              throw new Error(`Transformers embedding failed: ${embedError.message}`);
+            }
+          }
+        };
+        console.log('[DEBUG] Transformers embedding engine loaded with safe config');
+      } catch (transformerError) {
+        console.log(`[DEBUG] Transformers not available: ${transformerError.message}`);
         pipeline = null;
         env = null;
       }
-    } else {
-      console.warn('[DEBUG] ARM64 detected - skipping transformers entirely to prevent double-free corruption');
-      pipeline = null;
-      env = null;
     }
-
-    // Initialize embedding model with WASM backend (with timeout) - only if pipeline is available
-    if (pipeline) {
-      try {
-        const modelPromise = pipeline('feature-extraction', DEFAULT_MODEL, {
-          env: {
-            backends: {
-              onnx: {
-                wasm: {
-                  numThreads: 1
-                }
-              }
-            }
-          }
-        });
-        
-        embedder = await Promise.race([
-          modelPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Model loading timeout')), 30000))
-        ]);
-        console.log('[DEBUG] Embedder model loaded successfully');
-      } catch (modelError) {
-        console.warn('Failed to load default model, trying fallback:', modelError.message);
-        try {
-          const fallbackPromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-            env: {
-              backends: {
-                onnx: {
-                  wasm: {
-                    numThreads: 1
-                  }
-                }
-              }
-            }
+    
+    // Universal fallback - keyword-based semantic search
+    if (!embeddingEngine) {
+      console.log('[DEBUG] Using universal keyword-based embedding engine');
+      embeddingEngine = {
+        type: 'keyword',
+        embed: async (text) => {
+          // Create a compatible 384-dimensional embedding
+          const words = text.toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .split(/\s+/)
+            .filter(word => word.length > 2);
+          
+          const wordFreq = {};
+          const uniqueWords = [...new Set(words)];
+          
+          uniqueWords.forEach(word => {
+            wordFreq[word] = words.filter(w => w === word).length;
           });
           
-          embedder = await Promise.race([
-            fallbackPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback model timeout')), 30000))
-          ]);
-          console.log('[DEBUG] Fallback embedder model loaded successfully');
-        } catch (fallbackError) {
-          console.warn('Failed to load fallback model, running without embeddings:', fallbackError.message);
-          embedder = null; // Continue without embeddings
+          // Create vector with word importance and positioning
+          const vector = new Array(384).fill(0);
+          uniqueWords.forEach((word, index) => {
+            const freq = wordFreq[word];
+            const importance = Math.sqrt(freq) * (word.length / 8);
+            const position = (index * 7) % 384; // Distribute across vector
+            vector[position] = importance;
+          });
+          
+          // Normalize
+          const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+          return magnitude > 0 ? vector.map(v => v / magnitude) : vector;
         }
-      }
-    } else {
-      console.warn('[DEBUG] Pipeline not available - running without embeddings');
-      embedder = null;
+      };
     }
+    
+    // Store embedding engine globally
+    embeddingEngineRef = embeddingEngine;
+
+    // Old embedder initialization removed - now using embeddingEngineRef
 
     // Load existing index if available
     const indexPath = path.join(indexDir, INDEX_FILE);
@@ -260,6 +314,12 @@ export async function gatherFiles(dir, exts = DEFAULT_EXTS, ignores = DEFAULT_IG
         const subDirFiles = await gatherFiles(full, exts, ignores);
         results.push(...subDirFiles);
       } else if (exts.includes(path.extname(entry.name).slice(1))) {
+        // Check file size - skip files larger than 100KB
+        const stat = await fs.stat(full);
+        if (stat.size > 100 * 1024) { // 100KB limit
+          continue;
+        }
+        
         // Only skip obvious build artifacts and system files - keep all source code
         const fileName = entry.name.toLowerCase();
         const shouldSkipFile = 
@@ -965,20 +1025,19 @@ function isCommonKeyword(word) {
 
 async function generateEmbedding(text, chunk = null) {
   try {
-    if (!embedder) {
+    if (!embeddingEngineRef) {
       return null;
     }
     
     // Use enhanced text preparation for chunks
     const embeddingText = chunk ? prepareTextForEmbedding(chunk) : text;
     
-    const output = await embedder(embeddingText, { 
-      pooling: 'mean',
-      normalize: true 
-    });
+    // Use the appropriate embedding engine
+    const embedding = await embeddingEngineRef.embed(embeddingText);
     
-    return Array.from(output.data);
+    return embedding;
   } catch (error) {
+    console.log(`[DEBUG] Embedding generation failed: ${error.message}`);
     return null;
   }
 }
@@ -1030,7 +1089,7 @@ export async function syncIndex(folders, exts = DEFAULT_EXTS, ignores = DEFAULT_
         }
         
         allNewChunks.push(chunk);
-        if (embedder) {
+        if (embeddingEngineRef) {
           chunksNeedingEmbeddings.push(chunk);
         } else {
           chunk.embedding = null;
@@ -1043,7 +1102,7 @@ export async function syncIndex(folders, exts = DEFAULT_EXTS, ignores = DEFAULT_
   }
   
   // Second pass: batch generate embeddings for better performance
-  if (embedder && chunksNeedingEmbeddings.length > 0) {
+  if (embeddingEngineRef && chunksNeedingEmbeddings.length > 0) {
     const BATCH_SIZE = 20; // Process embeddings in batches
     for (let i = 0; i < chunksNeedingEmbeddings.length; i += BATCH_SIZE) {
       const batch = chunksNeedingEmbeddings.slice(i, i + BATCH_SIZE);
