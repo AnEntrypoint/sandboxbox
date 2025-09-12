@@ -10,8 +10,9 @@ process.env.SHARP = 'false';
 const isARM64 = process.arch === 'arm64' || process.platform === 'linux' && process.arch === 'arm64';
 
 import fs from 'fs/promises';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
 import path from 'path';
+import ignore from 'ignore';
 
 // Global embedding engine variables
 let pipeline, env, embeddingEngineRef;
@@ -20,7 +21,15 @@ let pipeline, env, embeddingEngineRef;
 const INDEX_DIR = './code_search_index';
 const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
 const DEFAULT_DIM = 384; // Dimension size for the chosen model
-const DEFAULT_EXTS = ['js', 'ts'];
+const DEFAULT_EXTS = [
+  'js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs',
+  'py', 'java', 'go', 'rs', 'c', 'cpp', 'h', 'hpp',
+  'rb', 'php', 'cs', 'swift', 'kt', 'scala', 'clj',
+  'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat',
+  'sql', 'json', 'yaml', 'yml', 'toml', 'xml', 'html',
+  'css', 'scss', 'sass', 'less', 'styl', 'vue',
+  'md', 'markdown', 'txt', 'cfg', 'ini', 'conf'
+];
 const DEFAULT_IGNORES = [
   'node_modules', '.git', '.node_modules', 
   'dist', 'build', 'coverage', '.nyc_output',
@@ -59,78 +68,64 @@ function cosineSimilarity(vecA, vecB) {
   return dotProduct / (magnitudeA * magnitudeB);
 }
 
-// Parse .gitignore file and get ignore patterns
-function parseGitignore(rootDir) {
-  const ignoreFiles = [
-    '.gitignore',
-    '.dockerignore', 
-    '.eslintignore',
-    '.prettierignore',
-    '.stylelintignore',
-    '.npmignore'
-  ];
+// Create robust ignore filter using the ignore library
+function createIgnoreFilter(rootDir) {
+  const ig = ignore();
   
-  const patterns = [];
+  // Add default ignore patterns
+  ig.add(DEFAULT_IGNORES);
   
-  for (const ignoreFile of ignoreFiles) {
-    const ignorePath = path.join(rootDir, ignoreFile);
-    
-    if (existsSync(ignorePath)) {
-      try {
-        const content = readFileSync(ignorePath, 'utf8');
-        const lines = content.split('\n');
+  // Find and add all .gitignore files in the directory tree
+  const addGitignoreFiles = (dir) => {
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
         
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          // Skip empty lines and comments
-          if (trimmedLine && !trimmedLine.startsWith('#')) {
-            patterns.push(trimmedLine);
+        if (entry.isFile() && entry.name === '.gitignore') {
+          try {
+            const content = readFileSync(fullPath, 'utf8');
+            ig.add(content);
+          } catch (error) {
+            // Silently handle .gitignore read errors
           }
+        } else if (entry.isDirectory() && !entry.name.startsWith('.') && !DEFAULT_IGNORES.includes(entry.name)) {
+          // Recursively add .gitignore files from subdirectories
+          addGitignoreFiles(fullPath);
         }
-      } catch (error) {
-        // Silently handle ignore file parse errors
       }
+    } catch (error) {
+      // Silently handle directory read errors
     }
-  }
+  };
   
-  return patterns;
+  addGitignoreFiles(rootDir);
+  
+  return ig;
 }
 
-// Check if a path should be ignored based on .gitignore patterns
-function shouldIgnorePath(filePath, ignorePatterns, rootDir) {
-  // Normalize the path relative to the root directory
-  const normalizedPath = path.relative(rootDir, filePath);
-  // Ensure consistent path separators (use forward slashes for matching)
-  const standardPath = normalizedPath.replace(/\\/g, '/');
-  
-  for (const pattern of ignorePatterns) {
-    // Handle exact matches
-    if (standardPath === pattern || standardPath === pattern.replace(/\/$/, '')) {
-      return true;
-    }
-    
-    // Handle directory wildcards (e.g., dir/**)
-    if (pattern.endsWith('/**') && standardPath.startsWith(pattern.slice(0, -2))) {
-      return true;
-    }
-    
-    // Handle file wildcards (e.g., *.log)
-    if (pattern.startsWith('*.') && standardPath.endsWith(pattern.slice(1))) {
-      return true;
-    }
-    
-    // Handle simple directory patterns (e.g., node_modules/)
-    if (pattern.endsWith('/') && standardPath.startsWith(pattern)) {
-      return true;
-    }
-    
-    // Handle direct file matches
-    if (standardPath === pattern) {
-      return true;
-    }
+// Check if a file should be indexed based on extension
+function shouldIndexFile(filePath, allowedExtensions) {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  if (!ext || !allowedExtensions.includes(ext)) {
+    return false;
   }
   
-  return false;
+  // Additional filtering for known non-code files even with allowed extensions
+  const filename = path.basename(filePath).toLowerCase();
+  const excludedFiles = [
+    '.min.js', '.bundle.js', '.pack.js', // Minified/bundled JS
+    '.d.ts', '.d.tsx', // TypeScript definitions
+    '.map', '.css.map', '.js.map', // Source maps
+    'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', // Package files
+    'tsconfig.json', 'jsconfig.json', // Config files
+    '.eslintrc.json', '.prettierrc.json', // Linter configs
+    'license', 'readme.md', 'changelog.md', // Documentation
+    'dockerfile', 'docker-compose.yml' // Docker files
+  ];
+  
+  return !excludedFiles.some(excluded => filename.includes(excluded));
 }
 
 // Initialize the in-memory index and embedding model
@@ -371,64 +366,44 @@ export async function initialize(indexDir = INDEX_DIR) {
   }
 }
 
-// Gather files for indexing
-export async function gatherFiles(dir, exts = DEFAULT_EXTS, ignores = DEFAULT_IGNORES) {
+// Gather files for indexing with robust .gitignore support
+export async function gatherFiles(dir, exts = DEFAULT_EXTS, ignores = DEFAULT_IGNORES, ignoreFilter = null) {
   const results = [];
   
   try {
-    // Parse .gitignore in the root directory
-    const gitignorePatterns = parseGitignore(dir);
-    const allIgnores = [...ignores, ...gitignorePatterns];
+    // Create robust ignore filter if not provided
+    if (!ignoreFilter) {
+      ignoreFilter = createIgnoreFilter(dir);
+    }
     
     const entries = await fs.readdir(dir, { withFileTypes: true });
     
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
+      const relativePath = path.relative(dir, full);
       
-      // Enhanced ignore checking - works for all subfolders
-      const isIgnoredByName = ignores.some(p => entry.name === p || entry.name.startsWith(p));
-      
-      // Check if this path contains any ignored directory at any level
-      const pathParts = full.split(path.sep);
-      const isIgnoredByPath = ignores.some(ignoredDir => {
-        return pathParts.some(pathPart => 
-          pathPart === ignoredDir || 
-          pathPart.startsWith(ignoredDir + '.') || 
-          pathPart.startsWith('.' + ignoredDir)
-        );
-      });
-      
-      const isIgnoredByGitignore = shouldIgnorePath(full, gitignorePatterns, dir);
-      
-      // Skip debug logging in production
-      
-      if (isIgnoredByName || isIgnoredByPath || isIgnoredByGitignore) {
+      // Check if file/directory should be ignored using the ignore library
+      if (ignoreFilter.ignores(relativePath)) {
         continue;
       }
       
       if (entry.isDirectory()) {
-        // Pass all ignore patterns to subdirectory search
-        const subDirFiles = await gatherFiles(full, exts, ignores);
+        // Recursively gather files from subdirectories, passing the same ignore filter
+        const subDirFiles = await gatherFiles(full, exts, ignores, ignoreFilter);
         results.push(...subDirFiles);
-      } else if (exts.includes(path.extname(entry.name).slice(1))) {
-        // Check file size - skip files larger than 100KB
-        const stat = await fs.stat(full);
-        if (stat.size > 100 * 1024) { // 100KB limit
+      } else {
+        // Check if this file should be indexed based on extension and content type
+        if (!shouldIndexFile(full, exts)) {
           continue;
         }
         
-        // Only skip obvious build artifacts and system files - keep all source code
-        const fileName = entry.name.toLowerCase();
-        const shouldSkipFile = 
-          fileName.includes('.min.') ||             // minified files
-          fileName.includes('.bundle.') ||          // webpack bundles
-          fileName.endsWith('.d.ts') ||             // TypeScript definitions (generated)
-          fileName.startsWith('._') ||              // system files
-          fileName.endsWith('.map');                // source maps
-          
-        if (!shouldSkipFile) {
-          results.push(full);
+        // Check file size - skip files larger than 200KB (increased for larger code files)
+        const stat = await fs.stat(full);
+        if (stat.size > 200 * 1024) { // 200KB limit
+          continue;
         }
+        
+        results.push(full);
       }
     }
   } catch (error) {
