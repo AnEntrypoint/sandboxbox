@@ -413,43 +413,6 @@
       ]
     }
   },
-  "git_intelligence": {
-    "name": "git_intelligence",
-    "description": "Git operations: blame, history, diff, branch analysis. Smart git workflow integration with insights.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "workingDirectory": {
-          "type": "string",
-          "description": "Git repository root"
-        },
-        "operation": {
-          "type": "string",
-          "enum": [
-            "blame",
-            "history",
-            "diff",
-            "branches",
-            "status",
-            "insights"
-          ],
-          "description": "Git operation"
-        },
-        "path": {
-          "type": "string",
-          "description": "File/directory path for operation"
-        },
-        "limit": {
-          "type": "number",
-          "description": "Limit results (default: 20)"
-        }
-      },
-      "required": [
-        "workingDirectory",
-        "operation"
-      ]
-    }
-  },
   "file_navigator": {
     "name": "file_navigator",
     "description": "Smart file system navigation with tree view, relationships, and intelligent filtering.",

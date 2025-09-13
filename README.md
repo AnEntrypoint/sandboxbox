@@ -29,9 +29,6 @@
 #### **`project_analyze`** - Complete Project Intelligence
 Analyze entire project structure, dependencies, architecture patterns. Returns comprehensive JSON with metrics, issues, and actionable suggestions.
 
-#### **`git_intelligence`** - Smart Git Operations  
-Advanced git workflow integration: blame, history, diff, branch analysis with intelligent insights.
-
 #### **`file_navigator`** - Intelligent File System Navigation
 Smart navigation with tree view, file relationships, and intelligent filtering capabilities.
 
@@ -106,13 +103,6 @@ project_analyze({
 ### Smart Git Workflow
 ```javascript  
 // Get intelligent git insights
-git_intelligence({
-  workingDirectory: "/path/to/repo",
-  operation: "insights",
-  limit: 50
-})
-```
-
 ### Performance Profiling
 ```javascript
 // Profile function performance
