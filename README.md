@@ -4,17 +4,10 @@
 
 ## 🎯 What's New in v2.12.0
 
-### 🏆 Revolutionary Features
+### Features
 - **Forceful Tool Descriptions**: Behavioral language that compels tool usage instead of creating test files
-- **WFGY Framework**: What For, Get, Yield methodology for optimal insight generation
 - **60-80% Turn Reduction**: Coordinated workflows minimize conversation complexity
 - **Surgical Precision**: AST pattern matching with meta-variables and structured analysis
-
-### 🚀 Key Improvements
-- **Enhanced Batch Executor**: Turn reduction metrics and efficiency scoring
-- **Behavioral Optimization**: Focus on agent behavior rather than computational performance
-- **AST Syntax Examples**: Concise patterns included in tool descriptions
-- **Mandatory Usage Language**: Forces agents to use MCP tools instead of built-in capabilities
 
 ## 🛠️ Available MCP Tools
 
@@ -161,57 +154,8 @@ Add to your VSCode MCP configuration:
     "inputs": []
 }
 ```
-
-## 🎯 Agent Guidelines
-
-**MANDATORY**: Agents MUST use MCP tools instead of creating test files:
-
-1. **NEVER** create test files when MCP tools are available
-2. **ALWAYS** use `batch_execute` for multi-tool workflows
-3. **ALWAYS** use `sequentialthinking` to document process
-4. **ALWAYS** validate with appropriate tools before execution
-5. **ALWAYS** use WFGY framework for structured approach
-
-## 📋 AST Pattern Examples
-
-### Function Matching
-```javascript
-'function $NAME($$$ARGS) { $$$ }'
-```
-
-### Variable Assignment
-```javascript
-'const $VAR = $VALUE'
-```
-
-### Conditional Statements
-```javascript
-'if ($COND) { $$$ }'
-```
-
-### Meta-variables
-- `$NAME` - Single identifier
-- `$$$ARGS` - Multiple arguments
-- `$$$` - Any content
-
-## 🔧 Configuration
-
-The server is self-configuring with sensible defaults:
-- **Working Directory**: Respects `.gitignore` patterns
-- **Language Support**: Auto-detects programming languages
-- **Tool Categories**: Organized by functionality
-- **Error Handling**: Comprehensive validation and recovery
-
 ## 📈 Metrics
 
-### Token Efficiency
-- **Input**: 404 tokens (98% improvement from 20,365)
-- **Load Time**: <1ms (exceeds 50ms industry target)
-- **Memory Usage**: 4.46MB (exceeds 100MB target)
-
-### Tool Performance
-- **Parallel Processing**: 104ms (exceeds 200ms target)
-- **Success Rate**: 100% on validated operations
 - **Turn Reduction**: 60-80% improvement in conversation efficiency
 
 ## 🏆 Architecture
@@ -221,19 +165,6 @@ The server is self-configuring with sensible defaults:
 - **Smart Search Engine**: AI-powered semantic discovery with 241x performance improvement
 - **AST Analysis**: Structural code search and transformation using tree-sitter patterns
 - **Batch Executor**: Coordinated workflow execution with turn reduction metrics
-
-### Design Principles
-- **Convention over Configuration**: Self-configuring with sensible defaults
-- **Configuration over Code**: Parameterized behavior, no hardcoded values
-- **Environment-aware**: Respects project structure and patterns
-- **Error Prevention**: Validation-first approach eliminates rework
-
-## 🛡️ Security
-
-- **Working Directory Validation**: Prevents path traversal
-- **Controlled Execution**: Secure child process handling with timeouts
-- **Resource Management**: Proper cleanup and error boundaries
-- **Pattern Safety**: Secure AST pattern matching and transformation
 
 ## 📝 License
 
