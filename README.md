@@ -69,12 +69,6 @@ Optimize database queries using MCP REPL:
 
 Based on comprehensive testing comparing Claude Code with and without MCP REPL tools:
 
-### Key Metrics
-- **Context Optimization**: 89% reduction in redundant text (3,240 → 360 characters)
-- **Token Efficiency**: 810 tokens saved per context window
-- **Tool Performance**: <1ms load time (exceeds 50ms industry target)
-- **Memory Usage**: 4.46MB (exceeds 100MB target)
-
 ### Analysis Style Comparison
 - **With MCP REPL**: Concise, focused analysis with exact file paths and line numbers
 - **Standard Claude**: Comprehensive coverage with structured documentation and roadmaps
