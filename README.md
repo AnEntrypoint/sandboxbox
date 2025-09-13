@@ -32,9 +32,101 @@ Glootie is not a product - it's an in-house programming tool for an independent 
 
 ## Installation
 
+### Claude Code
 ```bash
-# Claude Code
 claude mcp add -s user repl "npx" "-y" "mcp-repl"
+```
+
+### Cursor
+Add to your Cursor `mcpServers.json` configuration:
+```json
+{
+  "mcpServers": {
+    "mcp-repl": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-repl"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": [
+        "executenodejs",
+        "executedeno",
+        "executebash",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "astgrep_analyze",
+        "astgrep_enhanced_search",
+        "astgrep_multi_pattern",
+        "astgrep_constraint_search",
+        "astgrep_project_init",
+        "astgrep_project_scan",
+        "astgrep_test",
+        "astgrep_validate_rules",
+        "astgrep_debug_rule",
+        "batch_execute",
+        "sequentialthinking"
+      ]
+    }
+  }
+}
+```
+
+### GitHub Copilot
+Add to your GitHub Copilot `mcpServers.json` configuration:
+```json
+{
+  "mcpServers": {
+    "repl": {
+      "command": "npx",
+      "args": ["-y", "@anentrypoint/mcp-repl"],
+      "env": {},
+      "type": "local",
+      "tools": [
+        "executenodejs",
+        "executedeno",
+        "executebash",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "astgrep_analyze",
+        "astgrep_enhanced_search",
+        "astgrep_multi_pattern",
+        "astgrep_constraint_search",
+        "astgrep_project_init",
+        "astgrep_project_scan",
+        "astgrep_test",
+        "astgrep_validate_rules",
+        "astgrep_debug_rule",
+        "batch_execute",
+        "sequentialthinking"
+      ]
+    }
+  }
+}
+```
+
+### VSCode
+Add to your VSCode MCP configuration:
+```json
+{
+    "servers": {
+        "repl": {
+            "command": "node",
+            "args": [
+                "c:/dev/mcp-repl/src/direct-executor-server.js"
+            ],
+            "env": {},
+            "type": "stdio"
+        }
+    },
+    "inputs": []
+}
 ```
 
 ## Dependencies
