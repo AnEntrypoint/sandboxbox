@@ -7,7 +7,7 @@ import { createSearchSchema, createAstSchema, createToolDefinition } from './too
 export const searchTools = [
   createToolDefinition(
     "searchcode",
-    "Semantic code search - USE FIRST",
+    "Semantic code search with AI embeddings",
     createSearchSchema()
   )
 ];
@@ -16,7 +16,7 @@ export const searchTools = [
 export const astTools = [
   createToolDefinition(
     "astgrep_search",
-    "AST pattern matching",
+    "Pattern-based structural code search",
     createAstSchema({
       context: {
         type: "number",
@@ -25,19 +25,19 @@ export const astTools = [
       strictness: {
         type: "string",
         enum: ["cst", "smart", "ast", "relaxed"],
-        description: "Strictness: 'smart' (recommended)"
+        description: "Matching strictness (default: smart)"
       },
       outputFormat: {
-        type: "string", 
+        type: "string",
         enum: ["compact", "pretty"],
-        description: "Format: 'compact' or 'pretty'"
+        description: "Output format"
       }
     })
   ),
 
   createToolDefinition(
     "astgrep_replace",
-    "AST code rewriting",
+    "Code transformation using AST patterns",
     createAstSchema({
       replacement: {
         type: "string",
@@ -55,8 +55,8 @@ export const astTools = [
   ),
 
   createToolDefinition(
-    "astgrep_lint", 
-    "YAML rule validation",
+    "astgrep_lint",
+    "Validate code using YAML rules",
     {
       type: "object",
       properties: {
@@ -90,7 +90,7 @@ export const astTools = [
 
   createToolDefinition(
     "astgrep_analyze",
-    "AST analysis/debugging",
+    "Debug and analyze AST patterns",
     createAstSchema({
       analysisType: {
         type: "string",
@@ -206,18 +206,18 @@ export const enhancedAstTools = [
 
   createToolDefinition(
     "astgrep_project_init",
-    "**PROJECT CONFIGURATION SETUP** - Initialize ast-grep configuration and rules for a project.",
+    "Initialize ast-grep project configuration and rules",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for project initialization operations."
+          description: "Required - working directory for project initialization"
         },
         projectType: {
           type: "string",
           enum: ["javascript", "typescript", "python", "rust", "go"],
-          description: "Project type for configuration generation (default: javascript)"
+          description: "Project type (default: javascript)"
         },
         createRules: {
           type: "boolean",
@@ -229,7 +229,7 @@ export const enhancedAstTools = [
             type: "string",
             enum: ["security", "performance", "style", "architecture"]
           },
-          description: "Rule categories to generate (default: [security, performance, style])"
+          description: "Rule categories (default: [security, performance, style])"
         },
         includeTests: {
           type: "boolean",
@@ -242,27 +242,27 @@ export const enhancedAstTools = [
 
   createToolDefinition(
     "astgrep_project_scan",
-    "**PROJECT-WIDE CODE SCANNING** - Comprehensive analysis of entire projects using ast-grep rules.",
+    "Comprehensive project-wide code analysis",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for project scanning operations."
+          description: "Required - working directory for project scanning"
         },
         scanType: {
           type: "string",
           enum: ["quick", "comprehensive", "security"],
-          description: "Type of scan to perform (default: comprehensive)"
+          description: "Scan type (default: comprehensive)"
         },
         outputFormat: {
           type: "string",
           enum: ["summary", "detailed", "json"],
-          description: "Output format preference (default: summary)"
+          description: "Output format (default: summary)"
         },
         includeMetrics: {
           type: "boolean",
-          description: "Include performance and coverage metrics (default: true)"
+          description: "Include performance metrics (default: true)"
         }
       },
       required: ["workingDirectory"]
@@ -271,13 +271,13 @@ export const enhancedAstTools = [
 
   createToolDefinition(
     "astgrep_test",
-    "**RULE TESTING AND VALIDATION** - Test ast-grep rules against code examples to ensure correctness.",
+    "Test ast-grep rules against code examples",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for rule testing operations."
+          description: "Required - working directory for rule testing"
         },
         rules: {
           type: "string",
@@ -309,7 +309,7 @@ export const enhancedAstTools = [
         outputFormat: {
           type: "string",
           enum: ["detailed", "summary", "json"],
-          description: "Output format for test results (default: detailed)"
+          description: "Output format (default: detailed)"
         }
       },
       required: ["workingDirectory"]
@@ -318,13 +318,13 @@ export const enhancedAstTools = [
 
   createToolDefinition(
     "astgrep_validate_rules",
-    "**RULE VALIDATION ENGINE** - Comprehensive validation of ast-grep rules for syntax, logic, and performance.",
+    "Validate ast-grep rules for syntax, logic, and performance",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for rule validation operations."
+          description: "Required - working directory for rule validation"
         },
         rules: {
           type: "string",
@@ -353,13 +353,13 @@ export const enhancedAstTools = [
 
   createToolDefinition(
     "astgrep_debug_rule",
-    "**RULE DEBUGGING TOOLKIT** - Debug and analyze specific ast-grep rules with detailed output.",
+    "Debug and analyze specific ast-grep rules",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for rule debugging operations."
+          description: "Required - working directory for rule debugging"
         },
         ruleId: {
           type: "string",
@@ -375,7 +375,7 @@ export const enhancedAstTools = [
         },
         language: {
           type: "string",
-          description: "Programming language for the test code (default: javascript)"
+          description: "Programming language for test code (default: javascript)"
         },
         verboseOutput: {
           type: "boolean",
@@ -391,9 +391,9 @@ export const enhancedAstTools = [
 export const batchTools = [
   createToolDefinition(
     "batch_execute",
-    "**COMPREHENSIVE BATCH OPERATIONS** - Execute multiple MCP tools in coordinated workflows.",
+    "Execute multiple MCP tools in coordinated workflows",
     {
-      type: "object", 
+      type: "object",
       properties: {
         operations: {
           type: "array",
@@ -409,7 +409,7 @@ export const batchTools = [
         },
         workingDirectory: {
           type: "string",
-          description: "**REQUIRED** - Working directory for all batch operations"
+          description: "Required - working directory for all batch operations"
         }
       },
       required: ["operations", "workingDirectory"]
@@ -421,7 +421,7 @@ export const batchTools = [
 export const thinkingTools = [
   createToolDefinition(
     "sequentialthinking",
-    "**SEQUENTIAL THINKING ENGINE** - Always use this tool, no exceptions. Process and store sequential thoughts with mandatory local data persistence.",
+    "Process and store sequential thoughts with persistent local storage",
     {
       type: "object",
       properties: {
@@ -436,11 +436,11 @@ export const thinkingTools = [
         },
         workingDirectory: {
           type: "string",
-          description: "Required: Working directory for storing thought data locally"
+          description: "Required - working directory for storing thought data locally"
         },
         parentId: {
           type: "string",
-          description: "Optional: Parent thought ID for creating thought chains"
+          description: "Optional - parent thought ID for creating thought chains"
         }
       },
       required: ["thoughts", "workingDirectory"]

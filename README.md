@@ -30,6 +30,81 @@ Glootie is not a product - it's an in-house programming tool for an independent 
 
 **Utilities**: `retrieve_overflow`, `batch_execute`, `sequentialthinking`
 
+## Example Agent Prompts
+
+These prompts demonstrate how agents can leverage MCP REPL's full capabilities:
+
+### Code Analysis & Refactoring
+```
+Use MCP REPL to:
+1. Search for all functions that handle user authentication in this codebase
+2. Analyze the current implementation patterns using semantic search
+3. Execute test cases to understand current behavior
+4. Propose and test refactored implementations
+5. Use batch execution to validate all changes work together
+```
+
+### Feature Development Workflow
+```
+Develop a new caching system using MCP REPL:
+1. Use searchcode to find existing caching patterns in the codebase
+2. Execute prototype implementations with executenodejs to test concepts
+3. Use astgrep_search to find integration points
+4. Implement and test the feature using batch execution
+5. Use sequentialthinking to track design decisions and trade-offs
+```
+
+### Performance Optimization
+```
+Optimize database queries using MCP REPL:
+1. Search for all database query functions with semantic search
+2. Execute performance benchmarks using executenodejs
+3. Use astgrep_analyze to understand query patterns
+4. Test optimized implementations
+5. Use batch_execute to run comparative performance tests
+6. Document improvements using sequentialthinking
+```
+
+### Code Quality & Security
+```
+Conduct a security audit using MCP REPL:
+1. Search for potential security vulnerabilities with semantic search
+2. Use astgrep_lint to validate against security rules
+3. Execute penetration test scripts
+4. Use batch_execute to run comprehensive security scans
+5. Generate remediation reports with structured findings
+```
+
+### Multi-Repository Analysis
+```
+Analyze architecture across multiple repositories:
+1. Use searchcode to understand component relationships
+2. Execute cross-repo dependency analysis
+3. Use sequentialthinking to track architectural decisions
+4. Generate integration documentation
+5. Test deployment scenarios across repos
+```
+
+### Learning & Documentation
+```
+Generate comprehensive code documentation:
+1. Use semantic search to find all public APIs
+2. Execute code to understand behavior and edge cases
+3. Use astgrep_analyze to extract function signatures and types
+4. Batch execute usage examples
+5. Structure findings into documentation using sequentialthinking
+```
+
+### Migration & Modernization
+```
+Modernize legacy code using MCP REPL:
+1. Search for legacy patterns and dependencies
+2. Execute compatibility tests
+3. Use astgrep_replace for safe transformations
+4. Batch test modernized implementations
+5. Track migration progress with sequentialthinking
+```
+
 ## Installation
 
 ### Claude Code
