@@ -1,37 +1,34 @@
-# MCP REPL - Code Editing Assistant
+# MCP Glootie - Agentic Coding Optimizer
 
-High-performance Model Context Protocol server for code execution and analysis.
+An MCP tool that improves the output and wall clock problem solving performance of your programming agent.
 
-## Performance Metrics
-- **Token Efficiency**: 375 tokens (98% reduction from 20,365)
-- **Tool Load Time**: <1ms
-- **Memory Usage**: 4.46MB
-- **Tools**: 15 optimized tools
+Glootie extrapolates on a senior developer's preferred workflows and diagnostic processes, making that functionality available to agents. The thinking is if 50% of a senior developer's coding effort is spent on this tool, then many best practices get captured in a way that other developers can pick up on and hopefully improve.
 
-## Tools
+## What Glootie DOES Do
 
-### Execution
-- `executenodejs` - JavaScript execution with Node.js
-- `executedeno` - TypeScript execution with Deno
-- `executebash` - Bash command execution
+**Execute code first before editing** - You won't believe the advantage you get from just this. It encourages agents to hypothesize and test code before editing files, grounding edits in truth. Execute in the repo with available libraries for Node, Deno, and Bash.
 
-### Search & Analysis
-- `searchcode` - AI semantic code search
-- `astgrep_search` - AST pattern matching
-- `astgrep_replace` - AST-based code transformation
-- `astgrep_lint` - YAML-based code validation
+**Semantic code searching** - Fast, compatible semantic search embedded in Glootie. No need for third-party code searches.
 
-### Project Intelligence
-- `project_analyze` - Project structure analysis
-- `file_navigator` - File system navigation
-- `dependency_analyzer` - Dependency analysis
-- `performance_profiler` - Performance profiling
-- `quality_analyzer` - Code quality analysis
+**Surgical code updates with AST-grep** - AST functionality is native to AI these days. Huge performance boost from access to it.
 
-### Utilities
-- `retrieve_overflow` - Access truncated outputs
-- `batch_execute` - Parallel tool execution
-- `sequentialthinking` - Sequential reasoning
+**Internal batch capabilities** - Trade multi-turn latency for bundling, drastically reducing turnaround speed where providers impose delays.
+
+**Built-in step by step reasoning** - Optimized for daily use and token reduction. Agents can assign reasoning processes to project folders, enabling intelligent cross-repo work.
+
+## What Glootie DOESN'T Do
+
+Glootie is not a product - it's an in-house programming tool for an independent developer. You can receive the same benefits without making the same tools, but there's no company and there's no service.
+
+## Tools (15 Total)
+
+**Execution**: `executenodejs`, `executedeno`, `executebash`
+
+**Search & Analysis**: `searchcode`, `astgrep_search`, `astgrep_replace`, `astgrep_lint`
+
+**Project Intelligence**: `project_analyze`, `file_navigator`, `dependency_analyzer`, `performance_profiler`, `quality_analyzer`
+
+**Utilities**: `retrieve_overflow`, `batch_execute`, `sequentialthinking`
 
 ## Installation
 
@@ -47,56 +44,9 @@ npm start
 npm run dev
 ```
 
-## Technical Features
 
-- Compressed tool descriptions (<500 chars each)
-- Parallel processing with Promise.allSettled()
-- Working directory validation
-- Controlled process execution with timeouts
-- .gitignore support with 40+ file extensions
-- Vector similarity + text matching
-- Line numbers and metadata in outputs
 
-## Usage Examples
 
-```javascript
-// Project analysis
-project_analyze({
-  workingDirectory: "/path/to/project",
-  depth: "deep",
-  focus: ["deps", "architecture"]
-})
-
-// Performance profiling
-performance_profiler({
-  workingDirectory: "/path/to/project",
-  target: "myFunction",
-  iterations: 1000
-})
-
-// Code quality
-quality_analyzer({
-  workingDirectory: "/path/to/project",
-  scope: "project"
-})
-```
-
-## Architecture
-
-- **Parallel Processing**: Promise.allSettled() for concurrency
-- **Caching**: Tool descriptions, search indices cached
-- **Memory Optimization**: Lazy loading, efficient data structures
-- **ESM Modules**: Full ES module support
-- **Security**: Input validation, path traversal prevention
-
-## Benchmarks
-
-| Metric | MCP REPL | Target | Status |
-|--------|----------|--------|---------|
-| Token Efficiency | 375 tokens | <1000 | ✅ EXCEEDS |
-| Load Time | <1ms | <50ms | ✅ EXCEEDS |
-| Memory | 4.46MB | <100MB | ✅ EXCEEDS |
-| Parallel Performance | 104ms | <200ms | ✅ EXCEEDS |
 
 ## Dependencies
 
@@ -107,21 +57,7 @@ quality_analyzer({
 
 **Requirements**: Node.js ≥16.0.0, 50MB+ memory, 100MB+ disk
 
-## What's New in v2.6.0
 
-- 98% token reduction (20,365 → 375)
-- Sub-millisecond loading
-- 9 redundant tools eliminated
-- 5 new project intelligence tools
-- Comprehensive language support (40+ extensions)
-- MCP best practices compliance
-
-## Documentation
-
-- Tool Reference: API docs for all 15 tools
-- Performance Guide: Benchmarking techniques
-- Integration Examples: Usage patterns
-- Architecture: Internal design decisions
 
 ## Contributing
 
@@ -136,4 +72,4 @@ MIT License
 
 ---
 
-MCP REPL - Efficient code editing assistant with 100/100 performance score.
+MCP Glootie - The most undervalued MCP tool. Let me know what you think of Glootie's performance.
