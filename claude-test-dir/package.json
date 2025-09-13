@@ -1,0 +1,43 @@
+{
+  "name": "claude-test-application",
+  "version": "1.0.0",
+  "description": "Complex Node.js application for Claude -p testing",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "redis": "^4.6.7",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "dotenv": "^16.3.1",
+    "joi": "^17.9.2",
+    "winston": "^3.10.0",
+    "axios": "^1.5.0",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "jest": "^29.6.2",
+    "nodemon": "^3.0.1",
+    "eslint": "^8.47.0",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "mongodb",
+    "redis",
+    "testing",
+    "claude"
+  ]
+}

@@ -1,0 +1,24 @@
+I need you to perform a comprehensive security audit and performance analysis of this Node.js application using MCP REPL tools.
+
+Tasks:
+1. **Security Analysis**: Use searchcode and AST tools to find security vulnerabilities including authentication issues, input validation problems, and potential injection attacks
+2. **Performance Optimization**: Use MCP tools to identify performance bottlenecks, inefficient database queries, and memory leaks
+3. **Code Quality Assessment**: Use AST analysis tools to identify code quality issues, architectural problems, and best practices violations
+4. **Error Handling Review**: Use code search to analyze error handling patterns and suggest improvements
+5. **Scalability Assessment**: Use project analysis tools to evaluate the application's scalability and suggest improvements
+
+The application is in the current directory. Please use MCP REPL tools for:
+- Semantic code search with searchcode
+- AST pattern matching with astgrep_search
+- Code analysis with astgrep_analyze
+- Performance profiling and benchmarking
+- Project-wide analysis and validation
+
+Provide:
+- Specific vulnerabilities found with file paths and line numbers
+- Performance bottlenecks with optimization recommendations
+- Code quality issues with before/after examples
+- Security remediation strategies
+- Architectural improvement suggestions
+
+Focus on actionable recommendations and use MCP tools to validate your findings.
