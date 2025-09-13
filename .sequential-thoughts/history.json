@@ -4,7 +4,17 @@
       "action": "create",
       "thoughtId": "thought_1",
       "timestamp": "2025-09-13T09:35:54.762Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_2",
+      "timestamp": "2025-09-13T09:38:55.242Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_3",
+      "timestamp": "2025-09-13T10:00:39.931Z"
     }
   ],
-  "totalThoughts": 1
+  "totalThoughts": 3
 }
