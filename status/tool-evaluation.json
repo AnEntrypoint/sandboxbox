@@ -1,0 +1,57 @@
+{
+  "timestamp": "2025-09-13T09:06:21.247Z",
+  "workspace": {
+    "totalFiles": 35,
+    "totalLines": 7815,
+    "averageLinesPerFile": 223
+  },
+  "tools": {
+    "total": 19,
+    "categories": {
+      "execution": 3,
+      "astgrep": 12,
+      "search": 1,
+      "other": 3
+    }
+  },
+  "tokenEfficiency": {
+    "totalDescriptionTokens": 20365,
+    "averagePerTool": 1072,
+    "efficiency": "poor"
+  },
+  "outputQuality": {
+    "hasLineNumbers": true,
+    "hasScores": true,
+    "hasContext": true,
+    "hasStructure": true,
+    "maxOutputSize": "25k tokens with overflow handling",
+    "formatting": "JSON with structured metadata"
+  },
+  "criticalIssues": [
+    "CRITICAL: Tool descriptions use 20365 tokens - too verbose for context injection",
+    "CRITICAL: AST-grep tools require external CLI installation - not self-contained",
+    "CRITICAL: Too many AST-grep tools (12) - consolidation needed",
+    "CRITICAL: Missing essential code editing features: File system navigation/tree view, Git integration (blame, history, diff), Project analysis (dependencies, package.json), Performance profiling/benchmarking, Code quality metrics, Error analysis and debugging helpers"
+  ],
+  "recommendations": [
+    "CRITICAL: Tool descriptions use 20365 tokens - too verbose for context injection",
+    "CRITICAL: AST-grep tools require external CLI installation - not self-contained",
+    "CRITICAL: Too many AST-grep tools (12) - consolidation needed",
+    "CRITICAL: Missing essential code editing features: File system navigation/tree view, Git integration (blame, history, diff), Project analysis (dependencies, package.json), Performance profiling/benchmarking, Code quality metrics, Error analysis and debugging helpers",
+    "Compress tool descriptions to <500 chars each (currently averaging 4200+ chars)",
+    "Consolidate AST-grep tools into 3-4 core tools maximum",
+    "Add parallel processing with Promise.allSettled() for batch operations",
+    "Implement tool output caching for repeated queries",
+    "Add performance profiling for all tool operations",
+    "Optimize semantic search indexing with lazy loading",
+    "ADD: Smart project analyzer - understand entire codebase architecture",
+    "ADD: AI-powered refactoring suggestions based on patterns",
+    "ADD: Real-time code quality scoring with actionable insights",
+    "ADD: Dependency graph visualization and optimization",
+    "ADD: Automated test generation for discovered code patterns",
+    "ADD: Security vulnerability scanner with fix suggestions",
+    "ADD: Performance bottleneck detector with optimization hints",
+    "ADD: Code evolution tracker - track changes over time"
+  ],
+  "status": "NEEDS_MAJOR_OPTIMIZATION"
+}
