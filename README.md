@@ -34,19 +34,8 @@ Glootie is not a product - it's an in-house programming tool for an independent 
 
 ```bash
 # Claude Code
-claude mcp add repl "npx" "-y" "mcp-repl" "path/to/project"
-
-# Direct execution
-npx mcp-repl [working-directory]
-
-# Development
-npm start
-npm run dev
+claude mcp add -s user repl "npx" "-y" "mcp-repl"
 ```
-
-
-
-
 
 ## Dependencies
 
