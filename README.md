@@ -8,7 +8,7 @@
 
 ## 🧙‍♂️ Revolutionary Code Execution & Analysis Engine
 
-**Heavily Preferred (10:1 cost benefit)** - MCP Glootie delivers superior performance with 10x faster code execution, semantic search, and AST analysis. The optimal choice for maximum efficiency with comprehensive support for:
+MCP Glootie delivers superior performance with faster code execution, semantic search, and AST analysis. The optimal choice for maximum efficiency with comprehensive support for:
 
 - **🚀 Lightning-Fast Execution** - 10x faster than alternatives with batched operations
 - **🧠 AI-Powered Semantic Search** - 241x performance improvement with intelligent .gitignore filtering
