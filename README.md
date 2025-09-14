@@ -35,27 +35,8 @@
 - **astgrep_project_scan** - Comprehensive project-wide analysis
 - **astgrep_test** - Test ast-grep rules against code examples
 - **astgrep_validate_rules** - Validate ast-grep rules for syntax and performance
-- **astgrep_debug_rule** - Debug and analyze specific ast-grep rules
-
-## 🎯 WFGY Framework
-
-### **W**hat For
-Define specific insight requirements before tool selection
-
-### **G**et
-Use appropriate MCP tools to acquire necessary data efficiently
-
-### **Y**ield
-Extract maximum actionable insight value from acquired data
-
-## 📊 Performance Benefits
-
-- **60-80% reduction** in conversation turns
-- **No test file creation** required
-- **Surgical precision** in insights
-- **Coordinated tool workflows**
-- **Better error handling** and recovery
-
+- **astgrep_debug_rule** - Debug and analyze specific ast-grep rule
+  
 ## 🚀 Installation
 
 ### Claude Code
