@@ -1,0 +1,35 @@
+{
+  "history": [
+    {
+      "action": "create",
+      "thoughtId": "thought_1",
+      "timestamp": "2025-09-14T13:38:04.345Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_2",
+      "timestamp": "2025-09-14T13:38:04.347Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_3",
+      "timestamp": "2025-09-14T13:38:04.347Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_4",
+      "timestamp": "2025-09-14T13:38:37.210Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_5",
+      "timestamp": "2025-09-14T13:38:37.211Z"
+    },
+    {
+      "action": "create",
+      "thoughtId": "thought_6",
+      "timestamp": "2025-09-14T13:38:37.211Z"
+    }
+  ],
+  "totalThoughts": 6
+}
