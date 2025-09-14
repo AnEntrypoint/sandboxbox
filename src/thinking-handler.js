@@ -1,5 +1,5 @@
 // MCP handler for sequential thinking tool - KISS principle under 110 lines
-import { SequentialThinking } from './sequential-thinking.js';
+import { SequentialThinkingEngine } from './sequential-thinking-engine.js';
 import { validateWorkingDirectory } from './validation-utils.js';
 
 export const handleSequentialThinking = async (args, serverWorkingDir) => {
@@ -27,8 +27,8 @@ export const handleSequentialThinking = async (args, serverWorkingDir) => {
     
     if (!thoughts) throw new Error('Thoughts parameter is required');
     
-    const thinkingEngine = new SequentialThinking(dirValidation.effectiveDir);
-    const result = thinkingEngine.processThoughts(thoughts, parentId);
+    const thinkingEngine = new SequentialThinkingEngine(dirValidation.effectiveDir);
+    const result = await thinkingEngine.processThoughts(thoughts, parentId, args.taskContext || {});
     const totalExecutionTime = Date.now() - startTime;
     
     const outputLines = [];
@@ -48,6 +48,7 @@ export const handleSequentialThinking = async (args, serverWorkingDir) => {
         `   Length: ${thought.metadata.contentLength} characters`
       ];
       if (thought.parentId) summary.push(`   Parent: ${thought.parentId}`);
+      if (result.optimizationsApplied) summary.push(`   Optimized: Yes`);
       outputLines.push({ type: 'text', text: summary.join('\n') });
     });
     
