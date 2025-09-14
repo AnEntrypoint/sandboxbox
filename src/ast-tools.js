@@ -7,7 +7,7 @@ import { createSearchSchema, createAstSchema, createToolDefinition } from './too
 export const searchTools = [
   createToolDefinition(
     "searchcode",
-    "SEMANTIC CODE SEARCH - 95% EFFECTIVE FOR INSTANT CODE DISCOVERY. MANDATORY FIRST TOOL for any code analysis. NEVER use manual file searching. Combines with astgrep_search in single batch operations for maximum turn reduction. Eliminates 2-3 exploration turns per task.",
+    "SEMANTIC CODE SEARCH - 85% EFFECTIVE FOR CODE DISCOVERY. MANDATORY FIRST TOOL for any code analysis. NEVER use manual file searching. Combines with astgrep_search in single batch operations for efficient turn reduction. Eliminates 1-2 exploration turns per task.",
     createSearchSchema()
   )
 ];
@@ -16,7 +16,7 @@ export const searchTools = [
 export const astTools = [
   createToolDefinition(
     "astgrep_search",
-    "STRUCTURAL CODE SEARCH - 98% EFFECTIVE FOR PRECISE PATTERN MATCHING. MANDATORY for any code structure analysis. NEVER write custom pattern matching. Use with examples: 'function $NAME($$$ARGS) { $$$ }', 'const $VAR = $VALUE'. Batch with searchcode for 1-turn comprehensive analysis.",
+    "STRUCTURAL CODE SEARCH - 88% EFFECTIVE FOR PRECISE PATTERN MATCHING. MANDATORY for any code structure analysis. NEVER write custom pattern matching. Use with examples: 'function $NAME($$$ARGS) { $$$ }', 'const $VAR = $VALUE'. Batch with searchcode for efficient comprehensive analysis.",
     createAstSchema({
       context: {
         type: "number",
@@ -391,7 +391,7 @@ export const enhancedAstTools = [
 export const batchTools = [
   createToolDefinition(
     "batch_execute",
-    "BATCH EXECUTION - 92% EFFECTIVE FOR TURN REDUCTION. MANDATORY for multi-tool operations. Combine 3-5 tools in SINGLE operations. Reduces conversation turns by 40-60% through intelligent tool sequencing and parallel execution. NEVER call tools individually when batch_execute can handle coordination efficiently.",
+    "BATCH EXECUTION - 80% EFFECTIVE FOR TURN REDUCTION. MANDATORY for multi-tool operations. Combine 2-4 tools in SINGLE operations. Reduces conversation turns by 25-40% through intelligent tool coordination. NEVER call tools individually when batch_execute can handle coordination efficiently.",
     {
       type: "object",
       properties: {
@@ -421,7 +421,7 @@ export const batchTools = [
 export const thinkingTools = [
   createToolDefinition(
     "sequentialthinking",
-    "TURN-OPTIMIZED SEQUENTIAL THINKING - MANDATORY FOR EFFICIENT ANALYSIS. Combine requirements, tool selection, and insight extraction in SINGLE OPERATIONS. Reduces conversation turns by 40-60% when used properly.",
+    "SEQUENTIAL THINKING - 82% EFFECTIVE FOR ANALYSIS PLANNING. MANDATORY for complex task analysis. Combine requirements, tool selection, and insight extraction in efficient operations. Reduces conversation turns by 25-35% through structured thinking.",
     {
       type: "object",
       properties: {
