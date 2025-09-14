@@ -421,7 +421,7 @@ export const batchTools = [
 export const thinkingTools = [
   createToolDefinition(
     "sequentialthinking",
-    "TURN-OPTIMIZED SEQUENTIAL THINKING - MANDATORY FOR EFFICIENT ANALYSIS. Combine requirements, tool selection, and insight extraction in SINGLE OPERATIONS. Reduces conversation turns by 40-60% when used properly. WFGY framework: What For + Get + Yield in minimal turns.",
+    "TURN-OPTIMIZED SEQUENTIAL THINKING - MANDATORY FOR EFFICIENT ANALYSIS. Combine requirements, tool selection, and insight extraction in SINGLE OPERATIONS. Reduces conversation turns by 40-60% when used properly.",
     {
       type: "object",
       properties: {

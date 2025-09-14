@@ -157,4 +157,4 @@ Contributions welcome! Please ensure all changes maintain the behavioral perform
 
 ---
 
-**v2.12.0**: Revolutionary behavioral optimization with forceful tool descriptions and WFGY framework for surgical insights.
+**v2.12.0**: Revolutionary behavioral optimization with forceful tool descriptions and sequential framework for surgical insights.
