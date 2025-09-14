@@ -41,7 +41,7 @@
 
 ### Claude Code
 ```bash
-claude mcp add -s user repl "npx" "-y" "mcp-repl"
+claude mcp add -s user glootie "npx" "-y" "mcp-glootie"
 ```
 
 ### Cursor
@@ -49,10 +49,10 @@ Add to your Cursor `mcpServers.json` configuration:
 ```json
 {
   "mcpServers": {
-    "mcp-repl": {
+    "glootie": {
       "command": "npx",
       "args": [
-        "-y", "mcp-repl"
+        "-y", "mcp-glootie"
       ],
       "env": {},
       "disabled": false,
@@ -87,9 +87,9 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
 ```json
 {
   "mcpServers": {
-    "repl": {
+    "glootie": {
       "command": "npx",
-      "args": ["-y", "@anentrypoint/mcp-repl"],
+      "args": ["-y", "@anentrypoint/mcp-glootie"],
       "env": {},
       "type": "local",
       "tools": [
@@ -123,10 +123,11 @@ Add to your VSCode MCP configuration:
 ```json
 {
     "servers": {
-        "repl": {
-            "command": "node",
+        "glootie": {
+            "command": "npx",
             "args": [
-                "c:/dev/mcp-repl/src/direct-executor-server.js"
+                "-y",
+                "mcp-glootie"
             ],
             "env": {},
             "type": "stdio"
