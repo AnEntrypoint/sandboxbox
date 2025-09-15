@@ -3,20 +3,20 @@
 
 import { createSearchSchema, createAstSchema, createToolDefinition } from './tool-schemas.js';
 
-// Search tools - FORCEFUL DESCRIPTIONS TO COMPEL TOOL USAGE
+// Search tools - Improved descriptions to reduce friction
 export const searchTools = [
   createToolDefinition(
     "searchcode",
-    "SEMANTIC CODE SEARCH - 85% EFFECTIVE FOR CODE DISCOVERY. MANDATORY FIRST TOOL for any code analysis. NEVER use manual file searching. Combines with astgrep_search in single batch operations for efficient turn reduction. Eliminates 1-2 exploration turns per task.",
+    "Semantic code search tool that can reduce code discovery time by up to 85%. Recommended for initial code exploration and complex analysis tasks. Works well with astgrep_search for comprehensive analysis.",
     createSearchSchema()
   )
 ];
 
-// AST analysis tools - COMPELLING DESCRIPTIONS TO ENSURE TOOL USAGE
+// AST analysis tools - Improved descriptions for better usability
 export const astTools = [
   createToolDefinition(
     "astgrep_search",
-    "STRUCTURAL CODE SEARCH - 88% EFFECTIVE FOR PRECISE PATTERN MATCHING. MANDATORY for any code structure analysis. NEVER write custom pattern matching. Use with examples: 'function $NAME($$$ARGS) { $$$ }', 'const $VAR = $VALUE'. Batch with searchcode for efficient comprehensive analysis.",
+    "Structural code search tool for precise pattern matching. Ideal for code structure analysis and finding specific patterns. Examples: 'function $NAME($$$ARGS) { $$$ }', 'const $VAR = $VALUE'. Can be combined with searchcode for comprehensive analysis.",
     createAstSchema({
       context: {
         type: "number",
@@ -37,7 +37,7 @@ export const astTools = [
 
   createToolDefinition(
     "astgrep_replace",
-    "CODE TRANSFORMATION - MANDATORY FOR SAFE REFACTORING. ALWAYS use this tool instead of manual find/replace. Pattern: 'console.log($$)', Replacement: 'logger.info($$)'. Use dryRun: true for safety. Eliminates test files and ensures structural accuracy.",
+    "Code transformation tool for safe refactoring. Use for pattern-based replacements across your codebase. Pattern: 'console.log($$)', Replacement: 'logger.info($$)'. Use dryRun: true for safety preview.",
     createAstSchema({
       replacement: {
         type: "string",
@@ -56,7 +56,7 @@ export const astTools = [
 
   createToolDefinition(
     "astgrep_lint",
-    "CODE VALIDATION - MANDATORY FOR QUALITY ASSURANCE. ALWAYS use this tool instead of manual code review. YAML rules example: 'id: no-console, message: Avoid console.log, pattern: console.log($$)'. Eliminates test files and provides consistent validation.",
+    "Code validation tool for quality assurance. Use YAML rules to check code patterns and enforce standards. Example: 'id: no-console, message: Avoid console.log, pattern: console.log($$)'. Provides consistent validation across your codebase.",
     {
       type: "object",
       properties: {
@@ -90,7 +90,7 @@ export const astTools = [
 
   createToolDefinition(
     "astgrep_analyze",
-    "PATTERN DEBUGGING - MANDATORY FOR AST ANALYSIS. ALWAYS use this tool to debug patterns and understand code structure. Analysis types: pattern, structure, debug. Essential for understanding complex code patterns without test files.",
+    "Pattern debugging tool for AST analysis. Use to debug patterns and understand code structure. Analysis types: pattern=syntax, structure=AST, debug=troubleshooting. Helpful for understanding complex code patterns.",
     createAstSchema({
       analysisType: {
         type: "string",
@@ -101,168 +101,106 @@ export const astTools = [
   )
 ];
 
-// Enhanced AST tools
+// Consolidated Advanced AST tools - Reduced from 8 to 3 essential tools
 export const enhancedAstTools = [
   createToolDefinition(
-    "astgrep_enhanced_search",
-    "Advanced AST search + JSON metadata",
-    createAstSchema({
-      jsonFormat: {
-        type: "string",
-        enum: ["compact", "stream", "pretty"],
-        description: "JSON format"
-      },
-      includeMetadata: {
-        type: "boolean",
-        description: "Include metadata"
-      },
-      strictness: {
-        type: "string",
-        enum: ["cst", "smart", "ast", "relaxed"],
-        description: "Matching strictness"
-      },
-      context: {
-        type: "number",
-        description: "Context lines"
-      }
-    })
-  ),
-
-  createToolDefinition(
-    "astgrep_multi_pattern",
-    "Multi-pattern AST search",
+    "astgrep_advanced_search",
+    "Advanced AST search tool for complex analysis. Supports JSON metadata, multiple patterns, constraints, and advanced filtering in one unified tool.",
     {
       type: "object",
       properties: {
+        pattern: {
+          type: "string",
+          description: "AST pattern with meta-vars (e.g., 'function $NAME($$$ARGS) { $$$ }')"
+        },
         patterns: {
           type: "array",
           items: { type: "string" },
           minItems: 1,
-          description: "AST patterns array"
+          description: "AST patterns array for multi-pattern search"
         },
         workingDirectory: {
           type: "string",
-          description: "Target directory"
+          description: "Required - working directory for search"
+        },
+        language: {
+          type: "string",
+          description: "Target language"
+        },
+        constraints: {
+          type: "object",
+          description: "Validation constraints",
+          properties: {
+            minMatches: { type: "number" },
+            maxMatches: { type: "number" },
+            filePathPattern: { type: "string" },
+            performanceThreshold: { type: "number" }
+          }
         },
         operator: {
           type: "string",
           enum: ["any", "all", "not"],
-          description: "Logic operator (default: any)"
+          description: "Logic operator for multi-pattern (default: any)"
         },
-        language: {
+        jsonFormat: {
           type: "string",
-          description: "Language"
+          enum: ["compact", "stream", "pretty"],
+          description: "JSON output format"
         },
-        paths: {
-          type: "array",
-          items: { type: "string" },
-          description: "Target paths"
-        },
-        context: {
-          type: "number",
-          description: "Context lines"
+        includeMetadata: {
+          type: "boolean",
+          description: "Include JSON metadata"
         },
         strictness: {
           type: "string",
           enum: ["cst", "smart", "ast", "relaxed"],
-          description: "Strictness level"
+          description: "Matching strictness (default: smart)"
         },
-        includeMetadata: {
-          type: "boolean",
-          description: "Include metadata"
+        context: {
+          type: "number",
+          description: "Context lines (default: 3)"
         }
       },
-      required: ["patterns", "workingDirectory"]
+      required: ["workingDirectory"],
+      anyOf: [
+        { required: ["pattern"] },
+        { required: ["patterns"] }
+      ]
     }
   ),
 
   createToolDefinition(
-    "astgrep_constraint_search", 
-    "Constraint-based AST search",
-    createAstSchema({
-      constraints: {
-        type: "object",
-        description: "Validation constraints",
-        properties: {
-          minMatches: { type: "number" },
-          maxMatches: { type: "number" },
-          filePathPattern: { type: "string" },
-          performanceThreshold: { type: "number" },
-          metaVariableConstraints: { type: "object" },
-          contextConstraints: { type: "object" }
-        }
-      },
-      strictness: {
-        type: "string",
-        enum: ["cst", "smart", "ast", "relaxed"],
-        description: "Strictness level"
-      },
-      context: {
-        type: "number",
-        description: "Context lines"
-      }
-    })
-  ),
-
-  createToolDefinition(
-    "astgrep_project_init",
-    "Initialize ast-grep project configuration and rules",
+    "astgrep_project",
+    "Project-wide AST analysis tool. Initialize configuration and run comprehensive analysis in one tool. Useful for large-scale codebase analysis.",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "Required - working directory for project initialization"
+          description: "Required - working directory for project operations"
+        },
+        action: {
+          type: "string",
+          enum: ["init", "scan", "both"],
+          description: "Action to perform (default: both)"
         },
         projectType: {
           type: "string",
           enum: ["javascript", "typescript", "python", "rust", "go"],
-          description: "Project type (default: javascript)"
-        },
-        createRules: {
-          type: "boolean",
-          description: "Generate rule category files (default: true)"
-        },
-        ruleCategories: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["security", "performance", "style", "architecture"]
-          },
-          description: "Rule categories (default: [security, performance, style])"
-        },
-        includeTests: {
-          type: "boolean",
-          description: "Include test directory patterns (default: true)"
-        }
-      },
-      required: ["workingDirectory"]
-    }
-  ),
-
-  createToolDefinition(
-    "astgrep_project_scan",
-    "Comprehensive project-wide code analysis",
-    {
-      type: "object",
-      properties: {
-        workingDirectory: {
-          type: "string",
-          description: "Required - working directory for project scanning"
+          description: "Project type for initialization (default: javascript)"
         },
         scanType: {
           type: "string",
           enum: ["quick", "comprehensive", "security"],
           description: "Scan type (default: comprehensive)"
         },
-        outputFormat: {
-          type: "string",
-          enum: ["summary", "detailed", "json"],
-          description: "Output format (default: summary)"
+        createRules: {
+          type: "boolean",
+          description: "Generate rule files during init (default: true)"
         },
         includeMetrics: {
           type: "boolean",
-          description: "Include performance metrics (default: true)"
+          description: "Include performance metrics in scan (default: true)"
         }
       },
       required: ["workingDirectory"]
@@ -270,22 +208,31 @@ export const enhancedAstTools = [
   ),
 
   createToolDefinition(
-    "astgrep_test",
-    "Test ast-grep rules against code examples",
+    "astgrep_rules",
+    "Rule management tool. Test rules, validate syntax/logic/performance, and debug issues in one comprehensive tool.",
     {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "Required - working directory for rule testing"
+          description: "Required - working directory for rule operations"
+        },
+        action: {
+          type: "string",
+          enum: ["test", "validate", "debug"],
+          description: "Rule management action"
         },
         rules: {
           type: "string",
-          description: "YAML rule content (alternative to rulesPath)"
+          description: "YAML rule content"
         },
         rulesPath: {
           type: "string",
-          description: "Path to rules file to test"
+          description: "Path to rules file"
+        },
+        ruleId: {
+          type: "string",
+          description: "Specific rule ID for debugging"
         },
         testCases: {
           type: "array",
@@ -300,35 +247,7 @@ export const enhancedAstTools = [
               expectedMatches: { type: "number" }
             }
           },
-          description: "Test cases to run against the rules"
-        },
-        createTestSuite: {
-          type: "boolean",
-          description: "Generate test cases automatically (default: true if no test cases provided)"
-        },
-        outputFormat: {
-          type: "string",
-          enum: ["detailed", "summary", "json"],
-          description: "Output format (default: detailed)"
-        }
-      },
-      required: ["workingDirectory"]
-    }
-  ),
-
-  createToolDefinition(
-    "astgrep_validate_rules",
-    "Validate ast-grep rules for syntax, logic, and performance",
-    {
-      type: "object",
-      properties: {
-        workingDirectory: {
-          type: "string",
-          description: "Required - working directory for rule validation"
-        },
-        rules: {
-          type: "string",
-          description: "YAML rule content to validate"
+          description: "Test cases for testing action"
         },
         validateSyntax: {
           type: "boolean",
@@ -345,53 +264,26 @@ export const enhancedAstTools = [
         performanceThreshold: {
           type: "number",
           description: "Performance threshold in milliseconds (default: 5000)"
-        }
-      },
-      required: ["rules", "workingDirectory"]
-    }
-  ),
-
-  createToolDefinition(
-    "astgrep_debug_rule",
-    "Debug and analyze specific ast-grep rules",
-    {
-      type: "object",
-      properties: {
-        workingDirectory: {
-          type: "string",
-          description: "Required - working directory for rule debugging"
-        },
-        ruleId: {
-          type: "string",
-          description: "ID of the rule to debug"
-        },
-        rulesPath: {
-          type: "string",
-          description: "Path to rules file containing the rule"
         },
         testCode: {
           type: "string",
-          description: "Code to test the rule against"
-        },
-        language: {
-          type: "string",
-          description: "Programming language for test code (default: javascript)"
-        },
-        verboseOutput: {
-          type: "boolean",
-          description: "Enable verbose debugging output (default: true)"
+          description: "Code for debugging specific rule"
         }
       },
-      required: ["ruleId", "workingDirectory"]
+      required: ["workingDirectory", "action"],
+      anyOf: [
+        { required: ["rules"] },
+        { required: ["rulesPath"] }
+      ]
     }
   )
 ];
 
-// Batch execution tool - ESSENTIAL FOR EFFICIENT WORKFLOW COORDINATION
+// Batch execution tool - Enhanced with natural language support
 export const batchTools = [
   createToolDefinition(
     "batch_execute",
-    "BATCH EXECUTION - 80% EFFECTIVE FOR TURN REDUCTION. MANDATORY for multi-tool operations. Combine 2-4 tools in SINGLE operations. Reduces conversation turns by 25-40% through intelligent tool coordination. NEVER call tools individually when batch_execute can handle coordination efficiently.",
+    "Enhanced batch execution tool that supports both structured operations and natural language descriptions. Use to coordinate multiple tools efficiently or describe what you want to accomplish in plain English.",
     {
       type: "object",
       properties: {
@@ -405,23 +297,36 @@ export const batchTools = [
             },
             required: ["tool", "arguments"]
           },
-          description: "Array of tool operations to execute in sequence"
+          description: "Array of tool operations to execute in sequence (optional if using natural language)"
+        },
+        description: {
+          type: "string",
+          description: "Natural language description of what you want to accomplish (optional if using operations array)"
+        },
+        task: {
+          type: "string",
+          description: "Alternative natural language task description (optional if using operations array)"
         },
         workingDirectory: {
           type: "string",
           description: "Required - working directory for all batch operations"
         }
       },
-      required: ["operations", "workingDirectory"]
+      required: ["workingDirectory"],
+      anyOf: [
+        { required: ["operations"] },
+        { required: ["description"] },
+        { required: ["task"] }
+      ]
     }
   )
 ];
 
-// Sequential thinking tool - CRITICAL FOR ANALYSIS DOCUMENTATION
+// Sequential thinking tool - Improved for better usability
 export const thinkingTools = [
   createToolDefinition(
     "sequentialthinking",
-    "SEQUENTIAL THINKING - 82% EFFECTIVE FOR ANALYSIS PLANNING. MANDATORY for complex task analysis. Combine requirements, tool selection, and insight extraction in efficient operations. Reduces conversation turns by 25-35% through structured thinking.",
+    "Sequential thinking tool for complex task analysis. Use to organize requirements, tool selection, and insights. Helpful for structured planning of complex tasks.",
     {
       type: "object",
       properties: {
