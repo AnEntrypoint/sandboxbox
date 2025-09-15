@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "glootie": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "optimized-test-1757970702464/mcp-server/universal-server.js"
+      ],
+      "env": {
+        "MCP_OPTIMIZED": "true",
+        "MCP_CACHE_ENABLED": "true",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

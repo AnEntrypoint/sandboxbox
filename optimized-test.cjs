@@ -74,39 +74,556 @@ class OptimizedMCPTest {
   }
 
   async setupOptimizedEnvironment(testDir) {
-    console.log('\n🔧 Setting up simplified test environment...');
+    console.log('\n🔧 Setting up realistic shadcn/ui test environment...');
 
-    // Create minimal test project - no complex Next.js setup
-    console.log('   📦 Creating minimal test project...');
+    // Create actual Next.js project with shadcn/ui setup
+    console.log('   📦 Creating Next.js project with shadcn/ui...');
 
-    // Create basic package.json
+    // Create realistic package.json for Next.js + shadcn/ui project
     const packageJson = {
       name: 'mcp-test-project',
-      version: '1.0.0',
-      type: 'module',
+      version: '0.1.0',
+      private: true,
       scripts: {
-        test: 'echo "Test project ready"'
+        dev: 'next dev',
+        build: 'next build',
+        start: 'next start',
+        lint: 'next lint'
       },
       dependencies: {
-        // Only essential MCP dependencies
+        'react': '^18',
+        'react-dom': '^18',
+        'next': '14.2.5',
+        '@radix-ui/react-slot': '^1.0.2',
+        'class-variance-authority': '^0.7.0',
+        'clsx': '^2.1.1',
+        'lucide-react': '^0.424.0',
+        'tailwind-merge': '^2.5.2',
+        'tailwindcss-animate': '^1.0.7',
+        // MCP dependencies
         '@modelcontextprotocol/sdk': '^1.11.0',
         '@ast-grep/napi': '^0.39.5',
         'ignore': '^7.0.5'
+      },
+      devDependencies: {
+        'typescript': '^5',
+        '@types/node': '^20',
+        '@types/react': '^18',
+        '@types/react-dom': '^18',
+        'postcss': '^8',
+        'tailwindcss': '^3.4.1',
+        'eslint': '^8',
+        'eslint-config-next': '14.2.5'
       }
     };
     fs.writeFileSync(path.join(testDir, 'package.json'), JSON.stringify(packageJson, null, 2));
 
-    // Create basic test files
-    fs.writeFileSync(path.join(testDir, 'test-component.js'), `
-// Simple test component
-export function TestComponent() {
-  return 'Hello World';
+    // Create Next.js project structure
+    console.log('   📁 Creating Next.js project structure...');
+
+    // app directory structure
+    const appDir = path.join(testDir, 'app');
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.mkdirSync(path.join(appDir, 'components'), { recursive: true });
+    fs.mkdirSync(path.join(appDir, 'ui'), { recursive: true });
+
+    // components directory structure
+    const componentsDir = path.join(testDir, 'components');
+    fs.mkdirSync(componentsDir, { recursive: true });
+    fs.mkdirSync(path.join(componentsDir, 'ui'), { recursive: true });
+
+    // lib directory
+    const libDir = path.join(testDir, 'lib');
+    fs.mkdirSync(libDir, { recursive: true });
+
+    // Create realistic component files
+    console.log('   🧩 Creating realistic shadcn/ui components...');
+
+    // lib/utils.ts - shadcn/ui utility
+    fs.writeFileSync(path.join(libDir, 'utils.ts'), `
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
 }
 
-export function UtilityFunction() {
-  return Math.random() > 0.5;
+export function formatDate(date: Date | string): string {
+  const d = new Date(date)
+  return d.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+export function generateId(): string {
+  return Math.random().toString(36).substr(2, 9)
 }
 `);
+
+    // components/ui/button.tsx - typical shadcn/ui button
+    fs.writeFileSync(path.join(componentsDir, 'ui', 'button.tsx'), `
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Button.displayName = "Button"
+
+export { Button, buttonVariants }
+`);
+
+    // components/ui/card.tsx - typical shadcn/ui card
+    fs.writeFileSync(path.join(componentsDir, 'ui', 'card.tsx'), `
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      className
+    )}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      "text-2xl font-semibold leading-none tracking-tight",
+      className
+    )}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+`);
+
+    // components/ui/input.tsx - typical shadcn/ui input
+    fs.writeFileSync(path.join(componentsDir, 'ui', 'input.tsx'), `
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+export interface InputProps
+  extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Input.displayName = "Input"
+
+export { Input }
+`);
+
+    // Complex feature component - Task Management
+    fs.writeFileSync(path.join(componentsDir, 'task-manager.tsx'), `
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { formatDate, generateId } from '@/lib/utils'
+
+interface Task {
+  id: string
+  title: string
+  description: string
+  completed: boolean
+  priority: 'low' | 'medium' | 'high'
+  createdAt: Date
+  dueDate?: Date
+}
+
+export function TaskManager() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium' as const })
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
+
+  useEffect(() => {
+    // Load tasks from localStorage
+    const savedTasks = localStorage.getItem('tasks')
+    if (savedTasks) {
+      setTasks(JSON.parse(savedTasks).map((task: any) => ({
+        ...task,
+        createdAt: new Date(task.createdAt),
+        dueDate: task.dueDate ? new Date(task.dueDate) : undefined
+      })))
+    }
+  }, [])
+
+  useEffect(() => {
+    // Save tasks to localStorage
+    localStorage.setItem('tasks', JSON.stringify(tasks))
+  }, [tasks])
+
+  const addTask = () => {
+    if (!newTask.title.trim()) return
+
+    const task: Task = {
+      id: generateId(),
+      title: newTask.title,
+      description: newTask.description,
+      priority: newTask.priority,
+      completed: false,
+      createdAt: new Date()
+    }
+
+    setTasks(prev => [...prev, task])
+    setNewTask({ title: '', description: '', priority: 'medium' })
+  }
+
+  const toggleTask = (id: string) => {
+    setTasks(prev => prev.map(task =>
+      task.id === id ? { ...task, completed: !task.completed } : task
+    ))
+  }
+
+  const deleteTask = (id: string) => {
+    setTasks(prev => prev.filter(task => task.id !== id))
+  }
+
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'active') return !task.completed
+    if (filter === 'completed') return task.completed
+    return true
+  })
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Add New Task</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Input
+            placeholder="Task title..."
+            value={newTask.title}
+            onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
+          />
+          <Input
+            placeholder="Task description..."
+            value={newTask.description}
+            onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
+          />
+          <select
+            value={newTask.priority}
+            onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as any }))}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="low">Low Priority</option>
+            <option value="medium">Medium Priority</option>
+            <option value="high">High Priority</option>
+          </select>
+          <Button onClick={addTask}>Add Task</Button>
+        </CardContent>
+      </Card>
+
+      <div className="flex gap-2 mb-4">
+        <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>
+          All ({tasks.length})
+        </Button>
+        <Button variant={filter === 'active' ? 'default' : 'outline'} onClick={() => setFilter('active')}>
+          Active ({tasks.filter(t => !t.completed).length})
+        </Button>
+        <Button variant={filter === 'completed' ? 'default' : 'outline'} onClick={() => setFilter('completed')}>
+          Completed ({tasks.filter(t => t.completed).length})
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        {filteredTasks.map(task => (
+          <Card key={task.id} className={task.completed ? 'opacity-60' : ''}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className={\`font-medium \${task.completed ? 'line-through' : ''}\`}>
+                    {task.title}
+                  </h3>
+                  {task.description && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {task.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                    <span>Priority: {task.priority}</span>
+                    <span>Created: {formatDate(task.createdAt)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleTask(task.id)}
+                  >
+                    {task.completed ? 'Undo' : 'Complete'}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => deleteTask(task.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default TaskManager
+`);
+
+    // app/page.tsx - main page component
+    fs.writeFileSync(path.join(appDir, 'page.tsx'), `
+import { TaskManager } from '@/components/task-manager'
+
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-background">
+      <div className="container mx-auto py-10">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-bold tracking-tight">Task Manager</h1>
+          <p className="text-muted-foreground mt-4">
+            A modern task management application built with Next.js and shadcn/ui
+          </p>
+        </div>
+        <TaskManager />
+      </div>
+    </main>
+  )
+}
+`);
+
+    // Tailwind config
+    fs.writeFileSync(path.join(testDir, 'tailwind.config.js'), `
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: ["class"],
+  content: [
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+  ],
+  prefix: "",
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+}
+`);
+
+    // tsconfig.json
+    fs.writeFileSync(path.join(testDir, 'tsconfig.json'), JSON.stringify({
+      compilerOptions: {
+        target: 'es5',
+        lib: ['dom', 'dom.iterable', 'es6'],
+        allowJs: true,
+        skipLibCheck: true,
+        strict: true,
+        noEmit: true,
+        esModuleInterop: true,
+        module: 'esnext',
+        moduleResolution: 'bundler',
+        resolveJsonModule: true,
+        isolatedModules: true,
+        jsx: 'preserve',
+        incremental: true,
+        plugins: [
+          {
+            name: 'next'
+          }
+        ],
+        baseUrl: '.',
+        paths: {
+          '@/*': ['./*']
+        }
+      },
+      include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts'],
+      exclude: ['node_modules']
+    }, null, 2));
 
     // Set up MCP server with optimizations
     console.log('   🔧 Setting up optimized MCP server...');
@@ -132,11 +649,11 @@ export function UtilityFunction() {
       }
     }
 
-    // Install only essential dependencies
-    console.log('   📦 Installing essential dependencies...');
-    execSync('npm install', {
+    // Install dependencies with faster method
+    console.log('   📦 Installing dependencies with optimized npm install...');
+    execSync('npm install --no-audit --prefer-offline --ignore-scripts', {
       cwd: testDir,
-      timeout: 240000,
+      timeout: 180000,
       stdio: 'pipe'
     });
 
@@ -163,19 +680,24 @@ export function UtilityFunction() {
 
     const tests = [
       {
-        name: 'Simple File Operation',
-        prompt: 'Create a simple counter function using JavaScript and add it to test-component.js',
-        category: 'simple'
+        name: 'Component Analysis & Enhancement',
+        prompt: 'Use searchcode to find all React components in this shadcn/ui project, then use astgrep_search to analyze the component structure and patterns. Look specifically at the task-manager component and suggest improvements for better TypeScript typing and performance.',
+        category: 'component-analysis'
       },
       {
-        name: 'Code Search Task',
-        prompt: 'Search for all functions in the project and analyze their structure using searchcode and astgrep tools',
-        category: 'search'
+        name: 'UI Component Generation',
+        prompt: 'Add a new shadcn/ui component for a modal dialog component. Create it following the existing patterns (similar to button, card, input components). Include proper TypeScript interfaces and make it accessible. Use execute to create the file and astgrep_lint to validate it follows shadcn/ui patterns.',
+        category: 'ui-generation'
       },
       {
-        name: 'Batch Operations',
-        prompt: 'Use batch_execute to run multiple operations: add a new utility function, analyze the existing code, and create a summary',
-        category: 'batch'
+        name: 'Project Refactoring Task',
+        prompt: 'Use batch_execute to perform a comprehensive refactoring: 1) Search for all hardcoded strings in components and create a constants file, 2) Extract common utility functions from multiple components into shared hooks, 3) Add proper error boundaries to the React components, 4) Generate a summary of changes made.',
+        category: 'refactoring'
+      },
+      {
+        name: 'Performance Optimization',
+        prompt: 'Analyze the task-manager component for performance issues using searchcode and astgrep_search. Look for unnecessary re-renders, missing memoization, and inefficient state management. Then implement optimizations using React.memo, useCallback, and useMemo where appropriate.',
+        category: 'optimization'
       }
     ];
 
