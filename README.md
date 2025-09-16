@@ -28,18 +28,81 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 npm install -g mcp-glootie
 ```
 
-## Usage
+## 🚀 Installation
 
-Start the MCP server:
-
+### Claude Code
 ```bash
-mcp-glootie
+claude mcp add -s user glootie "npx" "-y" "mcp-glootie"
 ```
 
-Or use with Claude:
+### Cursor
+Add to your Cursor `mcpServers.json` configuration:
+```json
+{
+  "mcpServers": {
+    "glootie": {
+      "command": "npx",
+      "args": ["-y", "mcp-glootie"],
+      "env": {},
+      "disabled": false,
+      "autoApprove": [
+        "executenodejs",
+        "executedeno",
+        "executebash",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "batch_execute",
+        "sequentialthinking"
+      ]
+    }
+  }
+}
+```
 
-```bash
-claude -p "your development task here"
+### GitHub Copilot
+Add to your GitHub Copilot `mcpServers.json` configuration:
+```json
+{
+  "mcpServers": {
+    "glootie": {
+      "command": "npx",
+      "args": ["-y", "mcp-glootie"],
+      "env": {},
+      "type": "local",
+      "tools": [
+        "executenodejs",
+        "executedeno",
+        "executebash",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "batch_execute",
+        "sequentialthinking"
+      ]
+    }
+  }
+}
+```
+
+### VSCode
+Add to your VSCode MCP configuration:
+```json
+{
+    "servers": {
+        "glootie": {
+            "command": "npx",
+            "args": ["-y", "mcp-glootie"],
+            "env": {},
+            "type": "stdio"
+        }
+    },
+    "inputs": []
+}
 ```
 
 ## Tools
