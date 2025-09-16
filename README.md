@@ -32,7 +32,7 @@ npm install -g mcp-glootie
 
 ### Claude Code
 ```bash
-claude mcp add -s user glootie "npx" "-y" "mcp-glootie"
+claude mcp add -s user glootie "npx -y mcp-glootie"
 ```
 
 ### Cursor
