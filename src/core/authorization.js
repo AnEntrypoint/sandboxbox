@@ -6,11 +6,11 @@ export async function handleAuthorization(args, defaultWorkingDir) {
     const { thoughts, workingDirectory, parentId } = args;
 
     if (!thoughts) {
-      throw new Error("Missing 'thoughts' parameter for thinking tool");
+      throw new Error("Missing 'thoughts' parameter for authorization tool");
     }
 
     if (!workingDirectory) {
-      throw new Error("Missing 'workingDirectory' parameter for thinking tool");
+      throw new Error("Missing 'workingDirectory' parameter for authorization tool");
     }
 
     const effectiveDir = path.resolve(workingDirectory || defaultWorkingDir);
@@ -153,10 +153,10 @@ function createToolHandler(handler, toolName = 'Unknown Tool') {
   };
 }
 
-export const thinkingTools = [
+export const authorizationTools = [
   {
     name: "authorize",
-    description: "REQUIRED: Call before any other tools, always begin with this.",
+    description: "MANDATORY: ALWAYS Call before any other tools, always begin with this. Always use before running TodoWrite",
     inputSchema: {
       type: "object",
       properties: {
