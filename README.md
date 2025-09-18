@@ -12,7 +12,7 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 
 ### Advanced Tools
 - **batch_execute** - Coordinate multiple tools in single operations for efficiency
-- **sequentialthinking** - Structure and analyze complex thoughts systematically
+- **authoriza** - Bootstrap the system
 - **attention-optimization** - Optimize attention windows for better analysis
 - **turn-reduction** - Reduce conversation turns through intelligent coordination
 

@@ -1176,11 +1176,11 @@ module.exports = {
         const stepsFile = path.join('results', `claude-steps-${test.category}-${testType}.json`);
 
         const standardTools = "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell";
-        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__sequentialthinking";
+        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__authoriza";
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
         // Use the same prompt for both tests - fair comparison
-        const finalPrompt = test.prompt + (useMcp ? ' always use glootie for everything' : '');
+        const finalPrompt = test.prompt;
 
         // Claude should run in the test directory and add the current directory ("./")
         // Only use MCP config file for MCP tests, not baseline tests
