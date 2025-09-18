@@ -996,11 +996,13 @@ module.exports = {
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
         // Use the same prompt for both tests - fair comparison
-        const finalPrompt = test.prompt;
+        const finalPrompt = test.prompt + (useMcp ? ' always use glootie for everything' : '');
 
         // Claude should run in the test directory and add the current directory ("./")
         // Also specify the MCP config file to ensure MCP server is loaded
-        const claudeCmd = `claude -p "${finalPrompt}" --allowed-tools "${allowedTools}" --add-dir "./" --mcp-config ./.claude.json --output-format stream-json --verbose`;
+        // Use bypassPermissions mode for MCP tests to avoid permission prompts
+        const permissionMode = useMcp ? ' --permission-mode bypassPermissions' : '';
+        const claudeCmd = `claude -p "${finalPrompt}" --allowed-tools "${allowedTools}" --add-dir "./" --mcp-config ./.claude.json${permissionMode} --output-format stream-json --verbose`;
         const timeout = 1200000;
 
         console.log(`🚀 Executing ${testType} test for ${test.name}`);
@@ -1104,7 +1106,7 @@ module.exports = {
             // Check available tools list
             if (item.type === 'system' && item.tools) {
               console.log(`   🛠️ Available tools: ${item.tools.length} total`);
-              const mcpTools = item.tools.filter(tool => tool.startsWith('mcp__glootie__'));
+              const mcpTools = item.tools.filter(tool => tool.startsWith('g__'));
               if (mcpTools.length > 0) {
                 console.log(`   🎯 MCP tools available: ${mcpTools.length}`);
               }
@@ -1129,15 +1131,15 @@ module.exports = {
             // Check for MCP tools in the tools list
             if (item.tools && Array.isArray(item.tools)) {
               item.tools.forEach(tool => {
-                if (tool.name && tool.name.startsWith('mcp__glootie__')) {
+                if (tool.name && tool.name.startsWith('g__')) {
                   toolsUsed.add(tool.name);
                 }
               });
             }
 
             // Also check for MCP tools in debug output
-            if (item.rawOutput && item.rawOutput.includes('mcp__glootie__')) {
-              const mcpMatches = item.rawOutput.match(/mcp__glootie__\w+/g);
+            if (item.rawOutput && item.rawOutput.includes('g__')) {
+              const mcpMatches = item.rawOutput.match(/g__\w+/g);
               if (mcpMatches) {
                 mcpMatches.forEach(match => toolsUsed.add(match));
               }
@@ -1212,8 +1214,8 @@ module.exports = {
         console.log(`   MCP Server: ${parsedOutput.mcpServerStatus || 'unknown'}`);
 
         // Enhanced MCP tool usage reporting
-        const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('mcp__glootie__')) : [];
-        const standardToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => !tool.startsWith('mcp__glootie__')) : [];
+        const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('g__')) : [];
+        const standardToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => !tool.startsWith('g__')) : [];
 
         if (useMcp) {
           console.log(`   🎯 MCP tools used: ${mcpToolsUsed.length ? mcpToolsUsed.join(', ') : 'none'}`);
@@ -1355,7 +1357,7 @@ Focus Areas:
 - Timing patterns, error rates, and success points from the step data
 - When these tools would actually be worth using vs when they'd get in the way
 
-Write an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell,mcp__glootie__execute,mcp__glootie__searchcode,mcp__glootie__batch_execute,mcp__glootie__sequentialthinking" --verbose`;
+Write an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell,g__execute,g__searchcode,g__batch_execute,g__sequentialthinking" --verbose`;
       const reviewOutput = execSync(reviewCmd, {
         cwd: './results',
         timeout: 1200000,
@@ -1393,7 +1395,7 @@ Focus Areas:
 - Which tools actually improved the agent experience vs which created new problems?
 - What do the actual step outputs reveal about tool reliability and usability?
 
-Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell,mcp__glootie__execute,mcp__glootie__searchcode,mcp__glootie__batch_execute,mcp__glootie__sequentialthinking" --verbose`;
+Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell,g__execute,g__searchcode,g__batch_execute,g__sequentialthinking" --verbose`;
       const suggestionsOutput = execSync(suggestionsCmd, {
         cwd: './results',
         timeout: 1200000,
