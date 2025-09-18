@@ -4,7 +4,7 @@
   "thoughts": [
     "CRITICAL DISCOVERY: The MCP Glootie v3.1.4 benchmarking test results are completely invalid - ALL MCP tests failed to connect to the MCP server",
     "EVIDENCE: Every single MCP test shows 'mcp_servers':[{'name':'glootie','status':'failed'}] in the initialization data",
-    "EVIDENCE: Zero MCP tools (g_*) were used in any of the 'MCP' test runs",
+    "EVIDENCE: Zero MCP tools (mcp__glootie__*) were used in any of the 'MCP' test runs",
     "EVIDENCE: Both baseline and 'MCP' tests used identical standard Claude tools (TodoWrite, Glob, Read, Grep, etc.)",
     "EVIDENCE: Performance summary shows 'MCP: NO DATA' for all 4 test categories",
     "IMPLICATION: The benchmark is actually comparing baseline vs baseline, not baseline vs MCP",
@@ -18,7 +18,7 @@
     "thoughts": [
       "CRITICAL DISCOVERY: The MCP Glootie v3.1.4 benchmarking test results are completely invalid - ALL MCP tests failed to connect to the MCP server",
       "EVIDENCE: Every single MCP test shows 'mcp_servers':[{'name':'glootie','status':'failed'}] in the initialization data",
-      "EVIDENCE: Zero MCP tools (g_*) were used in any of the 'MCP' test runs",
+      "EVIDENCE: Zero MCP tools (mcp__glootie__*) were used in any of the 'MCP' test runs",
       "EVIDENCE: Both baseline and 'MCP' tests used identical standard Claude tools (TodoWrite, Glob, Read, Grep, etc.)",
       "EVIDENCE: Performance summary shows 'MCP: NO DATA' for all 4 test categories",
       "IMPLICATION: The benchmark is actually comparing baseline vs baseline, not baseline vs MCP",

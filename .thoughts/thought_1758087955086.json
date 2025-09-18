@@ -4,7 +4,7 @@
   "thoughts": [
     "Based on my examination of the step files and performance data, I can now understand what actually happened during the MCP Glootie v3.1.4 benchmarking test:",
     "1. MCP Server Failure: All tests show 'mcp_servers': [{'name': 'glootie', 'status': 'failed'}] - this means the MCP server never actually started properly",
-    "2. No MCP Tool Usage: Despite being labeled 'MCP' tests, no actual MCP tools (g__*) were used in any of the step files",
+    "2. No MCP Tool Usage: Despite being labeled 'MCP' tests, no actual MCP tools (mcp__glootie___*) were used in any of the step files",
     "3. Identical Tool Usage: Both 'baseline' and 'MCP' tests used exactly the same standard tools (Glob, Read, TodoWrite, etc.)",
     "4. Performance Differences: The timing differences between baseline and MCP tests appear to be due to natural variation rather than tool usage",
     "5. Test Results: All tests completed successfully, but none actually used MCP functionality",
@@ -15,7 +15,7 @@
     "thoughts": [
       "Based on my examination of the step files and performance data, I can now understand what actually happened during the MCP Glootie v3.1.4 benchmarking test:",
       "1. MCP Server Failure: All tests show 'mcp_servers': [{'name': 'glootie', 'status': 'failed'}] - this means the MCP server never actually started properly",
-      "2. No MCP Tool Usage: Despite being labeled 'MCP' tests, no actual MCP tools (g__*) were used in any of the step files",
+      "2. No MCP Tool Usage: Despite being labeled 'MCP' tests, no actual MCP tools (mcp__glootie___*) were used in any of the step files",
       "3. Identical Tool Usage: Both 'baseline' and 'MCP' tests used exactly the same standard tools (Glob, Read, TodoWrite, etc.)",
       "4. Performance Differences: The timing differences between baseline and MCP tests appear to be due to natural variation rather than tool usage",
       "5. Test Results: All tests completed successfully, but none actually used MCP functionality",

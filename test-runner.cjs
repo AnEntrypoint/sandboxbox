@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const os = require('os');
 class OptimizedMCPTest {
   constructor() {
@@ -61,17 +61,13 @@ class OptimizedMCPTest {
 
       this.displayPerformanceSummary(performanceResults);
 
-      console.log('📝 Generating analysis reports...');
-      await this.generateUserReview(testDir, performanceResults);
-      await this.generateSuggestions(testDir, performanceResults);
-
     } catch (error) {
       console.error('❌ Test failed: ' + error.message);
       this.results.error = error.message;
       testError = error;
     }
 
-    // Cleanup happens only at the very end, after all tests and analysis
+    // Cleanup happens first, before report generation
     console.log('🧹 Cleaning up test directories...');
 
     // Find all test directories (baseline and mcp variants)
@@ -139,7 +135,131 @@ class OptimizedMCPTest {
       throw testError;
     }
 
-    console.log('🎉 All tests and analysis completed!');
+    // Generate analysis reports after all tests are complete and cleaned up
+    if (performanceResults && !testError) {
+      console.log('📝 Generating analysis reports...');
+      try {
+        await this.generateUserReview(testDir, performanceResults);
+        await this.generateSuggestions(testDir, performanceResults);
+        console.log('✅ Analysis reports generated successfully');
+      } catch (reportError) {
+        console.error('❌ Failed to generate reports:', reportError.message);
+        // Don't throw here - tests completed successfully, just report generation failed
+      }
+    }
+
+    console.log('🎉 All tests, cleanup, and analysis completed!');
+  }
+
+  async executeClaudeCommand(command, workingDir, timeout, testInfo = {}) {
+    return new Promise((resolve, reject) => {
+      // Parse the command and arguments
+      const args = [];
+      let current = '';
+      let inQuotes = false;
+      let escapeNext = false;
+
+      for (let i = 0; i < command.length; i++) {
+        const char = command[i];
+
+        if (escapeNext) {
+          current += char;
+          escapeNext = false;
+        } else if (char === '\\') {
+          escapeNext = true;
+        } else if (char === '"' && !inQuotes) {
+          inQuotes = true;
+        } else if (char === '"' && inQuotes) {
+          inQuotes = false;
+        } else if (char === ' ' && !inQuotes) {
+          if (current.trim()) {
+            args.push(current.trim());
+            current = '';
+          }
+        } else {
+          current += char;
+        }
+      }
+
+      if (current.trim()) {
+        args.push(current.trim());
+      }
+
+      // Use script command to create fake TTY for Claude streaming
+      const child = spawn('script', [
+        '-q', // quiet mode
+        '-c', command,
+        '/dev/null' // don't save to file
+      ], {
+        cwd: workingDir,
+        stdio: 'pipe',
+        env: process.env
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      // Create readable test label
+      let testLabel = '[TEST]';
+      if (testInfo.testType && testInfo.testName) {
+        const type = testInfo.testType.toUpperCase();
+        const nameAbbrev = testInfo.testName.split(' ').map(w => w[0]).join('').substring(0,4);
+        testLabel = `[${type}:${nameAbbrev}]`;
+      }
+
+      child.stdout.on('data', (data) => {
+        const output = data.toString();
+        stdout += output;
+
+        // Stream output with test identification
+        const lines = output.split('\n');
+        lines.forEach(line => {
+          if (line.trim()) {
+            console.log(`${testLabel} ${line}`);
+          }
+        });
+      });
+
+      child.stderr.on('data', (data) => {
+        const output = data.toString();
+        stderr += output;
+
+        // Stream stderr with test identification
+        const lines = output.split('\n');
+        lines.forEach(line => {
+          if (line.trim()) {
+            console.error(`${testLabel} ERROR: ${line}`);
+          }
+        });
+      });
+
+      const timeoutHandle = setTimeout(() => {
+        child.kill('SIGTERM');
+        console.log(`${testLabel} ⏰ Command timed out after ${timeout/1000}s`);
+        reject(new Error(`Command timed out after ${timeout}ms`));
+      }, timeout);
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutHandle);
+
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          const error = new Error(`Command failed with exit code ${code}`);
+          error.code = code;
+          error.stderr = stderr;
+          error.stdout = stdout;
+          error.command = command;
+          reject(error);
+        }
+      });
+
+      child.on('error', (error) => {
+        console.error('error', error)
+        clearTimeout(timeoutHandle);
+        reject(error);
+      });
+    });
   }
 
   async runPreflightChecks() {
@@ -212,7 +332,7 @@ class OptimizedMCPTest {
     // The actual test setup is done in setupTestDirectory for each individual test
   }
 
-  setupTestDirectory(testDir) {
+  async setupTestDirectory(testDir) {
     // Create the test directory structure and configuration
     const packageJson = {
       name: 'mcp-test-project',
@@ -720,10 +840,45 @@ module.exports = {
 
     // Install dependencies
     console.log('📦 Installing dependencies...');
-    execSync('npm install --no-audit --prefer-offline --ignore-scripts', {
-      cwd: testDir,
-      timeout: 1200000,
-      stdio: 'pipe'
+    await new Promise((resolve, reject) => {
+      const command = 'npm install --no-audit --prefer-offline --ignore-scripts --no-progress --silent';
+      const child = spawn('script', ['-q', '-c', command, '/dev/null'], {
+        cwd: testDir,
+        stdio: 'pipe',
+        env: process.env
+      });
+
+      child.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n');
+        lines.forEach(line => {
+          if (line.trim()) {
+            console.log(`📦 ${path.basename(testDir)}: ${line}`);
+          }
+        });
+      });
+
+      child.stderr.on('data', (data) => {
+        const lines = data.toString().split('\n');
+        lines.forEach(line => {
+          if (line.trim()) {
+            console.log(`📦 ${path.basename(testDir)} ERROR: ${line}`);
+          }
+        });
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`npm install failed with code ${code}`));
+        }
+      });
+
+      // 20 minute timeout for npm install
+      setTimeout(() => {
+        child.kill();
+        reject(new Error('npm install timed out after 20 minutes'));
+      }, 1200000);
     });
 
     // Create search optimization file
@@ -838,12 +993,33 @@ module.exports = {
 
     const allTestPromises = [];
 
+    // Create all test directories first
+    console.log('📁 Creating test directories...');
+    const testDirectories = [];
+
+    tests.forEach(test => {
+      const baselineDir = `${testDir}-baseline-${test.category}`;
+      const mcpDir = `${testDir}-mcp-${test.category}`;
+
+      fs.mkdirSync(baselineDir, { recursive: true });
+      fs.mkdirSync(mcpDir, { recursive: true });
+
+      testDirectories.push(
+        { dir: baselineDir, test, type: 'baseline' },
+        { dir: mcpDir, test, type: 'mcp' }
+      );
+    });
+
+    // Setup all directories in parallel
+    console.log(`📦 Setting up ${testDirectories.length} test directories in parallel...`);
+    await Promise.all(testDirectories.map(({ dir }) =>
+      Promise.resolve(this.setupTestDirectory(dir))
+    ));
+
     // Create separate directories and test promises for each test
     tests.forEach(test => {
       // Create separate directory for baseline test
       const baselineDir = `${testDir}-baseline-${test.category}`;
-      fs.mkdirSync(baselineDir, { recursive: true });
-      this.setupTestDirectory(baselineDir);
 
       const baselinePromise = this.runTestCommand(baselineDir, test, false)
         .then(result => ({
@@ -867,8 +1043,6 @@ module.exports = {
 
       // Create separate directory for MCP test
       const mcpDir = `${testDir}-mcp-${test.category}`;
-      fs.mkdirSync(mcpDir, { recursive: true });
-      this.setupTestDirectory(mcpDir);
 
       const mcpPromise = this.runTestCommand(mcpDir, test, true)
         .then(result => ({
@@ -891,12 +1065,34 @@ module.exports = {
       allTestPromises.push(mcpPromise);
     });
 
-    console.log(`🏃 Starting all ${allTestPromises.length} test executions in parallel...`);
+    console.log(`🏃 [${new Date().toLocaleTimeString()}] Starting all ${allTestPromises.length} test executions in parallel...`);
+    console.log('   ⏱️  All tests are now running simultaneously!');
+    console.log('   📊 Progress updates will show as tests complete...');
+
+    // Add progress monitoring
+    const startTime = Date.now();
+    let completedCount = 0;
+
+    // Monitor progress by wrapping promises
+    const monitoredPromises = allTestPromises.map((promise, index) =>
+      promise.then(result => {
+        completedCount++;
+        const elapsed = (Date.now() - startTime) / 1000;
+        console.log(`   ✅ [${new Date().toLocaleTimeString()}] Test ${completedCount}/${allTestPromises.length} completed (${elapsed.toFixed(1)}s elapsed)`);
+        return result;
+      }).catch(error => {
+        completedCount++;
+        const elapsed = (Date.now() - startTime) / 1000;
+        console.log(`   ❌ [${new Date().toLocaleTimeString()}] Test ${completedCount}/${allTestPromises.length} failed (${elapsed.toFixed(1)}s elapsed)`);
+        throw error;
+      })
+    );
 
     // Wait for all tests to complete
-    const allResults = await Promise.all(allTestPromises);
+    const allResults = await Promise.all(monitoredPromises);
+    const totalTime = (Date.now() - startTime) / 1000;
 
-    console.log(`📊 Processing results from ${allResults.length} completed tests...`);
+    console.log(`📊 [${new Date().toLocaleTimeString()}] All tests completed! Total parallel execution time: ${totalTime.toFixed(1)}s`);
 
     // Group results by test
     const resultsByTest = new Map();
@@ -992,33 +1188,28 @@ module.exports = {
         const stepsFile = path.join('results', `claude-steps-${test.category}-${testType}.json`);
 
         const standardTools = "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell";
-        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__sequentialthinking,mcp__glootie__vector_search";
+        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__sequentialthinking";
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
         // Use the same prompt for both tests - fair comparison
         const finalPrompt = test.prompt + (useMcp ? ' always use glootie for everything' : '');
 
         // Claude should run in the test directory and add the current directory ("./")
-        // Also specify the MCP config file to ensure MCP server is loaded
+        // Only use MCP config file for MCP tests, not baseline tests
         // Use bypassPermissions mode for MCP tests to avoid permission prompts
+        const mcpConfig = useMcp ? ' --mcp-config ./.claude.json' : '';
         const permissionMode = useMcp ? ' --permission-mode bypassPermissions' : '';
-        const claudeCmd = `claude -p "${finalPrompt}" --allowed-tools "${allowedTools}" --add-dir "./" --mcp-config ./.claude.json${permissionMode} --output-format stream-json --verbose`;
-        const timeout = 1200000;
+        const claudeCmd = `claude -p "${finalPrompt}" --allowed-tools "${allowedTools}" --add-dir "./"${mcpConfig}${permissionMode} --output-format stream-json --verbose`;
+        const timeout = 12000000;
 
-        console.log(`🚀 Executing ${testType} test for ${test.name}`);
-        console.log(`   Command: ${claudeCmd}`);
-        console.log(`   Working dir: ${workingDir} (Claude will run from here)`);
-        console.log(`   Tools: ${allowedTools.split(',').length} (MCP: ${useMcp})`);
-        console.log(`   Timeout: ${timeout/1000}s`);
+        console.log(`🚀 [${new Date().toLocaleTimeString()}] Starting ${testType} test for ${test.name}`);
+        console.log(`   📁 Working dir: ${path.basename(workingDir)}`);
+        console.log(`   🔧 Tools: ${allowedTools.split(',').length} (MCP: ${useMcp ? 'enabled' : 'disabled'})`);
+        console.log(`   ⚙️  Config: ${useMcp ? 'MCP server + permissions bypass' : 'standard tools only'}`);
 
-        console.log(`   🔍 Testing output format...`);
-        const output = execSync(claudeCmd, {
-          cwd: workingDir,
-          timeout,
-          encoding: 'utf8',
-          stdio: 'pipe',
-          maxBuffer: 50 * 1024 * 1024
-        });
+        console.log(`   ⚡ Executing in parallel...`);
+        const testInfo = { testType, testName: test.name };
+        const output = await this.executeClaudeCommand(claudeCmd, workingDir, timeout, testInfo);
 
         // Debug: Show first 200 chars of output to understand format
         console.log(`   📋 Output sample: ${output.substring(0, 200).replace(/\n/g, '\\n')}...`);
@@ -1036,6 +1227,8 @@ module.exports = {
         }, null, 2));
         const endTime = Date.now();
         const duration = (endTime - startTime) / 1000;
+
+        console.log(`✅ [${new Date().toLocaleTimeString()}] Completed ${testType} test for ${test.name} in ${duration.toFixed(1)}s`);
         let parsedOutput = null;
         let stepData = [];
         try {
@@ -1106,7 +1299,7 @@ module.exports = {
             // Check available tools list
             if (item.type === 'system' && item.tools) {
               console.log(`   🛠️ Available tools: ${item.tools.length} total`);
-              const mcpTools = item.tools.filter(tool => tool.startsWith('g__'));
+              const mcpTools = item.tools.filter(tool => tool.startsWith('mcp__glootie___'));
               if (mcpTools.length > 0) {
                 console.log(`   🎯 MCP tools available: ${mcpTools.length}`);
               }
@@ -1131,15 +1324,15 @@ module.exports = {
             // Check for MCP tools in the tools list
             if (item.tools && Array.isArray(item.tools)) {
               item.tools.forEach(tool => {
-                if (tool.name && tool.name.startsWith('g__')) {
+                if (tool.name && tool.name.startsWith('mcp__glootie___')) {
                   toolsUsed.add(tool.name);
                 }
               });
             }
 
             // Also check for MCP tools in debug output
-            if (item.rawOutput && item.rawOutput.includes('g__')) {
-              const mcpMatches = item.rawOutput.match(/g__\w+/g);
+            if (item.rawOutput && item.rawOutput.includes('mcp__glootie___')) {
+              const mcpMatches = item.rawOutput.match(/mcp__glootie___\w+/g);
               if (mcpMatches) {
                 mcpMatches.forEach(match => toolsUsed.add(match));
               }
@@ -1214,8 +1407,8 @@ module.exports = {
         console.log(`   MCP Server: ${parsedOutput.mcpServerStatus || 'unknown'}`);
 
         // Enhanced MCP tool usage reporting
-        const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('g__')) : [];
-        const standardToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => !tool.startsWith('g__')) : [];
+        const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('mcp__glootie___')) : [];
+        const standardToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => !tool.startsWith('mcp__glootie___')) : [];
 
         if (useMcp) {
           console.log(`   🎯 MCP tools used: ${mcpToolsUsed.length ? mcpToolsUsed.join(', ') : 'none'}`);
@@ -1346,9 +1539,9 @@ CRITICAL: You must examine the actual step files in the results/ directory:
 
 Analysis Requirements:
 1. Use Read to examine the actual step files to understand the agent experience
-2. Use searchcode to find patterns across all test outputs in the results/ directory
-3. Use execute to analyze timing patterns and success rates from the results data
-4. Use sequentialthinking to organize your findings about what actually happened
+2. Use Grep to find patterns across all test outputs in the results/ directory
+3. Use Bash to analyze timing patterns and success rates from the results data
+4. Use Task to organize your findings about what actually happened
 
 Focus Areas:
 - What the step outputs reveal about tool reliability and performance
@@ -1357,9 +1550,11 @@ Focus Areas:
 - Timing patterns, error rates, and success points from the step data
 - When these tools would actually be worth using vs when they'd get in the way
 
-Write an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell,g__execute,g__searchcode,g__batch_execute,g__sequentialthinking" --verbose`;
+results is in ./results, with allt he steps taken by agents
+
+Write an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
       const reviewOutput = execSync(reviewCmd, {
-        cwd: './results',
+        cwd: './',
         timeout: 1200000,
         encoding: 'utf8',
         stdio: 'pipe'
@@ -1382,9 +1577,9 @@ CRITICAL: You must examine the actual step files in the results/ directory:
 
 Analysis Requirements:
 1. Use Read to examine the actual step files and understand the agent experience
-2. Use searchcode to find patterns across all test outputs in the results/ directory
-3. Use execute to analyze timing patterns, success rates, and failure points from the results data
-4. Use sequentialthinking to organize your findings about what actually happened
+2. Use Grep to find patterns across all test outputs in the results/ directory
+3. Use Bash to analyze timing patterns, success rates, and failure points from the results data
+4. Use Task to organize your findings about what actually happened
 
 Also check END_USER_REVIEW.md for a prepared work on the same subject, but dont let it throw you off your findings
 
@@ -1395,9 +1590,14 @@ Focus Areas:
 - Which tools actually improved the agent experience vs which created new problems?
 - What do the actual step outputs reveal about tool reliability and usability?
 
-Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell,g__execute,g__searchcode,g__batch_execute,g__sequentialthinking" --verbose`;
+Ignore system time for calculation unless its taking more than 30 seconds for something.
+We have to consider that if we add more tools, it will add potentially more alls, and potentially more 
+Istructive documentation https://modelcontextprotocol.io/specification
+results is in ./results, with allt he steps taken by agents
+
+Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
       const suggestionsOutput = execSync(suggestionsCmd, {
-        cwd: './results',
+        cwd: './',
         timeout: 1200000,
         encoding: 'utf8',
         stdio: 'pipe'

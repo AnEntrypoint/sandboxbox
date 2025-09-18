@@ -2,7 +2,7 @@
   "id": "thought_1758062650143",
   "timestamp": "2025-09-16T22:44:10.143Z",
   "thoughts": [
-    "From analyzing the actual step data, I found that agents didn't use MCP tools at all - no g__* tools were found in any of the output files",
+    "From analyzing the actual step data, I found that agents didn't use MCP tools at all - no mcp__glootie___* tools were found in any of the output files",
     "The performance data shows interesting patterns: Baseline had 60.5% success rate (224 steps) vs MCP with 54.7% success rate (252 steps)",
     "Key finding: MCP agents used more steps but had lower success rates, suggesting they encountered more friction",
     "Tool usage patterns show MCP agents used MultiEdit (4 times) vs baseline never used it, but baseline had higher overall success",
@@ -14,7 +14,7 @@
   "processed": {
     "count": 8,
     "thoughts": [
-      "From analyzing the actual step data, I found that agents didn't use MCP tools at all - no g__* tools were found in any of the output files",
+      "From analyzing the actual step data, I found that agents didn't use MCP tools at all - no mcp__glootie___* tools were found in any of the output files",
       "The performance data shows interesting patterns: Baseline had 60.5% success rate (224 steps) vs MCP with 54.7% success rate (252 steps)",
       "Key finding: MCP agents used more steps but had lower success rates, suggesting they encountered more friction",
       "Tool usage patterns show MCP agents used MultiEdit (4 times) vs baseline never used it, but baseline had higher overall success",
