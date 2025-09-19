@@ -67,7 +67,7 @@ PRINCIPLE: Keep it simple - the most direct path is usually best for basic tasks
   response += `• batch_execute: Coordinate multiple operations efficiently - preferred for 2+ related operations\n`;
   response += `• execute: Multi-language execution (JS/TS, Go, Rust, Python, C, C++) with automatic runtime detection\n`;
   response += `• searchcode: Semantic code search across multi-language codebases\n`;
-  response += `• astgrep_*: Structural pattern matching and refactoring for all supported languages\n`;
+  response += `• astgrep_*: Structural pattern matching and refactoring for all supported languages. Never use glob and search, use this instead or searchcodedAA.\n`;
   response += `• parse_ast: AST analysis with ignore filtering - use for code understanding\n\n`;
 
   response += `PERFORMANCE GUIDELINES:\n`;

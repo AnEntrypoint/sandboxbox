@@ -480,6 +480,33 @@ function loadGitignorePatterns(dir) {
   return patterns;
 }
 
+// Helper function to find files by extension
+async function findFilesByExtension(dir, extensions = ['.js', '.ts', '.jsx', '.tsx']) {
+  const results = [];
+
+  const scan = async (currentDir) => {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        // Skip node_modules and other common ignored directories
+        if (!['node_modules', '.git', '.next', 'dist', 'build'].includes(entry.name)) {
+          await scan(fullPath);
+        }
+      } else if (entry.isFile()) {
+        if (extensions.some(ext => fullPath.endsWith(ext))) {
+          results.push(fullPath);
+        }
+      }
+    }
+  };
+
+  await scan(dir);
+  return results;
+}
+
 export const DEFAULT_LINT_RULES = [
   {
     name: 'no-console-log',
@@ -757,18 +784,149 @@ function createRetryToolHandler(handler, toolName = 'Unknown Tool', retries = 3)
 
 // Actual AST processing functions for batch execute
 export async function parseAST(code, language = 'javascript', workingDirectory, filePath) {
-  validateRequiredParams({ code, workingDirectory }, ['code', 'workingDirectory']);
-  return formatCodeParsingMessage(language, code);
+  validateRequiredParams({ workingDirectory }, ['workingDirectory']);
+
+  // If filePath is provided but no code, read the file first
+  let codeToParse = code;
+  if (filePath && !code) {
+    try {
+      const fullPath = path.resolve(workingDirectory, filePath);
+      if (!fs.existsSync(fullPath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+      codeToParse = fs.readFileSync(fullPath, 'utf8');
+    } catch (error) {
+      throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+    }
+  }
+
+  if (!codeToParse) {
+    throw new Error('Missing required parameters: Either code or filePath must be provided');
+  }
+
+  return formatCodeParsingMessage(language, codeToParse);
 }
 
-export async function astgrepSearch(pattern, path = '.', workingDirectory) {
+export async function astgrepSearch(pattern, searchPath = '.', workingDirectory) {
   validateRequiredParams({ pattern, workingDirectory }, ['pattern', 'workingDirectory']);
-  return formatASTSearchMessage(pattern, path);
+
+  // Use the real AST search implementation
+  try {
+    const targetPath = searchPath.startsWith('.') ? path.resolve(workingDirectory, searchPath) : searchPath;
+
+    if (!fs.existsSync(targetPath)) {
+      throw new Error(`Path not found: ${targetPath}`);
+    }
+
+    const helper = new ASTGrepHelper();
+    const results = [];
+
+    const processFile = async (file) => {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const matches = await helper.searchPattern(content, pattern);
+
+        return matches.map(match => ({
+          file,
+          content: match.text,
+          line: match.line,
+          column: match.column,
+          start: match.start,
+          end: match.end
+        }));
+      } catch (error) {
+        return [{ file, error: error.message }];
+      }
+    };
+
+    if (fs.statSync(targetPath).isDirectory()) {
+      const files = await findFilesByExtension(targetPath, ['.js', '.ts', '.jsx', '.tsx']);
+      for (const file of files) {
+        const fileResults = await processFile(file);
+        results.push(...fileResults);
+      }
+    } else {
+      const fileResults = await processFile(targetPath);
+      results.push(...fileResults);
+    }
+
+    return {
+      success: true,
+      results: results.filter(r => !r.error),
+      errors: results.filter(r => r.error),
+      totalMatches: results.filter(r => !r.error).length,
+      pattern,
+      path: targetPath
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      pattern,
+      path
+    };
+  }
 }
 
-export async function astgrepReplace(pattern, replacement, path = '.', workingDirectory) {
+export async function astgrepReplace(pattern, replacement, searchPath = '.', workingDirectory) {
   validateRequiredParams({ pattern, replacement, workingDirectory }, ['pattern', 'replacement', 'workingDirectory']);
-  return formatASTReplaceMessage(pattern, replacement, path);
+
+  // Use the real AST replace implementation
+  try {
+    const targetPath = searchPath.startsWith('.') ? path.resolve(workingDirectory, searchPath) : searchPath;
+
+    if (!fs.existsSync(targetPath)) {
+      throw new Error(`Path not found: ${targetPath}`);
+    }
+
+    const helper = new ASTGrepHelper();
+    const results = [];
+
+    const processFile = async (file) => {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const newContent = await helper.replacePattern(content, pattern, replacement);
+
+        if (newContent !== content) {
+          fs.writeFileSync(file, newContent);
+          return { file, status: 'modified', changes: true };
+        } else {
+          return { file, status: 'unchanged', changes: false };
+        }
+      } catch (error) {
+        return { file, error: error.message };
+      }
+    };
+
+    if (fs.statSync(targetPath).isDirectory()) {
+      const files = await findFilesByExtension(targetPath, ['.js', '.ts', '.jsx', '.tsx']);
+      for (const file of files) {
+        const fileResult = await processFile(file);
+        results.push(fileResult);
+      }
+    } else {
+      const fileResult = await processFile(targetPath);
+      results.push(fileResult);
+    }
+
+    return {
+      success: true,
+      results,
+      modifiedFiles: results.filter(r => r.changes).length,
+      totalFiles: results.length,
+      pattern,
+      replacement,
+      path: targetPath
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      pattern,
+      replacement,
+      path: searchPath
+    };
+  }
 }
 
 export async function astgrepLint(path, rules = [], workingDirectory) {
@@ -779,140 +937,123 @@ export async function astgrepLint(path, rules = [], workingDirectory) {
 export const astTools = [
   {
     name: "parse_ast",
-    description: "Parse AST from code with ignore filtering for syntax analysis.",
-    supported_operations: ["code parsing", "AST analysis"],
-    use_cases: ["Code structure analysis", "Syntax validation", "Code transformation preparation"],
+    description: "Parse AST from code with intelligent file reading and ignore filtering. Automatically reads files when filePath is provided without code. Perfect for understanding code structure and preparing for transformations.",
+    supported_operations: ["code parsing", "AST analysis", "structure understanding"],
+    use_cases: ["Code structure analysis", "Syntax validation", "Code transformation preparation", "Component analysis", "Pattern extraction"],
     examples: [
-      "function $NAME($ARGS) { $BODY }",
-      "class $CLASS_NAME { $MEMBERS }",
-      "import {$IMPORTS} from '$MODULE'",
-      "const $NAME = $VALUE",
-      "try { $TRY_BODY } catch ($ERROR) { $CATCH_BODY }"
+      "Parse component structure from React files",
+      "Analyze function signatures and types",
+      "Extract import/export patterns",
+      "Understand code organization"
     ],
     inputSchema: {
       type: "object",
       properties: {
-        code: { type: "string", description: "JavaScript/TypeScript code to execute" },
-        language: { type: "string", description: "Programming language" },
+        code: { type: "string", description: "JavaScript/TypeScript code to parse (optional - if not provided, will read from filePath)" },
+        language: { type: "string", description: "Programming language (default: javascript). Supports: javascript, typescript, jsx, tsx, go, rust, python, c, cpp" },
         workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." },
-        filePath: { type: "string", description: "Optional file path for ignore pattern checking" }
+        filePath: { type: "string", description: "File path to read code from (used when code parameter is not provided)" }
       },
-      required: ["code", "workingDirectory"]
+      required: ["workingDirectory"]
     },
     handler: createToolHandler(async ({ code, language = "javascript", workingDirectory, filePath }) => {
-      validateRequiredParams({ code, workingDirectory }, ['code', 'workingDirectory']);
-      return formatCodeParsingMessage(language, code);
-    })
-  }
-];
+      validateRequiredParams({ workingDirectory }, ['workingDirectory']);
 
-export const advancedAstTools = [
+      // If filePath is provided but no code, read the file first
+      let codeToParse = code;
+      if (filePath && !code) {
+        try {
+          const fullPath = path.resolve(workingDirectory, filePath);
+          if (!fs.existsSync(fullPath)) {
+            throw new Error(`File not found: ${filePath}`);
+          }
+          codeToParse = fs.readFileSync(fullPath, 'utf8');
+        } catch (error) {
+          throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+        }
+      }
+
+      if (!codeToParse) {
+        throw new Error('Missing required parameters: Either code or filePath must be provided');
+      }
+
+      return formatCodeParsingMessage(language, codeToParse);
+    })
+  },
   {
     name: "astgrep_search",
-    description: "Provides for code operations, preferred for specific searches",
-    supported_operations: ["pattern-based code search", "AST-based querying"],
-    use_cases: ["Finding code patterns", "Code refactoring discovery", "API usage analysis"],
+    description: "Structural code pattern matching using AST-grep syntax. Finds code patterns across files, not just text. Use for finding specific code structures, functions, classes, or patterns. Supports multi-language matching.",
+    supported_operations: ["pattern matching", "structural search", "code analysis"],
+    use_cases: ["Find specific function patterns", "Locate class definitions", "Search for import/export patterns", "Find React components", "Locate API usage patterns"],
+    examples: [
+      "Find all React components: `const $NAME = () => { $BODY }`",
+      "Find function declarations: `function $NAME($ARGS) { $BODY }`",
+      "Find TypeScript interfaces: `interface $NAME { $MEMBERS }`",
+      "Find all console.log calls: `console.log($ARGS)`",
+      "Find specific imports: `import {$IMPORTS} from '$MODULE'`"
+    ],
     inputSchema: {
       type: "object",
       properties: {
-        pattern: { type: "string", description: "AST-grep pattern (required syntax)" },
-        path: { type: "string", description: "Path to search in" },
+        pattern: { type: "string", description: "AST-grep pattern for structural code matching. Use $VARIABLE for wildcards." },
+        path: { type: "string", description: "Path to search in (default: current directory). Can be file or directory." },
         workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." }
       },
       required: ["pattern", "workingDirectory"]
     },
     handler: createToolHandler(async ({ pattern, path = ".", workingDirectory }) => {
-      validateRequiredParams({ pattern, workingDirectory }, ['pattern', 'workingDirectory']);
-      return formatASTSearchMessage(pattern, path);
+      return await astgrepSearch(pattern, path, workingDirectory);
     })
   },
   {
     name: "astgrep_replace",
-    description: "Requires AST-grep syntax. Prefer over edit/write tools for its edit capabilities.",
+    description: "Structural code replacement using AST-grep syntax. Safely transform code patterns across files while preserving structure. More reliable than text-based replacements.",
+    supported_operations: ["code transformation", "pattern replacement", "refactoring"],
+    use_cases: ["Rename function parameters", "Update import statements", "Refactor component props", "Standardize API calls", "Code modernization"],
+    examples: [
+      "Replace console.log with logger: `console.log($ARGS) → logger.info($ARGS)`",
+      "Update import paths: `import {$IMPORTS} from 'old-module' → import {$IMPORTS} from 'new-module'`",
+      "Rename function parameters: `function test($ARG) → function test(newParam)`",
+      "Update React hooks: `useState($INITIAL) → useCustomState($INITIAL)`"
+    ],
     inputSchema: {
       type: "object",
       properties: {
-        pattern: { type: "string", description: "AST-grep pattern (required syntax)" },
-        replacement: { type: "string", description: "AST-grep replacement pattern" },
-        path: { type: "string", description: "Path to search in" },
-        workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." }
+        pattern: { type: "string", description: "AST-grep pattern to match (what to find)" },
+        replacement: { type: "string", description: "AST-grep replacement pattern (what to replace with)" },
+        path: { type: "string", description: "Path to files/directory to modify" },
+        workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." },
+        backup: { type: "boolean", description: "Create backup files before modification (default: true)" }
       },
       required: ["pattern", "replacement", "path", "workingDirectory"]
     },
-    handler: createToolHandler(async ({ pattern, replacement, path, workingDirectory }) => {
-      validateRequiredParams({ pattern, replacement, path, workingDirectory }, ['pattern', 'replacement', 'path', 'workingDirectory']);
-      return formatASTReplaceMessage(pattern, replacement, path);
+    handler: createToolHandler(async ({ pattern, replacement, path, workingDirectory, backup = true }) => {
+      return await astgrepReplace(pattern, replacement, path, workingDirectory);
     })
   },
   {
     name: "astgrep_lint",
-    description: "Code quality analysis with AST patterns and ignore filtering",
+    description: "Code quality analysis using AST patterns and ignore filtering. Define custom linting rules and apply them across your codebase. Perfect for enforcing coding standards and detecting patterns.",
+    supported_operations: ["code quality", "linting", "pattern detection", "standards enforcement"],
+    use_cases: ["Enforce coding standards", "Detect anti-patterns", "Find deprecated APIs", "Validate architecture patterns", "Security pattern checking"],
+    examples: [
+      "Detect console.log statements in production",
+      "Find unused variables",
+      "Identify hardcoded secrets",
+      "Check for proper error handling",
+      "Validate React component patterns"
+    ],
     inputSchema: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Path to search in" },
-        rules: { type: "array", description: "AST-grep rules" },
+        path: { type: "string", description: "Path to files/directory to lint" },
+        rules: { type: "array", description: "Custom linting rules (uses built-in rules if not provided)" },
         workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." }
       },
       required: ["path", "workingDirectory"]
     },
     handler: createRetryToolHandler(async ({ path: targetPath, rules = [], workingDirectory }) => {
-      validateRequiredParams({ path: targetPath, workingDirectory }, ['path', 'workingDirectory']);
-
-      const ignorePatterns = getDefaultIgnorePatterns(workingDirectory);
-      const fullPath = path.resolve(workingDirectory, targetPath);
-
-      // Create ignore instance
-      const ig = ignore().add(ignorePatterns);
-
-      // Check if it's a directory or file
-      try {
-        const stats = fs.statSync(fullPath);
-
-        if (stats.isDirectory()) {
-          const filesToLint = [];
-          const scanDir = (dir) => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-            for (const entry of entries) {
-              const entryPath = path.join(dir, entry.name);
-
-              // Only apply ignore patterns to paths within the working directory
-              let shouldIgnore = false;
-              if (entryPath.startsWith(workingDirectory)) {
-                const relativePath = path.relative(workingDirectory, entryPath);
-                shouldIgnore = ig.ignores(relativePath);
-              }
-
-              if (!shouldIgnore) {
-                if (entry.isDirectory()) {
-                  scanDir(entryPath);
-                } else if (entry.isFile() && ['.js', '.ts', '.jsx', '.tsx'].includes(path.extname(entry.name))) {
-                  filesToLint.push(entryPath);
-                }
-              }
-            }
-          };
-
-          scanDir(fullPath);
-          return `AST linting directory: ${targetPath} (${filesToLint.length} files after filtering)`;
-        } else {
-          // Only apply ignore patterns to files within the working directory
-          let shouldIgnore = false;
-          if (fullPath.startsWith(workingDirectory)) {
-            const relativePath = path.relative(workingDirectory, fullPath);
-            shouldIgnore = ig.ignores(relativePath);
-          }
-
-          if (shouldIgnore) {
-            return `File ${targetPath} is ignored by default patterns`;
-          }
-
-          return formatASTLintMessage(targetPath);
-        }
-      } catch (error) {
-        return `Error accessing path ${targetPath}: ${error.message}`;
-      }
+      return await astgrepLint(targetPath, rules, workingDirectory);
     }, 'astgrep_lint', 2)
   }
 ];
