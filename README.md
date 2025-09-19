@@ -73,8 +73,8 @@ Add to your Cursor `mcpServers.json` configuration:
 {
   "mcpServers": {
     "glootie": {
-      "command": "node",
-      "args": ["/path/to/mcp-glootie/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "mcp-glootie"],
       "env": {},
       "disabled": false,
       "autoApprove": [
@@ -93,21 +93,49 @@ Add to your Cursor `mcpServers.json` configuration:
 }
 ```
 
-### Other MCP Clients
-For other MCP clients, use this general configuration:
+### GitHub Copilot
+Add to your GitHub Copilot `mcpServers.json` configuration:
 ```json
 {
   "mcpServers": {
     "glootie": {
-      "command": "node",
-      "args": ["/path/to/mcp-glootie/src/index.js"],
-      "env": {}
+      "command": "npx",
+      "args": ["-y", "mcp-glootie"],
+      "env": {},
+      "type": "local",
+      "tools": [
+        "execute",
+        "retrieve_overflow",
+        "searchcode",
+        "astgrep_search",
+        "astgrep_replace",
+        "astgrep_lint",
+        "parse_ast",
+        "batch_execute",
+        "begin"
+      ]
     }
   }
 }
 ```
 
-**Note**: Replace `/path/to/mcp-glootie` with the actual path to your cloned repository.
+### VSCode
+Add to your VSCode MCP configuration:
+```json
+{
+    "servers": {
+        "glootie": {
+            "command": "npx",
+            "args": ["-y", "mcp-glootie"],
+            "env": {},
+            "type": "stdio"
+        }
+    },
+    "inputs": []
+}
+```
+
+**Note**: For Claude Code, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. For other clients using npx, the package will be downloaded automatically.
 
 ## Tools
 
