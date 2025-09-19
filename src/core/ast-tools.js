@@ -504,7 +504,7 @@ export const DEFAULT_LINT_RULES = [
 export const AST_TOOLS = [
   {
     name: 'ast_search',
-    description: 'Find code patterns using AST grep. Search for specific code structures, variable declarations, function calls, or syntax patterns across files. This is the preferred tool for targeted code searches when you know what pattern to look for.',
+    description: 'Find structural code patterns using AST analysis across multi-language codebases.',
     supported_operations: ['pattern matching', 'code structure analysis', 'syntax search', 'variable declaration finding', 'function call detection'],
     use_cases: ['Find all console.log statements', 'Locate variable declarations', 'Find function calls with specific patterns', 'Search for class definitions', 'Identify import statements'],
     examples: [
@@ -565,7 +565,7 @@ export const AST_TOOLS = [
   },
   {
     name: 'ast_replace',
-    description: 'Replace code patterns using AST grep. Safely transform code by replacing patterns while preserving syntax structure. Ideal for refactoring, migrating APIs, or updating deprecated syntax.',
+    description: 'Replace structural code patterns safely using AST transformations.',
     supported_operations: ['code refactoring', 'pattern replacement', 'syntax transformation', 'API migration', 'deprecated code updates'],
     use_cases: ['Replace console.log with logger', 'Convert var to let/const', 'Rename function or variable names', 'Update deprecated APIs', 'Modernize syntax patterns'],
     examples: [
@@ -626,7 +626,7 @@ export const AST_TOOLS = [
   },
   {
     name: 'ast_lint',
-    description: 'Lint code using AST pattern rules. Enforce coding standards, detect anti-patterns, and find code quality issues across your codebase. This is a powerful way to search for specific conditions and enforce consistent patterns.',
+    description: 'Lint code using custom AST pattern rules to enforce standards and detect issues.',
     supported_operations: ['code quality analysis', 'anti-pattern detection', 'coding standard enforcement', 'security pattern checking', 'performance issue detection'],
     use_cases: ['Find all console.log statements in production', 'Detect var declarations that should be const/let', 'Identify missing error handling', 'Find unused variables', 'Check for security vulnerabilities'],
     examples: [
@@ -779,7 +779,7 @@ export async function astgrepLint(path, rules = [], workingDirectory) {
 export const astTools = [
   {
     name: "parse_ast",
-    description: "Parse AST from code with ignore filtering. Common patterns: function declarations, class definitions, import statements, variable declarations, try-catch blocks, API calls, React components, configuration objects. Use this for all Simple, Quick Tasks",
+    description: "Parse AST from code with ignore filtering for syntax analysis.",
     supported_operations: ["code parsing", "AST analysis"],
     use_cases: ["Code structure analysis", "Syntax validation", "Code transformation preparation"],
     examples: [

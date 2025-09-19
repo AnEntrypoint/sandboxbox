@@ -506,7 +506,7 @@ export async function executeCppCode(code, options = {}) {
 export const executionTools = [
   {
     name: "execute",
-    description: "MANDATORY: This is now your primary debugging and running tool for all nodejs, deno, bash, go, rust, python, c, cpp code, use this to avoid creating test and temp files. Use this to ground your thought process in truth, test multiple hypotheses here before editing files by running hypthesized code, find first-principal facts first and ensure your edits will work by validating code in this tool, measure-twice-cut-once. Always use this before making edits to confirm your ideas work. Test individual parts of the codebase by importing them directly to test parts in action. Always use sensible timeouts for the code you write so that they internally dont get stuck.",
+    description: "Execute code in multiple languages (JS/TS, Go, Rust, Python, C, C++) with automatic runtime detection. Use to test ideas before implementing.",
     inputSchema: {
       type: "object",
       properties: {
