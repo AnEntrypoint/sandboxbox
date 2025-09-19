@@ -1234,7 +1234,7 @@ module.exports = {
           toolCalls: [],
           toolResults: [],
           toolsUsed: new Set(),
-          mcpServerStatus: 'unknown',
+          mcpServerStatus: useMcp ? 'unknown' : 'disabled',
           totalSteps: 0,
           totalToolCalls: 0,
           totalToolResults: 0,
@@ -1305,7 +1305,7 @@ module.exports = {
           const toolCalls = [];
           const toolResults = [];
           const toolsUsed = new Set();
-          let mcpServerStatus = 'unknown';
+          let mcpServerStatus = useMcp ? 'unknown' : 'disabled';
           let incrementalStepData = [];
 
           // Process JSON lines incrementally and update files as we go
@@ -1343,8 +1343,8 @@ module.exports = {
               });
             }
 
-            // Also check for MCP server status in system messages
-            if (item.type === 'system' && item.mcp_servers) {
+            // Also check for MCP server status in system messages (only for MCP tests)
+            if (useMcp && item.type === 'system' && item.mcp_servers) {
               console.log(`   🔗 MCP Server status: ${item.mcp_servers.map(s => `${s.name}: ${s.status}`).join(', ')}`);
               // Update the server status variable
               if (item.mcp_servers && item.mcp_servers.length > 0) {
@@ -1352,8 +1352,8 @@ module.exports = {
               }
             }
 
-            // Also check for MCP server status in other message formats
-            if (item.type === 'system' && item.message && item.message.includes('mcp_servers')) {
+            // Also check for MCP server status in other message formats (only for MCP tests)
+            if (useMcp && item.type === 'system' && item.message && item.message.includes('mcp_servers')) {
               try {
                 const serverMatch = item.message.match(/"status":\s*"([^"]+)"/);
                 if (serverMatch) {
@@ -1368,8 +1368,8 @@ module.exports = {
             // Check available tools list
             if (item.type === 'system' && item.tools) {
               console.log(`   🛠️ Available tools: ${item.tools.length} total`);
-              const mcpTools = item.tools.filter(tool => tool.startsWith('mcp__glootie___'));
-              if (mcpTools.length > 0) {
+              const mcpTools = item.tools.filter(tool => tool.startsWith('mcp__glootie__'));
+              if (mcpTools.length > 0 && useMcp) {
                 console.log(`   🎯 MCP tools available: ${mcpTools.length}`);
                 console.log(`   📋 Available MCP tools: ${mcpTools.join(', ')}`);
               }
@@ -1386,8 +1386,9 @@ module.exports = {
             if (isStep) {
               incrementalStepData.push(item);
 
-              // Incrementally update step file every 10 steps or on significant changes
-              if (incrementalStepData.length % 10 === 0 || item.type === 'system') {
+              // Incrementally update step file every 25 steps, on system messages, or on significant tool usage
+              if (incrementalStepData.length % 25 === 0 || item.type === 'system' ||
+                  (toolCalls.length > 0 && toolCalls.length % 5 === 0)) {
                 const incrementalUpdate = {
                   ...incrementalData,
                   stepData: incrementalStepData,
@@ -1419,7 +1420,7 @@ module.exports = {
                     toolsUsed: incrementalUpdate.toolsUsed
                   }, null, 2));
 
-                  console.log(`   📝 Incrementally updated step file (${incrementalStepData.length} steps, ${toolCalls.length} calls)`);
+                  console.log(`   📝 Incremental update: ${incrementalStepData.length} steps, ${toolCalls.length} calls (reduced frequency)`);
                 } catch (writeError) {
                   console.warn(`   ⚠️  Could not write incremental step update: ${writeError.message}`);
                 }
@@ -1481,7 +1482,7 @@ module.exports = {
         console.log(`   Tools called: ${parsedOutput.totalToolCalls}`);
         console.log(`   Tools used: ${parsedOutput.toolsUsed ? parsedOutput.toolsUsed.join(', ') : 'none'}`);
         console.log(`   MCP Server: ${parsedOutput.mcpServerStatus || 'unknown'}`);
-        console.log(`   📝 Incremental writing: Files updated during execution (step data written every 10 steps)`);
+        console.log(`   📝 Optimized incremental writing: Files updated during execution (reduced write frequency)`);
 
         // Enhanced MCP tool usage reporting
         const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('mcp__glootie___')) : [];
