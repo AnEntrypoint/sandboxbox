@@ -1273,6 +1273,7 @@ module.exports = {
           const toolCalls = [];
           const toolResults = [];
           const toolsUsed = new Set();
+          let mcpServerStatus = 'unknown';
 
           jsonLines.forEach(item => {
             // Check for tool calls in assistant messages
@@ -1285,6 +1286,11 @@ module.exports = {
                     input: content.input
                   });
                   toolsUsed.add(content.name);
+
+                  // Check if this is an MCP tool
+                  if (content.name && content.name.startsWith('mcp__glootie___')) {
+                    console.log(`   🎯 MCP tool used: ${content.name}`);
+                  }
                 }
               });
             }
@@ -1304,6 +1310,23 @@ module.exports = {
             // Also check for MCP server status in system messages
             if (item.type === 'system' && item.mcp_servers) {
               console.log(`   🔗 MCP Server status: ${item.mcp_servers.map(s => `${s.name}: ${s.status}`).join(', ')}`);
+              // Update the server status variable
+              if (item.mcp_servers && item.mcp_servers.length > 0) {
+                mcpServerStatus = item.mcp_servers[0].status;
+              }
+            }
+
+            // Also check for MCP server status in other message formats
+            if (item.type === 'system' && item.message && item.message.includes('mcp_servers')) {
+              try {
+                const serverMatch = item.message.match(/"status":\s*"([^"]+)"/);
+                if (serverMatch) {
+                  mcpServerStatus = serverMatch[1];
+                  console.log(`   🔗 MCP Server status found: ${mcpServerStatus}`);
+                }
+              } catch (e) {
+                // Ignore parse errors
+              }
             }
 
             // Check available tools list
@@ -1312,43 +1335,12 @@ module.exports = {
               const mcpTools = item.tools.filter(tool => tool.startsWith('mcp__glootie___'));
               if (mcpTools.length > 0) {
                 console.log(`   🎯 MCP tools available: ${mcpTools.length}`);
+                console.log(`   📋 Available MCP tools: ${mcpTools.join(', ')}`);
               }
             }
           });
 
-          // Check for MCP server status and tools
-          let mcpServerStatus = 'unknown';
-          jsonLines.forEach(item => {
-            // Check for MCP server status in raw output
-            if (item.rawOutput && item.rawOutput.includes('mcp_servers')) {
-              try {
-                const parsed = JSON.parse(item.rawOutput);
-                if (parsed.mcp_servers && parsed.mcp_servers.length > 0) {
-                  mcpServerStatus = parsed.mcp_servers[0].status;
-                }
-              } catch (e) {
-                // Ignore parse errors
-              }
-            }
-
-            // Check for MCP tools in the tools list
-            if (item.tools && Array.isArray(item.tools)) {
-              item.tools.forEach(tool => {
-                if (tool.name && tool.name.startsWith('mcp__glootie___')) {
-                  toolsUsed.add(tool.name);
-                }
-              });
-            }
-
-            // Also check for MCP tools in debug output
-            if (item.rawOutput && item.rawOutput.includes('mcp__glootie___')) {
-              const mcpMatches = item.rawOutput.match(/mcp__glootie___\w+/g);
-              if (mcpMatches) {
-                mcpMatches.forEach(match => toolsUsed.add(match));
-              }
-            }
-          });
-
+          
           // Count meaningful interactions as steps (tool calls, results, and assistant messages)
           stepData = jsonLines.filter(item => {
             // Include tool calls and results
