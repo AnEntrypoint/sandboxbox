@@ -1,14 +1,17 @@
-# MCP Glootie v3.1.6
+# MCP Glootie v3.2.0
 
 Complete MCP (Model Context Protocol) server for advanced development tools with full feature set restored.
 
 ## Features
 
+### Multi-Language Support
+**Supported Languages**: JavaScript, TypeScript, Go, Rust, Python, C, C++
+
 ### Core Analysis Tools
-- **searchcode** - Semantic code search with AI-powered discovery
-- **astgrep_search** - Structural code pattern matching with AST analysis
-- **astgrep_replace** - Safe code refactoring with pattern-based transformations
-- **astgrep_lint** - Code validation with custom rules and quality checks
+- **searchcode** - Semantic code search with AI-powered discovery across all supported languages
+- **astgrep_search** - Structural code pattern matching with AST analysis for multi-language codebases
+- **astgrep_replace** - Safe code refactoring with pattern-based transformations across languages
+- **astgrep_lint** - Code validation with custom rules and quality checks for all languages
 
 ### Advanced Tools
 - **batch_execute** - Coordinate multiple tools in single operations for efficiency
@@ -17,9 +20,14 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 - **turn-reduction** - Reduce conversation turns through intelligent coordination
 
 ### Execution Tools
-- **executenodejs** - Execute JavaScript code with Node.js
-- **executedeno** - Execute TypeScript/JavaScript with Deno
-- **executebash** - Run bash commands securely
+- **execute** - Multi-language code execution with automatic runtime detection
+  - **JavaScript/TypeScript** - Execute with Node.js or Deno
+  - **Go** - Execute with `go run` (when Go CLI available)
+  - **Rust** - Compile and execute with `rustc` (when Rust CLI available)
+  - **Python** - Execute with `python3` (when Python CLI available)
+  - **C** - Compile and execute with `gcc` (when GCC available)
+  - **C++** - Compile and execute with `g++` (when G++ available)
+  - **Bash** - Run bash commands securely
 - **retrieve_overflow** - Handle large content from previous operations
 
 ## Installation
@@ -27,6 +35,20 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 ```bash
 npm install -g mcp-glootie
 ```
+
+### Language Runtime Requirements
+
+For full multi-language support, install the following CLI tools:
+
+- **Go**: `go` - Install from https://golang.org/
+- **Rust**: `rustc` and `cargo` - Install from https://rustup.rs/
+- **Python**: `python3` - Usually pre-installed on Linux/macOS
+- **C**: `gcc` - Install build-essential or Xcode Command Line Tools
+- **C++**: `g++` - Included with gcc installation
+- **Node.js**: `node` - Install from https://nodejs.org/
+- **Deno**: `deno` - Install from https://deno.land/
+
+**Note**: The tools automatically detect which language runtimes are available and enable features accordingly.
 
 ## 🚀 Installation
 
@@ -108,16 +130,19 @@ Add to your VSCode MCP configuration:
 ## Tools
 
 ### searchcode
-Search for code patterns across your codebase.
+Search for code patterns across your multi-language codebase with semantic understanding.
 
 ### astgrep_search
-Find structural code patterns using AST matching.
+Find structural code patterns using AST matching across JavaScript, TypeScript, Go, Rust, Python, C, and C++.
 
 ### astgrep_replace
-Safely transform code patterns with AST-based replacement.
+Safely transform code patterns with AST-based replacement for all supported languages.
+
+### execute
+Execute code in multiple languages with automatic runtime detection and CLI tool integration.
 
 ### batch_execute
-Coordinate multiple tools in single operations for efficiency.
+Coordinate multiple tools in single operations for efficiency across different languages.
 
 ### sequentialthinking
 Structure complex thoughts systematically for better analysis.

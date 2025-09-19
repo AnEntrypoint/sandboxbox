@@ -6,18 +6,69 @@ class ASTGrepHelper {
   constructor(language = 'javascript') {
     this.language = language;
     this.astGrep = null;
+    this.registeredLanguages = new Set();
     this.initializeASTGrep();
+  }
+
+  detectLanguageFromExtension(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    const extensionMap = {
+      '.js': 'javascript',
+      '.jsx': 'jsx',
+      '.ts': 'typescript',
+      '.tsx': 'tsx',
+      '.go': 'go',
+      '.rs': 'rust',
+      '.py': 'python',
+      '.c': 'c',
+      '.cpp': 'cpp',
+      '.cc': 'cpp',
+      '.cxx': 'cpp',
+      '.html': 'html',
+      '.css': 'css'
+    };
+
+    return extensionMap[ext] || 'javascript';
+  }
+
+  setLanguage(language) {
+    this.language = language;
   }
 
   async initializeASTGrep() {
     try {
-      const { parse, Lang } = await import('@ast-grep/napi');
+      const { parse, Lang, registerDynamicLanguage } = await import('@ast-grep/napi');
       this.parse = parse;
       this.Lang = Lang;
-      this.astGrep = { parse, Lang };
+      this.registerDynamicLanguage = registerDynamicLanguage;
+      this.astGrep = { parse, Lang, registerDynamicLanguage };
+
+      // Register additional languages
+      await this.registerAdditionalLanguages();
     } catch (error) {
       console.warn('ast-grep not available, using fallback pattern matching');
       this.astGrep = null;
+    }
+  }
+
+  async registerAdditionalLanguages() {
+    const languagePackages = [
+      { name: 'go', package: '@ast-grep/lang-go', key: 'Go' },
+      { name: 'rust', package: '@ast-grep/lang-rust', key: 'Rust' },
+      { name: 'python', package: '@ast-grep/lang-python', key: 'Python' },
+      { name: 'c', package: '@ast-grep/lang-c', key: 'C' },
+      { name: 'cpp', package: '@ast-grep/lang-cpp', key: 'Cpp' }
+    ];
+
+    for (const { name, package: packageName, key } of languagePackages) {
+      try {
+        const langModule = await import(packageName);
+        this.registerDynamicLanguage({ [key]: langModule.default });
+        this.registeredLanguages.add(name);
+        console.log(`✅ Registered ${name} language support`);
+      } catch (error) {
+        console.warn(`⚠️ Could not register ${name}: ${error.message}`);
+      }
     }
   }
 
@@ -30,12 +81,25 @@ class ASTGrepHelper {
       const { parse, Lang } = this.astGrep;
       let lang = Lang.JavaScript;
 
-      if (this.language === 'typescript') {
-        lang = Lang.TypeScript;
-      } else if (this.language === 'jsx') {
-        lang = Lang.JSX;
-      } else if (this.language === 'tsx') {
-        lang = Lang.TSX;
+      // Map language names to Lang keys
+      const languageMap = {
+        'javascript': Lang.JavaScript,
+        'typescript': Lang.TypeScript,
+        'jsx': Lang.JSX || Lang.JavaScript,
+        'tsx': Lang.TSX || Lang.TypeScript,
+        'html': Lang.Html,
+        'css': Lang.Css,
+        'go': 'Go',
+        'rust': 'Rust',
+        'python': 'Python',
+        'c': 'C',
+        'cpp': 'Cpp'
+      };
+
+      if (languageMap[this.language]) {
+        lang = languageMap[this.language];
+      } else {
+        console.warn(`Unknown language: ${this.language}, defaulting to JavaScript`);
       }
 
       return parse(lang, code);
@@ -622,6 +686,7 @@ export const AST_TOOLS = [
 ];
 
 export default AST_TOOLS;
+export { ASTGrepHelper };
 
 function createToolResponse(content, isError = false) {
   return {

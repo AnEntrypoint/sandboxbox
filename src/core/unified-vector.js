@@ -19,7 +19,20 @@ const platform = {
 const INDEX_DIR = './code_search_index';
 const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
 const DEFAULT_DIM = 384; // Dimension size for the chosen model
-const DEFAULT_EXTS = ['js', 'ts', 'jsx', 'tsx'];
+const DEFAULT_EXTS = [
+  // JavaScript/TypeScript
+  'js', 'ts', 'jsx', 'tsx',
+  // Go
+  'go',
+  // Rust
+  'rs',
+  // Python
+  'py', 'pyx', 'pyi',
+  // C/C++
+  'c', 'cpp', 'cc', 'cxx', 'h', 'hpp', 'hh', 'hxx',
+  // Additional useful formats
+  'json', 'yaml', 'yml', 'toml', 'md', 'txt'
+];
 const DEFAULT_IGNORES = [
   '**/node_modules/**', '**/.git/**', '**/.node_modules/**',
   '**/dist/**', '**/build/**', '**/coverage/**', '**/.nyc_output/**',
@@ -40,7 +53,12 @@ const DEFAULT_IGNORES = [
     '**/optimized-test-*/**',
   '**/*.spec.js', '**/*.spec.ts', '**/temp-*.js', '**/ab-test-*.js',
   '**/*.min.js', '**/*.bundle.js', '**/*.chunk.js',
-  '**/*.json', '**/*.md', '**/*.txt', '**/*.log', '**/*.xml', '**/*.csv',
+  // Language-specific ignores
+  '**/target/**', '**/Cargo.lock', // Rust
+  '**/go.sum', '**/vendor/**', // Go
+  '**/__pycache__/**', '**/*.pyc', '**/venv/**', '**/env/**', '**/.env/**', // Python
+  '**/CMakeCache.txt', '**/CMakeFiles/**', '**/*.o', '**/*.a', '**/*.so', // C/C++
+  '**/*.log', '**/*.xml', '**/*.csv',
   '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.svg', '**/*.ico',
   '**/*.pdf', '**/*.zip', '**/*.tar', '**/*.gz', '**/*.7z', '**/*.dmg',
   '**/*.exe', '**/*.dll', '**/*.so', '**/*.dylib',
@@ -250,9 +268,44 @@ function shouldIndexFile(filePath, allowedExtensions) {
   return !excludedPatterns.some(pattern => pattern.test(filename));
 }
 
+function detectLanguageFromPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const languageMap = {
+    '.js': 'javascript',
+    '.jsx': 'javascript',
+    '.ts': 'typescript',
+    '.tsx': 'typescript',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.py': 'python',
+    '.c': 'c',
+    '.cpp': 'cpp',
+    '.cc': 'cpp',
+    '.cxx': 'cpp',
+    '.h': 'c',
+    '.hpp': 'cpp'
+  };
+  return languageMap[ext] || 'text';
+}
+
+function getLanguagePatterns(language) {
+  const patterns = {
+    javascript: /^(function|class|const|let|var|export|import)\s+\w/,
+    typescript: /^(function|class|const|let|var|export|import|interface|type|enum)\s+\w/,
+    go: /^(func|type|var|const|import|package)\s+\w/,
+    rust: /^(fn|struct|enum|impl|trait|use|mod|pub)\s+\w/,
+    python: /^(def|class|import|from)\s+\w/,
+    c: /^(int|void|char|float|double|struct|enum|typedef|#include|#define)\s+\w/,
+    cpp: /^(int|void|char|float|double|class|struct|namespace|template|#include|#define)\s+\w/
+  };
+  return patterns[language] || /^[a-zA-Z_]\w*\s*[({]/;
+}
+
 function processCodeIntoChunks(content, filePath) {
   const chunks = [];
   const lines = content.split('\n');
+  const language = detectLanguageFromPath(filePath);
+  const languagePattern = getLanguagePatterns(language);
 
   let currentChunk = '';
   let inFunction = false;
@@ -264,11 +317,12 @@ function processCodeIntoChunks(content, filePath) {
     const line = lines[i];
     const trimmedLine = line.trim();
 
-    if (trimmedLine.match(/^(function|class|const|let|var)\s+\w/)) {
+    if (trimmedLine.match(languagePattern)) {
       if (currentChunk.trim()) {
         chunks.push({
           content: currentChunk.trim(),
           file: filePath,
+          language: language,
           startLine: Math.max(0, i - currentChunk.split('\n').length),
           endLine: i
         });
@@ -304,6 +358,7 @@ function processCodeIntoChunks(content, filePath) {
     chunks.push({
       content: currentChunk.trim(),
       file: filePath,
+      language: language,
       startLine: Math.max(0, lines.length - currentChunk.split('\n').length),
       endLine: lines.length - 1
     });
