@@ -32,8 +32,17 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 
 ## Installation
 
+### Local Development Setup
+
+Since this is a development project, you'll need to set it up locally:
+
 ```bash
-npm install -g mcp-glootie
+# Clone the repository
+git clone https://github.com/AnEntrypoint/mcp-glootie.git
+cd mcp-glootie
+
+# Install dependencies
+npm install
 ```
 
 ### Language Runtime Requirements
@@ -45,16 +54,17 @@ For full multi-language support, install the following CLI tools:
 - **Python**: `python3` - Usually pre-installed on Linux/macOS
 - **C**: `gcc` - Install build-essential or Xcode Command Line Tools
 - **C++**: `g++` - Included with gcc installation
-- **Node.js**: `node` - Install from https://nodejs.org/
+- **Node.js**: `node` (≥16.0.0) - Install from https://nodejs.org/
 - **Deno**: `deno` - Install from https://deno.land/
 
 **Note**: The tools automatically detect which language runtimes are available and enable features accordingly.
 
-## 🚀 Installation
+## Client Configuration
 
 ### Claude Code
 ```bash
-claude mcp add -s user glootie "npx -y mcp-glootie"
+# Add the local server (replace /path/to with your actual path)
+claude mcp add -s user glootie "node /path/to/mcp-glootie/src/index.js"
 ```
 
 ### Cursor
@@ -63,69 +73,41 @@ Add to your Cursor `mcpServers.json` configuration:
 {
   "mcpServers": {
     "glootie": {
-      "command": "npx",
-      "args": ["-y", "mcp-glootie"],
+      "command": "node",
+      "args": ["/path/to/mcp-glootie/src/index.js"],
       "env": {},
       "disabled": false,
       "autoApprove": [
-        "executenodejs",
-        "executedeno",
-        "executebash",
+        "execute",
         "retrieve_overflow",
         "searchcode",
         "astgrep_search",
         "astgrep_replace",
         "astgrep_lint",
+        "parse_ast",
         "batch_execute",
-        "sequentialthinking"
+        "begin"
       ]
     }
   }
 }
 ```
 
-### GitHub Copilot
-Add to your GitHub Copilot `mcpServers.json` configuration:
+### Other MCP Clients
+For other MCP clients, use this general configuration:
 ```json
 {
   "mcpServers": {
     "glootie": {
-      "command": "npx",
-      "args": ["-y", "mcp-glootie"],
-      "env": {},
-      "type": "local",
-      "tools": [
-        "executenodejs",
-        "executedeno",
-        "executebash",
-        "retrieve_overflow",
-        "searchcode",
-        "astgrep_search",
-        "astgrep_replace",
-        "astgrep_lint",
-        "batch_execute",
-        "sequentialthinking"
-      ]
+      "command": "node",
+      "args": ["/path/to/mcp-glootie/src/index.js"],
+      "env": {}
     }
   }
 }
 ```
 
-### VSCode
-Add to your VSCode MCP configuration:
-```json
-{
-    "servers": {
-        "glootie": {
-            "command": "npx",
-            "args": ["-y", "mcp-glootie"],
-            "env": {},
-            "type": "stdio"
-        }
-    },
-    "inputs": []
-}
-```
+**Note**: Replace `/path/to/mcp-glootie` with the actual path to your cloned repository.
 
 ## Tools
 
@@ -158,10 +140,11 @@ The project includes a comprehensive performance testing suite (`test-runner.cjs
 
 ### Test Runner Features
 
-- **Incremental File Writing**: Step data written every 10 operations to prevent hanging
+- **Optimized Incremental File Writing**: Step data written every 25 operations for better performance
 - **Process Monitoring**: Real-time updates during test execution
 - **Error Recovery**: Graceful handling of failed tests with detailed error reporting
 - **Performance Metrics**: Measures speed improvements and tool effectiveness
+- **Status Tracking**: Proper MCP server status tracking for baseline vs MCP tests
 
 Run tests with:
 ```bash
