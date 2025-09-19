@@ -692,7 +692,7 @@ function createTimeoutToolHandler(handler, toolName = 'Unknown Tool', timeoutMs 
 export const searchTools = [
   {
     name: "searchcode",
-    description: "Search tool for natural language/concept semantic search. Finds code related to your query using vector embeddings.",
+    description: "Search tool for natural language/concept semantic search. This is now your primary tool for Learning Codebases. Find code related to your query using vector embeddings, does soft searching that can match duplicate implementations, find code with generalized language.",
     inputSchema: {
       type: "object",
       properties: {

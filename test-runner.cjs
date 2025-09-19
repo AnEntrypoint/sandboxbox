@@ -1219,6 +1219,40 @@ module.exports = {
 
         console.log(`   ⚡ Executing in parallel...`);
         const testInfo = { testType, testName: test.name };
+
+        // Initialize incremental file writing - create files with initial data
+        const incrementalData = {
+          timestamp: new Date(timestamp).toISOString(),
+          testType,
+          testName: test.name,
+          testCategory: test.category,
+          prompt: test.prompt,
+          startTime: new Date().toISOString(),
+          rawOutput: '',
+          outputLength: 0,
+          stepData: [],
+          toolCalls: [],
+          toolResults: [],
+          toolsUsed: new Set(),
+          mcpServerStatus: 'unknown',
+          totalSteps: 0,
+          totalToolCalls: 0,
+          totalToolResults: 0,
+          parseError: null
+        };
+
+        // Write initial files
+        fs.writeFileSync(outputFile, JSON.stringify(incrementalData, null, 2));
+        fs.writeFileSync(stepsFile, JSON.stringify({
+          ...incrementalData,
+          stepData: [],
+          toolCallsCount: 0,
+          toolResultsCount: 0,
+          duration: 0
+        }, null, 2));
+
+        console.log(`   📝 Incremental files initialized: ${path.basename(outputFile)}, ${path.basename(stepsFile)}`);
+
         const output = await this.executeClaudeCommand(claudeCmd, workingDir, timeout, testInfo);
 
         // Debug: Show first 200 chars of output to understand format
@@ -1226,15 +1260,13 @@ module.exports = {
         console.log(`   🔢 Output lines: ${output.split('\n').length}`);
 
         // Save raw output for analysis
-        fs.writeFileSync(outputFile, JSON.stringify({
-          timestamp: new Date(timestamp).toISOString(),
-          testType,
-          testName: test.name,
-          testCategory: test.category,
-          prompt: test.prompt,
+        const finalOutputData = {
+          ...incrementalData,
           rawOutput: output,
-          outputLength: output.length
-        }, null, 2));
+          outputLength: output.length,
+          endTime: new Date().toISOString()
+        };
+        fs.writeFileSync(outputFile, JSON.stringify(finalOutputData, null, 2));
         const endTime = Date.now();
         const duration = (endTime - startTime) / 1000;
 
@@ -1269,13 +1301,17 @@ module.exports = {
             }];
           }
 
-          // Find all tool calls and results
+          // Initialize incremental processing data
           const toolCalls = [];
           const toolResults = [];
           const toolsUsed = new Set();
           let mcpServerStatus = 'unknown';
+          let incrementalStepData = [];
 
-          jsonLines.forEach(item => {
+          // Process JSON lines incrementally and update files as we go
+          for (let i = 0; i < jsonLines.length; i++) {
+            const item = jsonLines[i];
+
             // Check for tool calls in assistant messages
             if (item.type === 'assistant' && item.message && item.message.content) {
               item.message.content.forEach(content => {
@@ -1338,25 +1374,60 @@ module.exports = {
                 console.log(`   📋 Available MCP tools: ${mcpTools.join(', ')}`);
               }
             }
-          });
 
-          
-          // Count meaningful interactions as steps (tool calls, results, and assistant messages)
-          stepData = jsonLines.filter(item => {
-            // Include tool calls and results
-            if (item.type === 'assistant' && item.message && item.message.content) {
-              return item.message.content.some(content => content.type === 'tool_use');
+            // Check if this is a step-worthy item
+            const isStep = item.type === 'assistant' && item.message && item.message.content &&
+                          item.message.content.some(content => content.type === 'tool_use') ||
+                          item.type === 'user' && item.message && item.message.content &&
+                          item.message.content.some(content => content.type === 'tool_result') ||
+                          item.type === 'system' && item.subtype === 'init' ||
+                          item.type === 'step' || item.step;
+
+            if (isStep) {
+              incrementalStepData.push(item);
+
+              // Incrementally update step file every 10 steps or on significant changes
+              if (incrementalStepData.length % 10 === 0 || item.type === 'system') {
+                const incrementalUpdate = {
+                  ...incrementalData,
+                  stepData: incrementalStepData,
+                  totalSteps: incrementalStepData.length,
+                  toolCalls: toolCalls,
+                  toolResults: toolResults,
+                  toolsUsed: Array.from(toolsUsed),
+                  mcpServerStatus,
+                  totalToolCalls: toolCalls.length,
+                  totalToolResults: toolResults.length,
+                  currentStep: i + 1,
+                  totalSteps: jsonLines.length,
+                  lastUpdated: new Date().toISOString()
+                };
+
+                try {
+                  fs.writeFileSync(stepsFile, JSON.stringify({
+                    timestamp: incrementalUpdate.timestamp,
+                    testType: incrementalUpdate.testType,
+                    testName: incrementalUpdate.testName,
+                    testCategory: incrementalUpdate.testCategory,
+                    prompt: incrementalUpdate.prompt,
+                    stepData: incrementalUpdate.stepData,
+                    totalSteps: incrementalUpdate.totalSteps,
+                    toolCallsCount: incrementalUpdate.totalToolCalls,
+                    toolResultsCount: incrementalUpdate.totalToolResults,
+                    duration: (Date.now() - startTime) / 1000,
+                    mcpServerStatus: incrementalUpdate.mcpServerStatus,
+                    toolsUsed: incrementalUpdate.toolsUsed
+                  }, null, 2));
+
+                  console.log(`   📝 Incrementally updated step file (${incrementalStepData.length} steps, ${toolCalls.length} calls)`);
+                } catch (writeError) {
+                  console.warn(`   ⚠️  Could not write incremental step update: ${writeError.message}`);
+                }
+              }
             }
-            if (item.type === 'user' && item.message && item.message.content) {
-              return item.message.content.some(content => content.type === 'tool_result');
-            }
-            // Include system initialization messages
-            if (item.type === 'system' && item.subtype === 'init') {
-              return true;
-            }
-            // Also include explicit step markers if they exist
-            return item.type === 'step' || item.step;
-          });
+          }
+
+          stepData = incrementalStepData;
           parsedOutput = {
             rawOutput: output,
             jsonLines,
@@ -1385,7 +1456,7 @@ module.exports = {
           };
         }
 
-        // Save step data for analysis
+        // Save final step data for analysis
         fs.writeFileSync(stepsFile, JSON.stringify({
           timestamp: new Date(timestamp).toISOString(),
           testType,
@@ -1397,7 +1468,10 @@ module.exports = {
           toolCallsCount: parsedOutput.toolCalls ? parsedOutput.toolCalls.length : 0,
           toolResultsCount: parsedOutput.toolResults ? parsedOutput.toolResults.length : 0,
           parseError: parsedOutput.parseError,
-          duration
+          duration,
+          toolsUsed: parsedOutput.toolsUsed,
+          mcpServerStatus: parsedOutput.mcpServerStatus,
+          finalUpdateTime: new Date().toISOString()
         }, null, 2));
 
         console.log(`✅ ${testType} test completed successfully`);
@@ -1407,6 +1481,7 @@ module.exports = {
         console.log(`   Tools called: ${parsedOutput.totalToolCalls}`);
         console.log(`   Tools used: ${parsedOutput.toolsUsed ? parsedOutput.toolsUsed.join(', ') : 'none'}`);
         console.log(`   MCP Server: ${parsedOutput.mcpServerStatus || 'unknown'}`);
+        console.log(`   📝 Incremental writing: Files updated during execution (step data written every 10 steps)`);
 
         // Enhanced MCP tool usage reporting
         const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('mcp__glootie___')) : [];

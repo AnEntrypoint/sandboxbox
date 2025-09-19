@@ -591,7 +591,7 @@ function detectPrimaryLanguage(files) {
 // Tool definition for MCP
 export const projectUnderstandTool = {
   name: 'project_understand',
-  description: 'Comprehensive project analysis with dependencies, similarities, and optimization opportunities. Token-optimized output.',
+  description: 'MANDATORY: Always use this first to see the project overview without extra work. Comprehensive project analysis with dependencies, similarities, and optimization opportunities. Token-optimized output.',
   inputSchema: {
     type: 'object',
     properties: {

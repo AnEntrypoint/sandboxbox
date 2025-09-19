@@ -714,7 +714,7 @@ export async function astgrepLint(path, rules = [], workingDirectory) {
 export const astTools = [
   {
     name: "parse_ast",
-    description: "Parse AST from code with ignore filtering. Common patterns: function declarations, class definitions, import statements, variable declarations, try-catch blocks, API calls, React components, configuration objects.",
+    description: "Parse AST from code with ignore filtering. Common patterns: function declarations, class definitions, import statements, variable declarations, try-catch blocks, API calls, React components, configuration objects. Use this for all Simple, Quick Tasks",
     supported_operations: ["code parsing", "AST analysis"],
     use_cases: ["Code structure analysis", "Syntax validation", "Code transformation preparation"],
     examples: [
