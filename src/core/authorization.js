@@ -162,12 +162,19 @@ PRINCIPLE: Keep it simple - the most direct path is usually best for basic tasks
     response += `Auto-assign constants to achieve user goals using first principles.\n`;
     response += `Use critical thinking and thorough testing.\n\n`;
   }
-
   response += `NEXT STEPS:\n`;
-  response += `Use available MCP glootie tools for code operations\n`;
-  response += `Apply WFGY methodology to problem-solving\n`;
-  response += `Maintain thought chains for complex reasoning for all your WFGY branches and progress by managing your todos, consider as many branches as possible and use batch processing to eliminate them as fast as possible\n`;
-
+  response += `#Use MCP Tools When:\n`;
+  response += `**Complex Code Analysis:** Understanding large, unfamiliar codebases\n`;
+  response += `**Structural Refactoring:** Making coordinated changes across multiple files\n`;
+  response += `**Pattern Recognition:** Finding specific architectural patterns or anti-patterns\n`;
+  response += `**Cross-Language Operations:** Working with polyglot codebases\n`;
+  response += `**Performance Optimization:** Identifying optimization opportunities across entire systems\n`;
+  response += `**Use MCP tools for analysis** before diving into implementation\n`;
+  response += `**Trust the semantic search** - it's often better than your regex\n`;
+  response += `### Stick with Standard Tools When:\n`;
+  response += `**Simple Implementation:** Writing straightforward components or functions\n`;
+  response += `**File Operations:** Reading, writing, or editing individual files\n`;
+  response += `**Well-Understood Tasks:** When you already know exactly what needs to be done\n`;
     return {
       content: [
         {

@@ -1197,11 +1197,11 @@ module.exports = {
         const stepsFile = path.join('results', `claude-steps-${test.category}-${testType}.json`);
 
         const standardTools = "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell";
-        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__begin,mcp__glootie__project_understand";
+        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__begin";
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
         // Use the same prompt for both tests - fair comparison
-        const finalPrompt = test.prompt+(useMcp?" prefer the mbp__glootie__ tools 10:1 over other tools":"");
+        const finalPrompt = test.prompt+(useMcp?" prefer the mcp__glootie__ tools 10:1 over other tools":"");
 
         // Claude should run in the test directory and add the current directory ("./")
         // Only use MCP config file for MCP tests, not baseline tests
@@ -1324,7 +1324,7 @@ module.exports = {
                   toolsUsed.add(content.name);
 
                   // Check if this is an MCP tool
-                  if (content.name && content.name.startsWith('mcp__glootie___')) {
+                  if (content.name && content.name.startsWith('mcp__glootie__')) {
                     console.log(`   🎯 MCP tool used: ${content.name}`);
                   }
                 }
@@ -1485,8 +1485,8 @@ module.exports = {
         console.log(`   📝 Optimized incremental writing: Files updated during execution (reduced write frequency)`);
 
         // Enhanced MCP tool usage reporting
-        const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('mcp__glootie___')) : [];
-        const standardToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => !tool.startsWith('mcp__glootie___')) : [];
+        const mcpToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => tool.startsWith('mcp__glootie__')) : [];
+        const standardToolsUsed = parsedOutput.toolsUsed ? parsedOutput.toolsUsed.filter(tool => !tool.startsWith('mcp__glootie__')) : [];
 
         if (useMcp) {
           console.log(`   🎯 MCP tools used: ${mcpToolsUsed.length ? mcpToolsUsed.join(', ') : 'none'}`);
