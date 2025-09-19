@@ -1,4 +1,4 @@
-# MCP Glootie v3.1.0
+# MCP Glootie v3.1.6
 
 Complete MCP (Model Context Protocol) server for advanced development tools with full feature set restored.
 
@@ -122,12 +122,34 @@ Coordinate multiple tools in single operations for efficiency.
 ### sequentialthinking
 Structure complex thoughts systematically for better analysis.
 
+## Testing
+
+The project includes a comprehensive performance testing suite (`test-runner.cjs`) that:
+
+- **Parallel Testing**: Runs baseline vs MCP-optimized tests simultaneously
+- **Real-time Monitoring**: Incremental file writing prevents stuck processes
+- **Comprehensive Analysis**: Tracks tool usage, performance metrics, and MCP server status
+- **Automatic Reporting**: Generates detailed analysis reports and suggestions
+
+### Test Runner Features
+
+- **Incremental File Writing**: Step data written every 10 operations to prevent hanging
+- **Process Monitoring**: Real-time updates during test execution
+- **Error Recovery**: Graceful handling of failed tests with detailed error reporting
+- **Performance Metrics**: Measures speed improvements and tool effectiveness
+
+Run tests with:
+```bash
+node test-runner.cjs
+```
+
 ## Architecture
 
 - Clean, simple implementation following KISS principles
 - Minimal dependencies and straightforward code structure
 - Future-proof design with clear separation of concerns
 - Focus on essential functionality without unnecessary complexity
+- Robust testing infrastructure with incremental progress tracking
 
 ## License
 
