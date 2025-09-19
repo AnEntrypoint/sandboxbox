@@ -37,6 +37,7 @@ const DEFAULT_IGNORES = [
   '**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml',
   '**/.npmrc', '**/.yarnrc', '**/.pnpmrc',
   '**/test-*.js', '**/test-*.ts', '**/*.test.js', '**/*.test.ts',
+    '**/optimized-test-*/**',
   '**/*.spec.js', '**/*.spec.ts', '**/temp-*.js', '**/ab-test-*.js',
   '**/*.min.js', '**/*.bundle.js', '**/*.chunk.js',
   '**/*.json', '**/*.md', '**/*.txt', '**/*.log', '**/*.xml', '**/*.csv',
@@ -691,32 +692,22 @@ function createTimeoutToolHandler(handler, toolName = 'Unknown Tool', timeoutMs 
 export const searchTools = [
   {
     name: "searchcode",
-    description: "Search tool: Use 'semantic' for natural language/concept search, 'pattern' for exact matches. Replaces both vector_search and traditional searchcode.",
+    description: "Search tool for natural language/concept semantic search. Finds code related to your query using vector embeddings.",
     inputSchema: {
       type: "object",
       properties: {
         query: { type: "string", description: "Search query" },
         path: { type: "string", description: "Path to search in" },
-        workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." },
-        searchType: {
-          type: "string",
-          enum: ["semantic", "pattern"],
-          description: "Search type: 'semantic' for natural language/concept search, 'pattern' for exact pattern matching"
-        }
+        workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." }
       },
       required: ["query", "workingDirectory"]
     },
-    handler: createTimeoutToolHandler(async ({ query, path = ".", workingDirectory, searchType = "semantic" }) => {
+    handler: createTimeoutToolHandler(async ({ query, path = ".", workingDirectory }) => {
       validateRequiredParams({ query, workingDirectory }, ['query', 'workingDirectory']);
       const results = await searchCode(query, workingDirectory, [path]);
-
-      if (searchType === "semantic") {
-        return results.length > 0
-          ? `Found ${results.length} semantic results for "${query}" in ${path}:\n\n${results.map(r => `${r.file}:${r.startLine}-${r.endLine}\n${r.content.substring(0, 200)}...\nScore: ${r.score.toFixed(3)}`).join('\n\n')}`
-          : `No semantic results found for "${query}" in ${path}`;
-      } else {
-        return formatSearchResults(results, query, path);
-      }
+      return results.length > 0
+        ? `Found ${results.length} semantic results for "${query}" in ${path}:\n\n${results.map(r => `${r.file}:${r.startLine}-${r.endLine}\n${r.content.substring(0, 200)}...\nScore: ${r.score.toFixed(3)}`).join('\n\n')}`
+        : `No semantic results found for "${query}" in ${path}`;
     }, 'searchcode', 45000)
   }
 ];

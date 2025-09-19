@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import ignore from 'ignore';
 
 class ASTGrepHelper {
   constructor(language = 'javascript') {
@@ -299,30 +300,38 @@ export async function astLint(filePath, rules = [], options = {}) {
 async function findFiles(dir, options = {}) {
   const {
     recursive = true,
-    extensions = ['.js'],
-    ignorePatterns = []
+    extensions = ['.js', '.ts', '.jsx', '.tsx'],
+    ignorePatterns = [],
+    useGitignore = true
   } = options;
 
   const results = [];
 
-  const shouldIgnore = (filePath) => {
-    return ignorePatterns.some(pattern => {
-      if (pattern.includes('*')) {
-        const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-        return regex.test(filePath);
-      }
-      return filePath.includes(pattern);
-    });
-  };
+  // Combine default patterns, gitignore patterns, and custom patterns
+  const allPatterns = [
+    ...getDefaultIgnorePatterns(),
+    ...(useGitignore ? loadGitignorePatterns(dir) : []),
+    ...ignorePatterns
+  ];
+
+  // Create ignore instance
+  const ig = ignore();
+  ig.add(allPatterns);
 
   const scan = async (currentDir) => {
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
-      const relativePath = path.relative(dir, fullPath);
 
-      if (shouldIgnore(relativePath) || shouldIgnore(entry.name)) {
+      // Only apply ignore patterns to paths within the base directory
+      let shouldIgnore = false;
+      if (fullPath.startsWith(dir)) {
+        const relativePath = path.relative(dir, fullPath);
+        shouldIgnore = ig.ignores(relativePath) || ig.ignores(entry.name);
+      }
+
+      if (shouldIgnore) {
         continue;
       }
 
@@ -338,6 +347,73 @@ async function findFiles(dir, options = {}) {
 
   await scan(dir);
   return results;
+}
+
+// Default ignore patterns for performance
+export function getDefaultIgnorePatterns(workingDirectory) {
+  return [
+    '**/node_modules/**',
+    '**/.git/**',
+    '**/.next/**',
+    '**/.nuxt/**',
+    '**/.vuepress/**',
+    '**/.docusaurus/**',
+    '**/dist/**',
+    '**/build/**',
+    '**/out/**',
+    '**/coverage/**',
+    '**/.nyc_output/**',
+    '**/.cache/**',
+    '**/.parcel-cache/**',
+    '**/.turbo/**',
+    '**/.nx/**',
+    '**/.swc/**',
+    '**/bower_components/**',
+    '**/jspm_packages/**',
+    '**/.pnp/**',
+    '**/__tests__/**',
+    '**/__mocks__/**',
+    '**/__snapshots__/**',
+    '**/.jest/**',
+    '**/.mocha/**',
+    '**/.cypress/**',
+    '**/.playwright/**',
+    '**/*.min.js',
+    '**/*.bundle.js',
+    '**/*.chunk.js',
+    '**/package-lock.json',
+    '**/yarn.lock',
+    '**/pnpm-lock.yaml',
+    '**/.npmrc',
+    '**/.yarnrc',
+    '**/*.log',
+    '**/tmp/**',
+    '**/temp/**',
+    '**/.tmp/**',
+  '**/.DS_Store',
+  '**/Thumbs.db'
+  ];
+}
+
+// Load gitignore patterns from directory
+function loadGitignorePatterns(dir) {
+  const gitignorePath = path.join(dir, '.gitignore');
+  const patterns = [];
+
+  if (fs.existsSync(gitignorePath)) {
+    try {
+      const content = fs.readFileSync(gitignorePath, 'utf8');
+      const lines = content.split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+
+      patterns.push(...lines);
+    } catch (error) {
+      console.warn(`Failed to read .gitignore: ${error.message}`);
+    }
+  }
+
+  return patterns;
 }
 
 export const DEFAULT_LINT_RULES = [
@@ -364,7 +440,21 @@ export const DEFAULT_LINT_RULES = [
 export const AST_TOOLS = [
   {
     name: 'ast_search',
-    description: 'Search code patterns using AST-aware matching. More effective than regex for structural code search.',
+    description: 'Find code patterns using AST grep. Search for specific code structures, variable declarations, function calls, or syntax patterns across files. This is the preferred tool for targeted code searches when you know what pattern to look for.',
+    supported_operations: ['pattern matching', 'code structure analysis', 'syntax search', 'variable declaration finding', 'function call detection'],
+    use_cases: ['Find all console.log statements', 'Locate variable declarations', 'Find function calls with specific patterns', 'Search for class definitions', 'Identify import statements'],
+    examples: [
+      'console.log($MSG)',
+      'var $NAME = $VALUE',
+      'function $NAME($ARGS) { $BODY }',
+      'class $CLASS_NAME { $MEMBERS }',
+      'import {$IMPORTS} from \'$MODULE\'',
+      'const $NAME = require(\'$MODULE\')',
+      'if ($CONDITION) { $BODY }',
+      'try { $TRY_BODY } catch ($ERROR) { $CATCH_BODY }',
+      'return $EXPRESSION',
+      'throw new $ERROR_TYPE($MSG)'
+    ],
     inputSchema: {
       type: 'object',
       properties: {
@@ -399,7 +489,8 @@ export const AST_TOOLS = [
       const results = await astSearch(args.path, args.pattern, {
         language: args.language,
         recursive: args.recursive,
-        maxResults: args.maxResults
+        maxResults: args.maxResults,
+        ignorePatterns: getDefaultIgnorePatterns()
       });
 
       return {
@@ -410,7 +501,17 @@ export const AST_TOOLS = [
   },
   {
     name: 'ast_replace',
-    description: 'Replace code patterns using AST-aware transformation. Safely transforms code structure.',
+    description: 'Replace code patterns using AST grep. Safely transform code by replacing patterns while preserving syntax structure. Ideal for refactoring, migrating APIs, or updating deprecated syntax.',
+    supported_operations: ['code refactoring', 'pattern replacement', 'syntax transformation', 'API migration', 'deprecated code updates'],
+    use_cases: ['Replace console.log with logger', 'Convert var to let/const', 'Rename function or variable names', 'Update deprecated APIs', 'Modernize syntax patterns'],
+    examples: [
+      'Pattern: console.log($MSG) → Replacement: logger.info($MSG)',
+      'Pattern: var $NAME = $VALUE → Replacement: let $NAME = $VALUE',
+      'Pattern: require(\'$MODULE\') → Replacement: import $MODULE from \'$MODULE\'',
+      'Pattern: .then($CB) → Replacement: await $CB',
+      'Pattern: function($ARGS) { $BODY } → Replacement: ($ARGS) => { $BODY }',
+      'Pattern: new Promise(($RESOLVE, $REJECT) => { $BODY }) → Replacement: new Promise(async ($RESOLVE, $REJECT) => { $BODY })'
+    ],
     inputSchema: {
       type: 'object',
       properties: {
@@ -449,7 +550,8 @@ export const AST_TOOLS = [
       const results = await astReplace(args.path, args.pattern, args.replacement, {
         language: args.language,
         recursive: args.recursive,
-        backup: args.backup
+        backup: args.backup,
+        ignorePatterns: getDefaultIgnorePatterns()
       });
 
       return {
@@ -460,7 +562,16 @@ export const AST_TOOLS = [
   },
   {
     name: 'ast_lint',
-    description: 'Lint code using AST pattern rules. Enforce coding standards and detect issues.',
+    description: 'Lint code using AST pattern rules. Enforce coding standards, detect anti-patterns, and find code quality issues across your codebase. This is a powerful way to search for specific conditions and enforce consistent patterns.',
+    supported_operations: ['code quality analysis', 'anti-pattern detection', 'coding standard enforcement', 'security pattern checking', 'performance issue detection'],
+    use_cases: ['Find all console.log statements in production', 'Detect var declarations that should be const/let', 'Identify missing error handling', 'Find unused variables', 'Check for security vulnerabilities'],
+    examples: [
+      'Rule: {name: "no-console", pattern: "console.log($MSG)", message: "Avoid console.log in production", severity: "warning"}',
+      'Rule: {name: "prefer-const", pattern: "var $NAME = $VALUE", message: "Use const instead of var", severity: "error"}',
+      'Rule: {name: "no-unused-vars", pattern: "const $UNUSED = $VALUE", message: "Unused variable detected", severity: "warning"}',
+      'Rule: {name: "error-handling", pattern: "try { $BODY } catch () { }", message: "Empty catch block", severity: "error"}',
+      'Rule: {name: "promise-callback", pattern: "new Promise(function($RESOLVE, $REJECT) { $BODY })", message: "Use arrow functions for Promise callbacks", severity: "warning"}'
+    ],
     inputSchema: {
       type: 'object',
       properties: {
@@ -552,10 +663,12 @@ function createToolHandler(handler, toolName = 'Unknown Tool') {
       const result = await handler(args);
       return result;
     } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true
-      };
+      // Import enhanced error recovery (circular dependency workaround)
+      const { createEnhancedErrorResponse } = await import('./utilities.js');
+      return createEnhancedErrorResponse(error, toolName, {
+        workingDirectory: args?.workingDirectory,
+        toolName
+      });
     }
   };
 }
@@ -577,10 +690,40 @@ function createRetryToolHandler(handler, toolName = 'Unknown Tool', retries = 3)
   };
 }
 
+// Actual AST processing functions for batch execute
+export async function parseAST(code, language = 'javascript', workingDirectory, filePath) {
+  validateRequiredParams({ code, workingDirectory }, ['code', 'workingDirectory']);
+  return formatCodeParsingMessage(language, code);
+}
+
+export async function astgrepSearch(pattern, path = '.', workingDirectory) {
+  validateRequiredParams({ pattern, workingDirectory }, ['pattern', 'workingDirectory']);
+  return formatASTSearchMessage(pattern, path);
+}
+
+export async function astgrepReplace(pattern, replacement, path = '.', workingDirectory) {
+  validateRequiredParams({ pattern, replacement, workingDirectory }, ['pattern', 'replacement', 'workingDirectory']);
+  return formatASTReplaceMessage(pattern, replacement, path);
+}
+
+export async function astgrepLint(path, rules = [], workingDirectory) {
+  validateRequiredParams({ path, workingDirectory }, ['path', 'workingDirectory']);
+  return formatASTLintMessage(path);
+}
+
 export const astTools = [
   {
     name: "parse_ast",
-    description: "Parse AST from code with ignore filtering",
+    description: "Parse AST from code with ignore filtering. Common patterns: function declarations, class definitions, import statements, variable declarations, try-catch blocks, API calls, React components, configuration objects.",
+    supported_operations: ["code parsing", "AST analysis"],
+    use_cases: ["Code structure analysis", "Syntax validation", "Code transformation preparation"],
+    examples: [
+      "function $NAME($ARGS) { $BODY }",
+      "class $CLASS_NAME { $MEMBERS }",
+      "import {$IMPORTS} from '$MODULE'",
+      "const $NAME = $VALUE",
+      "try { $TRY_BODY } catch ($ERROR) { $CATCH_BODY }"
+    ],
     inputSchema: {
       type: "object",
       properties: {
@@ -602,6 +745,8 @@ export const advancedAstTools = [
   {
     name: "astgrep_search",
     description: "Provides for code operations, preferred for specific searches",
+    supported_operations: ["pattern-based code search", "AST-based querying"],
+    use_cases: ["Finding code patterns", "Code refactoring discovery", "API usage analysis"],
     inputSchema: {
       type: "object",
       properties: {
@@ -652,6 +797,9 @@ export const advancedAstTools = [
       const ignorePatterns = getDefaultIgnorePatterns(workingDirectory);
       const fullPath = path.resolve(workingDirectory, targetPath);
 
+      // Create ignore instance
+      const ig = ignore().add(ignorePatterns);
+
       // Check if it's a directory or file
       try {
         const stats = fs.statSync(fullPath);
@@ -663,17 +811,18 @@ export const advancedAstTools = [
 
             for (const entry of entries) {
               const entryPath = path.join(dir, entry.name);
-              const relativePath = path.relative(workingDirectory, entryPath);
 
-              const shouldIgnore = ignorePatterns.files?.some(pattern => {
-                const globPattern = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*');
-                return new RegExp(globPattern).test(relativePath);
-              }) || ignorePatterns.directories?.includes(entry.name);
+              // Only apply ignore patterns to paths within the working directory
+              let shouldIgnore = false;
+              if (entryPath.startsWith(workingDirectory)) {
+                const relativePath = path.relative(workingDirectory, entryPath);
+                shouldIgnore = ig.ignores(relativePath);
+              }
 
               if (!shouldIgnore) {
                 if (entry.isDirectory()) {
                   scanDir(entryPath);
-                } else if (entry.isFile() && ignorePatterns.extensions?.includes(path.extname(entry.name))) {
+                } else if (entry.isFile() && ['.js', '.ts', '.jsx', '.tsx'].includes(path.extname(entry.name))) {
                   filesToLint.push(entryPath);
                 }
               }
@@ -683,11 +832,12 @@ export const advancedAstTools = [
           scanDir(fullPath);
           return `AST linting directory: ${targetPath} (${filesToLint.length} files after filtering)`;
         } else {
-          const relativePath = path.relative(workingDirectory, fullPath);
-          const shouldIgnore = ignorePatterns.files?.some(pattern => {
-            const globPattern = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*');
-            return new RegExp(globPattern).test(relativePath);
-          });
+          // Only apply ignore patterns to files within the working directory
+          let shouldIgnore = false;
+          if (fullPath.startsWith(workingDirectory)) {
+            const relativePath = path.relative(workingDirectory, fullPath);
+            shouldIgnore = ig.ignores(relativePath);
+          }
 
           if (shouldIgnore) {
             return `File ${targetPath} is ignored by default patterns`;

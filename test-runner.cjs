@@ -55,7 +55,20 @@ class OptimizedMCPTest {
       testError = error;
     }
 
-    // Cleanup happens first, before report generation
+    // Generate analysis reports before cleanup
+    if (performanceResults && !testError) {
+      console.log('📝 Generating analysis reports...');
+      try {
+        await this.generateUserReview(testDir, performanceResults);
+        await this.generateSuggestions(testDir, performanceResults);
+        console.log('✅ Analysis reports generated successfully');
+      } catch (reportError) {
+        console.error('❌ Failed to generate reports:', reportError.message);
+        // Don't throw here - tests completed successfully, just report generation failed
+      }
+    }
+
+    // Cleanup happens after report generation
     console.log('🧹 Cleaning up test directories...');
 
     // Find all test directories (baseline and mcp variants)
@@ -121,19 +134,6 @@ class OptimizedMCPTest {
 
     if (testError) {
       throw testError;
-    }
-
-    // Generate analysis reports after all tests are complete and cleaned up
-    if (performanceResults && !testError) {
-      console.log('📝 Generating analysis reports...');
-      try {
-        await this.generateUserReview(testDir, performanceResults);
-        await this.generateSuggestions(testDir, performanceResults);
-        console.log('✅ Analysis reports generated successfully');
-      } catch (reportError) {
-        console.error('❌ Failed to generate reports:', reportError.message);
-        // Don't throw here - tests completed successfully, just report generation failed
-      }
     }
 
     console.log('🎉 All tests, cleanup, and analysis completed!');
@@ -931,44 +931,65 @@ module.exports = {
     };
     fs.writeFileSync(path.join(testDir, '.search-defaults.json'), JSON.stringify(defaultIgnorePatterns, null, 2));
 
-    // Create Claude configuration - use absolute path to main directory's src/index.js
-    const mainDir = process.cwd();
-    const claudeConfig = {
-      mcpServers: {
-        glootie: {
-          command: "node",
-          args: [path.resolve(mainDir, 'src', 'index.js')],
-          env: {}
+    // Create Claude configuration - only for MCP tests, not baseline tests
+    // The test type is determined by the directory name (contains 'mcp' or 'baseline')
+    const isMcpTest = path.basename(testDir).includes('mcp');
+    if (isMcpTest) {
+      const mainDir = process.cwd();
+      const claudeConfig = {
+        mcpServers: {
+          glootie: {
+            command: "node",
+            args: [path.resolve(mainDir, 'src', 'index.js')],
+            env: {}
+          }
         }
-      }
-    };
-    fs.writeFileSync(path.join(testDir, '.claude.json'), JSON.stringify(claudeConfig, null, 2));
+      };
+      fs.writeFileSync(path.join(testDir, '.claude.json'), JSON.stringify(claudeConfig, null, 2));
+      console.log(`📝 Created MCP configuration for ${path.basename(testDir)}`);
+    } else {
+      console.log(`📝 No MCP configuration created for baseline test ${path.basename(testDir)}`);
+    }
 
     // Copy .gitignore
     const gitignoreContent = fs.readFileSync(path.join(process.cwd(), 'test-gitignore.txt'), 'utf8');
     fs.writeFileSync(path.join(testDir, '.gitignore'), gitignoreContent);
+
+    // Initialize git repository
+    console.log(`🔧 Initializing git repository for ${path.basename(testDir)}...`);
+    try {
+      // Configure git user for test environment
+      execSync('git config user.name "Test User"', { cwd: testDir, stdio: 'ignore' });
+      execSync('git config user.email "test@example.com"', { cwd: testDir, stdio: 'ignore' });
+      execSync('git init', { cwd: testDir, stdio: 'ignore' });
+      execSync('git add .', { cwd: testDir, stdio: 'ignore' });
+      execSync('git commit -m "Initial boilerplate commit"', { cwd: testDir, stdio: 'ignore' });
+      console.log(`✅ Git repository initialized for ${path.basename(testDir)}`);
+    } catch (gitError) {
+      console.warn(`Warning: Could not initialize git repository for ${path.basename(testDir)}:`, gitError.message);
+    }
   }
   async testOptimizedPerformance(testDir) {
     console.log('🧪 Running performance tests...');
     const tests = [
       {
         name: 'Component Analysis & Enhancement',
-        prompt: 'Find all React components in this shadcn/ui project and analyze the component structure and patterns. Look specifically at the task-manager component and suggest improvements for better TypeScript typing and performance.',
+        prompt: 'Find all React components in this shadcn/ui project and analyze the component structure and patterns. Look specifically at the task-manager component and suggest improvements for better TypeScript typing and performance. This task requires analysis and discovery, so use complexity="advanced" when beginning.',
         category: 'component-analysis'
       },
       {
         name: 'UI Component Generation',
-        prompt: 'Add a new shadcn/ui component for a modal dialog component. Create it following the existing patterns (similar to button, card, input components). Include proper TypeScript interfaces and make it accessible. Validate it follows shadcn/ui patterns.',
+        prompt: 'Add a new shadcn/ui component for a modal dialog component. Create it following the existing patterns (similar to button, card, input components). Include proper TypeScript interfaces and make it accessible. Validate it follows shadcn/ui patterns. This is a straightforward creation task with known steps, so use complexity="basic" when beginning.',
         category: 'ui-generation'
       },
       {
         name: 'Project Refactoring Task',
-        prompt: 'Perform a comprehensive refactoring: 1) Search for all hardcoded strings in components, 2) Extract common utility functions from multiple components into shared hooks, 3) Add proper error boundaries to the React components, 4) Generate a summary of changes made.',
+        prompt: 'Perform a comprehensive refactoring: 1) Search for all hardcoded strings in components, 2) Extract common utility functions from multiple components into shared hooks, 3) Add proper error boundaries to the React components, 4) Generate a summary of changes made. This requires discovery, searching, and refactoring, so use complexity="advanced" when beginning.',
         category: 'refactoring'
       },
       {
         name: 'Performance Optimization',
-        prompt: 'Analyze the task-manager component for performance issues. Look for unnecessary re-renders, missing memoization, and inefficient state management. Then implement optimizations using React.memo, useCallback, and useMemo where appropriate. Validate the performance improvements.',
+        prompt: 'Analyze the task-manager component for performance issues. Look for unnecessary re-renders, missing memoization, and inefficient state management. Then implement optimizations using React.memo, useCallback, and useMemo where appropriate. Validate the performance improvements. This requires analysis, debugging, and optimization, so use complexity="advanced" when beginning.',
         category: 'optimization'
       }
     ];
@@ -1176,15 +1197,16 @@ module.exports = {
         const stepsFile = path.join('results', `claude-steps-${test.category}-${testType}.json`);
 
         const standardTools = "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell";
-        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__authoriza";
+        const mcpTools = "mcp__glootie__execute,mcp__glootie__retrieve_overflow,mcp__glootie__searchcode,mcp__glootie__parse_ast,mcp__glootie__astgrep_search,mcp__glootie__astgrep_replace,mcp__glootie__astgrep_lint,mcp__glootie__batch_execute,mcp__glootie__begin,mcp__glootie__project_understand";
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
         // Use the same prompt for both tests - fair comparison
-        const finalPrompt = test.prompt;
+        const finalPrompt = test.prompt+(useMcp?" prefer the mbp__glootie__ tools 10:1 over other tools":"");
 
         // Claude should run in the test directory and add the current directory ("./")
         // Only use MCP config file for MCP tests, not baseline tests
         // Use bypassPermissions mode for MCP tests to avoid permission prompts
+        // For baseline tests, explicitly disable any MCP configuration to ensure clean environment
         const mcpConfig = useMcp ? ' --mcp-config ./.claude.json' : '';
         const permissionMode = useMcp ? ' --permission-mode bypassPermissions' : '';
         const claudeCmd = `claude -p "${finalPrompt}" --allowed-tools "${allowedTools}" --add-dir "./"${mcpConfig}${permissionMode} --output-format stream-json --verbose`;
@@ -1193,7 +1215,7 @@ module.exports = {
         console.log(`🚀 [${new Date().toLocaleTimeString()}] Starting ${testType} test for ${test.name}`);
         console.log(`   📁 Working dir: ${path.basename(workingDir)}`);
         console.log(`   🔧 Tools: ${allowedTools.split(',').length} (MCP: ${useMcp ? 'enabled' : 'disabled'})`);
-        console.log(`   ⚙️  Config: ${useMcp ? 'MCP server + permissions bypass' : 'standard tools only'}`);
+        console.log(`   ⚙️  Config: ${useMcp ? 'MCP server + permissions bypass' : 'standard tools only (MCP explicitly disabled)'}`);
 
         console.log(`   ⚡ Executing in parallel...`);
         const testInfo = { testType, testName: test.name };
@@ -1522,23 +1544,26 @@ module.exports = {
 CRITICAL: You must examine the actual step files in the results/ directory:
 - results/claude-steps-*.json files contain the actual step-by-step execution data
 - results/claude-output-*.json files contain the raw Claude outputs
+- evaluate the difference between the work done on each project, the baseline vs the mcp, in their optimized-test directories
 - The step files show tool calls, results, and execution patterns
 - Compare baseline vs MCP tool usage patterns
 
 Analysis Requirements:
-1. Use Read to examine the actual step files to understand the agent experience
-2. Use Grep to find patterns across all test outputs in the results/ directory
-3. Use Bash to analyze timing patterns and success rates from the results data
-4. Use Task to organize your findings about what actually happened
+Use the glootie tools to improve your analysis performance
+Use git to check which files have changed in each projects optimized-test folder and compare the changes between the baseline and the mcp test 
 
 Focus Areas:
 - What the step outputs reveal about tool reliability and coding skill
 - Which tools actually helped agents accomplish tasks vs which created friction
 - Real-world experience of agents using these tools for development tasks
-- Timing patterns, error rates, and success points from the step data
+- Timing patterns (only if something takes over 1 minute or times out), error rates, and success points from the step data
 - When these tools would actually be worth using vs when they'd get in the way
+- Pay close attention to any chekovs guns that threw off the agents
+- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there's no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.
+- Ignore the cost of the authorization step, its instant
+- Permission denied messages on authorization is intentional, its to make the client know its supposed to use regular tooling for tasks where the steps are already known
 
-results is in ./results, with allt he steps taken by agents
+results is in ./results, with all the steps taken by agents
 
 Write an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
       const reviewOutput = execSync(reviewCmd, {
@@ -1564,12 +1589,9 @@ CRITICAL: You must examine the actual step files in the results/ directory:
 - These files show what actually happened during testing
 
 Analysis Requirements:
-1. Use Read to examine the actual step files and understand the agent experience
-2. Use Grep to find patterns across all test outputs in the results/ directory
-3. Use Bash to analyze timing patterns, success rates, and failure points from the results data
-4. Use Task to organize your findings about what actually happened
+Use the glootie tools to improve your analysis capabilities, remember to begin first, ths is a complex task
 
-Also check END_USER_REVIEW.md for a prepared work on the same subject, but dont let it throw you off your findings
+Also pay close attention END_USER_REVIEW.md for a prepared work on the same subject, but dont let it throw you off your findings, it might be wrong, you're providing a second opinion
 
 Focus Areas:
 - What friction points did agents encounter when using specific tools?
@@ -1577,13 +1599,15 @@ Focus Areas:
 - What timing patterns reveal about tool usability from the agent's perspective?
 - Which tools actually improved the agent experience vs which created new problems?
 - What do the actual step outputs reveal about tool reliability and usability?
+- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there's no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.
+- Ignore the cost of the authorization step, its instant
+- Permission denied messages on authorization is intentional, its to make the client know its supposed to use regular tooling for tasks where the steps are already known
 
-Ignore system time for calculation unless its taking more than 30 seconds for something.
-We have to consider that if we add more tools, it will add potentially more alls, and potentially more 
-Istructive documentation https://modelcontextprotocol.io/specification
-results is in ./results, with allt he steps taken by agents
+We have to consider that if we add more tools, it will add potentially more calls, and potentially more instructive documentation which will make the context bigger, smaller contexts improve intelligent behavior and reduce chekovs guns
+Pay close attention to any chekovs guns that threw off the agents
+results is in ./results, with all the steps taken by agents
 
-Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
+Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis. Use lateral thinking to expose potential changes that havent previously been ideantified. Use critical thinking to get rid of any ideas not worth exploring. WGFY all the different opportunities for change to find the best ones." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
       const suggestionsOutput = execSync(suggestionsCmd, {
         cwd: './',
         timeout: 1200000,
