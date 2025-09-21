@@ -1,4 +1,4 @@
-# MCP Glootie v3.2.0
+# MCP Glootie v3.2.2
 
 Complete MCP (Model Context Protocol) server for advanced development tools with full feature set restored.
 
@@ -131,12 +131,12 @@ Add to your VSCode MCP configuration:
 
 ## Recent Improvements
 
-### AST Tool Consolidation (v3.2.0)
+### AST Tool Consolidation (v3.2.2)
 - **Unified AST tool** - Consolidated 4 separate AST tools (parse_ast, astgrep_search, astgrep_replace, astgrep_lint) into 1 unified interface
-- **Reduced choice paralysis** - Single tool with operation parameter instead of multiple similar tools
-- **Consistent interface** - Unified parameter handling and error reporting across all AST operations
-- **Enhanced functionality** - Added detailed analysis options and better pattern matching
-- **Better performance** - Optimized implementation with reduced context overhead
+- **Enhanced ast-grep integration** - Added comprehensive ast-grep specific capabilities including YAML configuration, relational constraints, and multi-language support
+- **Improved working directory handling** - Fixed critical working directory mismatch issues in test runner to prevent analyzing wrong codebase
+- **Code cleanup** - Removed redundant ast-tools.js file and cleaned up exports for better maintainability
+- **Better performance** - Optimized implementation with reduced context overhead and streamlined architecture
 
 ### Batch Execution Enhancements
 - **Smart file reading** - Automatically reads files when filePath is provided without code
@@ -160,6 +160,8 @@ Unified AST operations combining code analysis, pattern search, safe replacement
 - Single unified interface for all AST operations
 - Intelligent file reading (accepts either code or filePath)
 - Multi-language support (JavaScript, TypeScript, Go, Rust, Python, C, C++)
+- Advanced ast-grep pattern matching with YAML configuration support
+- Relational constraints and composite rule types
 - Automatic ignore pattern filtering
 - Advanced pattern syntax with wildcards ($VARIABLE)
 - Safe AST-based transformations with automatic backups
@@ -222,6 +224,7 @@ The project includes a comprehensive performance testing suite (`test-runner.cjs
 
 - **Optimized Incremental File Writing**: Step data written every 25 operations for better performance
 - **Process Monitoring**: Real-time updates during test execution
+- **Working Directory Fixes**: Critical fix for analyzing correct codebase instead of parent directories
 - **Error Recovery**: Graceful handling of failed tests with detailed error reporting
 - **Performance Metrics**: Measures speed improvements and tool effectiveness
 - **Status Tracking**: Proper MCP server status tracking for baseline vs MCP tests
