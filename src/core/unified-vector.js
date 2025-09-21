@@ -755,16 +755,17 @@ export const searchTools = [
       properties: {
         query: { type: "string", description: "Search query. Use specific technical terms: 'React hooks', 'error handling', 'database connections'" },
         path: { type: "string", description: "Directory to search in (default: current directory). MUST be absolute path like '/Users/username/project/src' not relative like './src'" },
-        workingDirectory: { type: "string", description: "REQUIRED: Absolute path to working directory base path. Use full paths like '/Users/username/project' not relative paths like './project'." },
+        workingDirectory: { type: "string", description: "Optional: Absolute path to working directory base path. If not provided, defaults to current directory. Use full paths like '/Users/username/project' not relative paths like './project'." },
         cursor: { type: "string", description: "Pagination cursor from previous search results" },
         pageSize: { type: "number", description: "Number of results per page (default: 6)" },
         topK: { type: "number", description: "Maximum total results to consider (default: 20)" }
       },
-      required: ["query", "workingDirectory"]
+      required: ["query"]
     },
     handler: createTimeoutToolHandler(withPagination(async ({ query, path = ".", workingDirectory, cursor, pageSize = 6, topK = 20 }) => {
-      validateRequiredParams({ query, workingDirectory }, ['query', 'workingDirectory']);
-      const results = await searchCode(query, workingDirectory, [path], undefined, topK);
+      const effectiveWorkingDirectory = workingDirectory || process.cwd();
+      validateRequiredParams({ query, workingDirectory: effectiveWorkingDirectory }, ['query']);
+      const results = await searchCode(query, effectiveWorkingDirectory, [path], undefined, topK);
 
       return results.map(r => ({
         file: r.file,
