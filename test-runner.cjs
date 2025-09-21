@@ -173,13 +173,15 @@ class OptimizedMCPTest {
         args.push(current.trim());
       }
 
+      // Change to working directory first, then execute Claude command
+      const fullCommand = `cd "${workingDir}" && ${command}`;
+
       // Use script command to create fake TTY for Claude streaming
       const child = spawn('script', [
         '-q', // quiet mode
-        '-c', command,
+        '-c', fullCommand,
         '/dev/null' // don't save to file
       ], {
-        cwd: workingDir,
         stdio: 'pipe',
         env: process.env
       });

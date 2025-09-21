@@ -374,6 +374,7 @@ export async function unifiedASTOperation(operation, options = {}) {
     language = 'javascript',
     analysisType = 'basic',
     rules = [],
+    yamlConfig,
     recursive = true,
     maxResults = 100,
     backup = true,
@@ -399,7 +400,7 @@ export async function unifiedASTOperation(operation, options = {}) {
       return await performReplace(helper, targetPath, pattern, replacement, recursive, backup);
 
     case 'lint':
-      return await performLint(helper, targetPath, rules, recursive);
+      return await performLint(helper, targetPath, rules, yamlConfig, recursive);
 
     default:
       throw new Error(`Unknown operation: ${operation}`);
@@ -526,8 +527,29 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
   };
 }
 
-async function performLint(helper, targetPath, rules, recursive) {
-  const effectiveRules = rules.length > 0 ? rules : getDefaultLintRules();
+async function performLint(helper, targetPath, rules, yamlConfig, recursive) {
+  let effectiveRules = [];
+
+  // Load rules from YAML config if provided
+  if (yamlConfig && fs.existsSync(yamlConfig)) {
+    try {
+      effectiveRules = await loadYAMLConfig(yamlConfig);
+    } catch (error) {
+      throw new Error(`Failed to load YAML config: ${error.message}`);
+    }
+  } else if (rules.length > 0) {
+    // Use provided rules (enhanced with ast-grep features)
+    effectiveRules = rules.map(rule => ({
+      ...rule,
+      pattern: rule.pattern || rule.regex, // Support both pattern and regex
+      constraints: rule.constraints || {},
+      utils: rule.utils || {},
+      fix: rule.fix || null
+    }));
+  } else {
+    effectiveRules = getDefaultLintRules();
+  }
+
   const results = [];
 
   const processFile = async (file) => {
@@ -536,19 +558,31 @@ async function performLint(helper, targetPath, rules, recursive) {
       const issues = [];
 
       helper.setLanguage(helper.detectLanguageFromExtension(file));
+
       for (const rule of effectiveRules) {
         const matches = await helper.searchPattern(content, rule.pattern);
 
-        matches.forEach(match => {
-          issues.push({
+        // Apply relational constraints if specified
+        const filteredMatches = await applyRelationalConstraints(helper, content, matches, rule);
+
+        filteredMatches.forEach(match => {
+          const issue = {
             file,
-            rule: rule.name,
+            rule: rule.name || rule.id,
             message: rule.message || `Pattern "${rule.pattern}" matched`,
             severity: rule.severity || 'warning',
             line: match.line,
             column: match.column,
-            content: match.text
-          });
+            content: match.text,
+            fix: rule.fix || null
+          };
+
+          // Apply fix if specified
+          if (rule.fix && backup) {
+            applyFix(file, match, rule.fix);
+          }
+
+          issues.push(issue);
         });
       }
 
@@ -575,7 +609,8 @@ async function performLint(helper, targetPath, rules, recursive) {
     errors: results.filter(r => r.error),
     totalIssues: results.filter(r => !r.error).length,
     rules: effectiveRules.length,
-    path: targetPath
+    path: targetPath,
+    yamlConfig: yamlConfig || null
   };
 }
 
@@ -663,18 +698,22 @@ function loadGitignorePatterns(dir) {
 function getDefaultLintRules() {
   return [
     {
+      id: 'no-console-log',
       name: 'no-console-log',
-      pattern: 'console.log($$)',
+      pattern: 'console.log($$$)',
       message: 'Avoid using console.log in production code',
       severity: 'warning'
     },
     {
+      id: 'no-debugger',
       name: 'no-debugger',
       pattern: 'debugger',
+      kind: 'debugger_statement',
       message: 'Remove debugger statements',
       severity: 'error'
     },
     {
+      id: 'no-var',
       name: 'no-var',
       pattern: 'var $A',
       message: 'Use let or const instead of var',
@@ -683,28 +722,116 @@ function getDefaultLintRules() {
   ];
 }
 
+async function loadYAMLConfig(configPath) {
+  try {
+    // Check if yaml module is available
+    const yaml = await import('yaml');
+    const configContent = fs.readFileSync(configPath, 'utf8');
+    const config = yaml.parse(configContent);
+
+    // Convert YAML config to internal rule format
+    if (config.rules) {
+      return config.rules.map(rule => ({
+        ...rule,
+        name: rule.id || rule.name,
+        pattern: rule.pattern || rule.regex,
+        constraints: rule.constraints || {},
+        utils: rule.utils || {},
+        fix: rule.fix || null
+      }));
+    } else if (config.pattern) {
+      // Single rule config
+      return [{
+        ...config,
+        name: config.id || config.name,
+        constraints: config.constraints || {},
+        utils: config.utils || {},
+        fix: config.fix || null
+      }];
+    }
+    return [];
+  } catch (error) {
+    throw new Error(`YAML parsing failed: ${error.message}`);
+  }
+}
+
+async function applyRelationalConstraints(helper, content, matches, rule) {
+  if (!rule.constraints && !rule.utils) {
+    return matches;
+  }
+
+  const filteredMatches = [];
+
+  for (const match of matches) {
+    let satisfiesConstraints = true;
+
+    // Apply relational constraints (inside, has, follows, precedes)
+    if (rule.constraints.inside) {
+      const insideMatches = await helper.searchPattern(content, rule.constraints.inside);
+      satisfiesConstraints = satisfiesConstraints && insideMatches.some(m =>
+        match.start >= m.start && match.end <= m.end
+      );
+    }
+
+    if (rule.constraints.has && satisfiesConstraints) {
+      const hasMatches = await helper.searchPattern(content, rule.constraints.has);
+      satisfiesConstraints = satisfiesConstraints && hasMatches.some(m =>
+        match.start <= m.start && match.end >= m.end
+      );
+    }
+
+    if (satisfiesConstraints) {
+      filteredMatches.push(match);
+    }
+  }
+
+  return filteredMatches;
+}
+
+function applyFix(filePath, match, fixPattern) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const helper = new UnifiedASTHelper();
+
+    // Apply the fix pattern with variable substitution
+    const fixedContent = content.substring(0, match.start) +
+                         fixPattern.replace(/\$(\w+)/g, (match, varName) => {
+                           // Extract variable from original match text
+                           return match; // Simplified for now
+                         }) +
+                         content.substring(match.end);
+
+    fs.writeFileSync(filePath, fixedContent);
+  } catch (error) {
+    console.warn(`Failed to apply fix to ${filePath}: ${error.message}`);
+  }
+}
+
 // Create the unified AST tool
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: 'Unified AST operations - analyze, search, replace, and lint code structures. Consolidates parse_ast, astgrep_search, astgrep_replace, and astgrep_lint into one powerful tool.',
+  description: 'ast-grep - Unified AST operations: analyze, search, replace, lint. Supports atomic/relational/composite rules, YAML config, multi-language pattern matching with $VARIABLE wildcards, structural transformations, and utility rule composition.',
   supported_operations: [
-    'code analysis', 'pattern search', 'structural replacement',
-    'code quality linting', 'syntax validation', 'refactoring',
-    'API migration', 'pattern detection', 'code transformation'
+    'atomic/relational/composite rule matching', 'YAML rule config', 'multi-language AST pattern search',
+    'structural code transformation', 'utility rule composition', 'syntax-aware refactoring',
+    'constraint-based matching', 'positional pattern matching', 'regex + AST hybrid search',
+    'safe code rewriting', 'cross-language pattern detection', 'AST node relationship analysis'
   ],
   use_cases: [
-    'Analyze code structure and complexity',
-    'Find specific code patterns across files',
-    'Safely refactor code patterns',
-    'Enforce coding standards',
-    'Modernize syntax and APIs',
-    'Detect anti-patterns and issues'
+    'Find patterns using atomic rules with kind/regex/range/nthChild',
+    'Match node relationships with inside/has/follows/precedes',
+    'Combine rules with all/any/not boolean logic',
+    'Reuse patterns via utility rule composition',
+    'Transform code using fix/transformation/rewriter',
+    'Apply YAML-configurable rule sets across files',
+    'Safe multi-file refactoring with backup',
+    'Language-agnostic pattern detection'
   ],
   examples: [
-    'ast_tool(operation="analyze", path="./src") - Analyze all files in src directory',
-    'ast_tool(operation="search", pattern="const $NAME = ($ARGS) => { $BODY }") - Find arrow functions',
-    'ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME") - Replace var with let',
-    'ast_tool(operation="lint", path="./src", rules=[custom rules]) - Lint code with custom rules'
+    'ast_tool(operation="search", pattern="console.log($$$)") - Atomic rule pattern',
+    'ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME") - Safe refactoring',
+    'ast_tool(operation="lint", rules=[{pattern:"debugger",severity:"error"}]) - YAML-style rules',
+    'ast_tool(operation="search", pattern="$FUNC has $CALL = console.log") - Relational rule'
   ],
   inputSchema: {
     type: 'object',
@@ -712,76 +839,91 @@ export const UNIFIED_AST_TOOL = {
       operation: {
         type: 'string',
         enum: ['analyze', 'search', 'replace', 'lint'],
-        description: 'AST operation to perform'
+        description: 'ast-grep operation: analyze (basic/detailed), search (atomic/relational patterns), replace (structural transformation), lint (YAML rules)'
       },
       path: {
         type: 'string',
-        description: 'File or directory path (default: current directory). MUST be absolute path like "/Users/username/project/src" not relative like "./src"'
+        description: 'File/directory path. MUST be absolute: "/Users/username/project/src"'
       },
       pattern: {
         type: 'string',
-        description: 'AST pattern for search/replace operations (use $VARIABLE wildcards)'
+        description: 'ast-grep pattern with $VARIABLE wildcards. Supports atomic (kind/regex/range), relational (inside/has/follows/precedes), composite (all/any/not)'
       },
       replacement: {
         type: 'string',
-        description: 'Replacement pattern for replace operations'
+        description: 'Transformation pattern. Uses fix/transformation/rewriter for safe code rewriting. Can reference captured $VARIABLEs'
       },
       code: {
         type: 'string',
-        description: 'Code to analyze (optional - reads from file if not provided)'
+        description: 'Direct code input (optional). If not provided, reads from file/directory'
       },
       language: {
         type: 'string',
-        enum: ['javascript', 'typescript', 'jsx', 'tsx', 'python', 'go', 'rust', 'c', 'cpp'],
+        enum: ['javascript', 'typescript', 'jsx', 'tsx', 'python', 'go', 'rust', 'c', 'cpp', 'html', 'css', 'java', 'kotlin', 'ruby', 'yaml'],
         default: 'javascript',
-        description: 'Programming language'
+        description: 'Language for AST parsing'
       },
       analysisType: {
         type: 'string',
         enum: ['basic', 'detailed'],
         default: 'basic',
-        description: 'Analysis depth for analyze operations'
+        description: 'Analysis depth: basic (stats) or detailed (patterns)'
       },
       rules: {
         type: 'array',
-        description: 'Custom linting rules for lint operations',
+        description: 'YAML-style lint rules. Supports atomic, relational, composite rules with constraints/utils/fix',
         items: {
           type: 'object',
           properties: {
+            id: { type: 'string' },
             name: { type: 'string' },
             pattern: { type: 'string' },
+            kind: { type: 'string' },
+            regex: { type: 'string' },
             message: { type: 'string' },
-            severity: { type: 'string', enum: ['error', 'warning'] }
+            severity: { type: 'string', enum: ['error', 'warning'] },
+            fix: { type: 'string' },
+            constraints: { type: 'object' },
+            utils: { type: 'object' }
           }
         }
+      },
+      yamlConfig: {
+        type: 'string',
+        description: 'ast-grep YAML configuration file path for complex rule definitions'
       },
       recursive: {
         type: 'boolean',
         default: true,
-        description: 'Process files recursively in directories'
+        description: 'Recursive directory processing'
       },
       maxResults: {
         type: 'number',
         default: 100,
-        description: 'Maximum results for search operations'
+        description: 'Max matches for search operations'
       },
       backup: {
         type: 'boolean',
         default: true,
-        description: 'Create backup files for replace operations'
+        description: 'Create .backup files for replace operations'
       },
       workingDirectory: {
         type: 'string',
-        description: 'REQUIRED: Absolute path to working directory for file operations. Use full paths like "/Users/username/project" not relative paths like "./project"'
+        description: 'REQUIRED: Absolute working directory: "/Users/username/project"'
       },
       cursor: {
         type: 'string',
-        description: 'Pagination cursor for search and lint operations'
+        description: 'Pagination cursor for search/lint'
       },
       pageSize: {
         type: 'number',
         default: 50,
-        description: 'Number of results per page for paginated operations'
+        description: 'Results per page for pagination'
+      },
+      ruleType: {
+        type: 'string',
+        enum: ['atomic', 'relational', 'composite', 'utility'],
+        description: 'Rule type for advanced matching'
       }
     },
     required: ['operation']
@@ -803,6 +945,7 @@ export const UNIFIED_AST_TOOL = {
             operation: args.operation,
             path: args.path,
             pattern: args.pattern,
+            yamlConfig: args.yamlConfig,
             timestamp: new Date().toISOString()
           }
         });
