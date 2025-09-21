@@ -23,10 +23,6 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 #### Analysis Tools
 - **searchcode** - Semantic code search with AI-powered discovery across all supported languages
 - **ast_tool** - Unified AST operations combining code analysis, pattern search, safe replacement, and linting
-- **project_understand** - Analyze project structure and dependencies
-- **analyze_step_file** - Analyze step-by-step execution files
-- **compare_baseline_mcp** - Compare baseline vs MCP performance data
-- **analyze_performance_data** - Analyze performance metrics and trends
 
 #### Utility Tools
 - **overflow_handler** - Handle large content from previous operations
@@ -86,10 +82,6 @@ Add to your Cursor `mcpServers.json` configuration:
         "execute",
         "searchcode",
         "ast_tool",
-        "project_understand",
-        "analyze_step_file",
-        "compare_baseline_mcp",
-        "analyze_performance_data",
         "overflow_handler"
       ]
     }
@@ -112,10 +104,6 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
         "execute",
         "searchcode",
         "ast_tool",
-        "project_understand",
-        "analyze_step_file",
-        "compare_baseline_mcp",
-        "analyze_performance_data",
         "overflow_handler"
       ]
     }
