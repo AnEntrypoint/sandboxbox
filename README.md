@@ -7,17 +7,10 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 ### Multi-Language Support
 **Supported Languages**: JavaScript, TypeScript, Go, Rust, Python, C, C++
 
-### Core Analysis Tools
-- **searchcode** - Semantic code search with AI-powered discovery across all supported languages
-- **ast_tool** - Unified AST operations combining code analysis, pattern search, safe replacement, and linting
+### Available Tools
 
-### Advanced Tools
-- **batch_execute** - Coordinate multiple tools in single operations for efficiency
-- **authoriza** - Bootstrap the system
-- **attention-optimization** - Optimize attention windows for better analysis
-- **turn-reduction** - Reduce conversation turns through intelligent coordination
-
-### Execution Tools
+#### Core Tools
+- **begin** - Initialize the system and set working directory context
 - **execute** - Multi-language code execution with automatic runtime detection
   - **JavaScript/TypeScript** - Execute with Node.js or Deno
   - **Go** - Execute with `go run` (when Go CLI available)
@@ -26,7 +19,20 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
   - **C** - Compile and execute with `gcc` (when GCC available)
   - **C++** - Compile and execute with `g++` (when G++ available)
   - **Bash** - Run bash commands securely
-- **retrieve_overflow** - Handle large content from previous operations
+
+#### Analysis Tools
+- **searchcode** - Semantic code search with AI-powered discovery across all supported languages
+- **ast_tool** - Unified AST operations combining code analysis, pattern search, safe replacement, and linting
+- **project_understand** - Analyze project structure and dependencies
+- **analyze_step_file** - Analyze step-by-step execution files
+- **compare_baseline_mcp** - Compare baseline vs MCP performance data
+- **analyze_performance_data** - Analyze performance metrics and trends
+
+#### Utility Tools
+- **overflow_handler** - Handle large content from previous operations
+- **error_handling** - Enhanced error recovery and reporting
+- **shared_hooks** - Shared functionality across tools
+- **utilities** - Common utility functions and helpers
 
 ## Installation
 
@@ -76,12 +82,15 @@ Add to your Cursor `mcpServers.json` configuration:
       "env": {},
       "disabled": false,
       "autoApprove": [
+        "begin",
         "execute",
-        "retrieve_overflow",
         "searchcode",
         "ast_tool",
-        "batch_execute",
-        "begin"
+        "project_understand",
+        "analyze_step_file",
+        "compare_baseline_mcp",
+        "analyze_performance_data",
+        "overflow_handler"
       ]
     }
   }
@@ -99,12 +108,15 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
       "env": {},
       "type": "local",
       "tools": [
+        "begin",
         "execute",
-        "retrieve_overflow",
         "searchcode",
         "ast_tool",
-        "batch_execute",
-        "begin"
+        "project_understand",
+        "analyze_step_file",
+        "compare_baseline_mcp",
+        "analyze_performance_data",
+        "overflow_handler"
       ]
     }
   }
