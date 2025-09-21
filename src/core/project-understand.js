@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join, relative, dirname, basename, extname } from 'path';
 import ignore from 'ignore';
+import { getDefaultIgnorePatterns } from './shared-utils.js';
 
 // File type classification
 const FILE_TYPES = {
@@ -12,20 +13,8 @@ const FILE_TYPES = {
   'doc': /\.(md|txt)$/
 };
 
-// Ignore patterns (same as other tools)
-const IGNORE_PATTERNS = [
-  'node_modules/**',
-  '.git/**',
-  'dist/**',
-  'build/**',
-  '*.log',
-  '*.tmp',
-  '.env*',
-  'coverage/**',
-  '.next/**',
-  '.nuxt/**',
-  '.out/**'
-];
+// Ignore patterns - using comprehensive default patterns from shared-utils
+const IGNORE_PATTERNS = getDefaultIgnorePatterns();
 
 // Adverbs to find in code
 const ADVERB_PATTERNS = [
@@ -157,58 +146,83 @@ function calculateSimilarity(func1, func2) {
 function analyzeDependencies(files, workingDir) {
   const dependencyMap = {};
   const importMap = {};
+  const MAX_FILE_SIZE = 1024 * 100; // 100kb max file size
 
   files.forEach(file => {
-    const filePath = join(workingDir, file.path);
-    const content = readFileSync(filePath, 'utf8');
-    const ast = parseSimpleAST(content, file.path);
+    // Skip very large files to prevent memory issues
+    if (file.size > MAX_FILE_SIZE) {
+      console.warn(`Skipping large file for dependency analysis: ${file.path} (${file.size} bytes)`);
+      return;
+    }
 
-    dependencyMap[file.path] = {
-      imports: ast.imports,
-      exports: ast.exports,
-      functions: ast.functions.length,
-      classes: ast.classes.length,
-      complexity: Math.floor((ast.functions.length + ast.classes.length) / ast.totalLines * 1000) / 10
-    };
+    try {
+      const filePath = join(workingDir, file.path);
+      const content = readFileSync(filePath, 'utf8');
+      const ast = parseSimpleAST(content, file.path);
 
-    // Build import map for similarity analysis
-    ast.imports.forEach(imp => {
-      if (!importMap[imp.from]) importMap[imp.from] = [];
-      importMap[imp.from].push(file.path);
-    });
+      dependencyMap[file.path] = {
+        imports: ast.imports,
+        exports: ast.exports,
+        functions: ast.functions.length,
+        classes: ast.classes.length,
+        complexity: Math.floor((ast.functions.length + ast.classes.length) / ast.totalLines * 1000) / 10
+      };
+
+      // Build import map for similarity analysis
+      ast.imports.forEach(imp => {
+        if (!importMap[imp.from]) importMap[imp.from] = [];
+        importMap[imp.from].push(file.path);
+      });
+    } catch (error) {
+      console.warn(`Error analyzing file ${file.path}: ${error.message}`);
+    }
   });
 
   return { dependencyMap, importMap };
 }
 
-// Find similar functions across files
+// Find similar functions across files (optimized for performance)
 function findSimilarFunctions(files, workingDir) {
   const allFunctions = [];
+  const MAX_FILE_SIZE = 1024 * 1024; // 1MB max file size
 
   files.forEach(file => {
-    const filePath = join(workingDir, file.path);
-    const content = readFileSync(filePath, 'utf8');
-    const ast = parseSimpleAST(content, file.path);
+    // Skip very large files
+    if (file.size > MAX_FILE_SIZE) return;
 
-    ast.functions.forEach(func => {
-      allFunctions.push({
-        ...func,
-        file: file.path
+    try {
+      const filePath = join(workingDir, file.path);
+      const content = readFileSync(filePath, 'utf8');
+      const ast = parseSimpleAST(content, file.path);
+
+      ast.functions.forEach(func => {
+        allFunctions.push({
+          ...func,
+          file: file.path
+        });
       });
-    });
+    } catch (error) {
+      console.warn(`Error reading file ${file.path} for similarity analysis: ${error.message}`);
+    }
   });
 
   const similarities = [];
+  const MAX_FUNCTIONS_FOR_SIMILARITY = 1000; // Limit to prevent O(n²) explosion
 
-  for (let i = 0; i < allFunctions.length; i++) {
-    for (let j = i + 1; j < allFunctions.length; j++) {
-      const similarity = calculateSimilarity(allFunctions[i], allFunctions[j]);
+  // If we have too many functions, sample them
+  const functionsToCompare = allFunctions.length > MAX_FUNCTIONS_FOR_SIMILARITY
+    ? allFunctions.slice(0, MAX_FUNCTIONS_FOR_SIMILARITY)
+    : allFunctions;
+
+  for (let i = 0; i < functionsToCompare.length; i++) {
+    for (let j = i + 1; j < functionsToCompare.length; j++) {
+      const similarity = calculateSimilarity(functionsToCompare[i], functionsToCompare[j]);
       if (similarity > 0.6) {
         similarities.push({
           similarity: Math.round(similarity * 100) / 100,
           functions: [
-            { file: allFunctions[i].file, name: allFunctions[i].name, line: allFunctions[i].line },
-            { file: allFunctions[j].file, name: allFunctions[j].name, line: allFunctions[j].line }
+            { file: functionsToCompare[i].file, name: functionsToCompare[i].name, line: functionsToCompare[i].line },
+            { file: functionsToCompare[j].file, name: functionsToCompare[j].name, line: functionsToCompare[j].line }
           ]
         });
       }
@@ -399,12 +413,92 @@ function analyzeAbstractionOpportunities(dependencyMap, similarities) {
   return opportunities;
 }
 
-// Custom file walker with ignore patterns
+// Read ignore files from the workspace
+function readIgnoreFiles(workingDirectory) {
+  const ignoreFiles = [
+    '.gitignore',
+    '.dockerignore',
+    '.eslintignore',
+    '.npmignore',
+    '.prettierignore',
+    '.stylelintignore'
+  ];
+
+  const additionalPatterns = [];
+
+  ignoreFiles.forEach(ignoreFile => {
+    const ignoreFilePath = join(workingDirectory, ignoreFile);
+    if (existsSync(ignoreFilePath)) {
+      try {
+        const content = readFileSync(ignoreFilePath, 'utf8');
+        const lines = content.split('\n')
+          .map(line => line.trim())
+          .filter(line => line && !line.startsWith('#'));
+
+        // Convert gitignore patterns to ignore.js patterns
+        lines.forEach(line => {
+          if (line.startsWith('/')) {
+            // Absolute path in gitignore becomes directory pattern
+            additionalPatterns.push(line.substring(1) + '/**');
+          } else if (line.endsWith('/')) {
+            // Directory pattern - match the directory and all contents
+            additionalPatterns.push(line + '**');
+          } else if (line.includes('*')) {
+            // Pattern already has wildcards
+            additionalPatterns.push(line);
+          } else {
+            // File pattern - match both the file and any directory with that name
+            additionalPatterns.push(line);
+            additionalPatterns.push(line + '/**');
+          }
+
+          // For directory patterns in gitignore, also add the directory itself
+          if (line.endsWith('/')) {
+            additionalPatterns.push(line);
+          }
+        });
+      } catch (error) {
+        console.warn(`Error reading ignore file ${ignoreFile}: ${error.message}`);
+      }
+    }
+  });
+
+  return additionalPatterns;
+}
+
+// Custom file walker with ignore patterns and performance safeguards
 function findFiles(workingDirectory, patterns, ignorePatterns) {
   const files = [];
-  const ig = ignore().add(ignorePatterns);
 
-  function scanDir(dir) {
+  // Get patterns from ignore files
+  const ignoreFilePatterns = readIgnoreFiles(workingDirectory);
+  const allIgnorePatterns = [...ignorePatterns, ...ignoreFilePatterns];
+
+  const ig = ignore().add(allIgnorePatterns);
+  const startTime = Date.now();
+  const MAX_SCAN_TIME = 10000; // 10 seconds timeout
+  const MAX_DEPTH = 10; // Maximum directory depth
+  const MAX_FILES = 50000; // Maximum files to scan - increased to prevent "Maximum file count reached" errors
+
+  function scanDir(dir, currentDepth = 0) {
+    // Timeout check
+    if (Date.now() - startTime > MAX_SCAN_TIME) {
+      console.warn('File scan timeout reached, stopping early');
+      return;
+    }
+
+    // Depth check
+    if (currentDepth > MAX_DEPTH) {
+      console.warn('Maximum directory depth reached, stopping early');
+      return;
+    }
+
+    // File count check
+    if (files.length >= MAX_FILES) {
+      console.warn('Maximum file count reached, stopping early');
+      return;
+    }
+
     try {
       const entries = readdirSync(dir);
 
@@ -420,7 +514,7 @@ function findFiles(workingDirectory, patterns, ignorePatterns) {
         const stats = statSync(fullPath);
 
         if (stats.isDirectory()) {
-          scanDir(fullPath);
+          scanDir(fullPath, currentDepth + 1);
         } else if (stats.isFile()) {
           // Check if matches any pattern
           const matchesPattern = patterns.some(pattern => {
@@ -445,6 +539,7 @@ function findFiles(workingDirectory, patterns, ignorePatterns) {
       });
     } catch (error) {
       // Skip directories we can't read
+      console.warn(`Skipping directory ${dir}: ${error.message}`);
     }
   }
 
@@ -454,9 +549,20 @@ function findFiles(workingDirectory, patterns, ignorePatterns) {
 
 // Main project understanding function
 export function understandProject(workingDirectory) {
+  const startTime = Date.now();
+  const MAX_TOTAL_TIME = 30000; // 30 seconds total timeout
+
   try {
     // Get all relevant files
     const files = findFiles(workingDirectory, ['**/*.{ts,tsx,js,jsx}'], IGNORE_PATTERNS);
+
+    // Check if we timed out during file scanning
+    if (Date.now() - startTime > MAX_TOTAL_TIME) {
+      return {
+        success: false,
+        error: 'Project analysis timed out during file scanning'
+      };
+    }
 
     if (files.length === 0) {
       return {
@@ -475,17 +581,35 @@ export function understandProject(workingDirectory) {
     // Sort by size (largest first)
     files.sort((a, b) => b.size - a.size);
 
-    // Analyze dependencies
-    const { dependencyMap, importMap } = analyzeDependencies(files, workingDirectory);
+    // Check timeout before expensive analysis
+    if (Date.now() - startTime > MAX_TOTAL_TIME) {
+      return {
+        success: false,
+        error: 'Project analysis timed out before analysis phase'
+      };
+    }
 
-    // Find similarities
-    const similarities = findSimilarFunctions(files, workingDirectory);
+    // Analyze dependencies (with subset if too many files)
+    const analysisFiles = files.length > 1000 ? files.slice(0, 1000) : files;
+    const { dependencyMap, importMap } = analyzeDependencies(analysisFiles, workingDirectory);
+
+    // Check timeout again
+    if (Date.now() - startTime > MAX_TOTAL_TIME) {
+      return {
+        success: false,
+        error: 'Project analysis timed out during dependency analysis'
+      };
+    }
+
+    // Find similarities (expensive operation - limit files)
+    const similarityFiles = files.length > 500 ? files.slice(0, 500) : files;
+    const similarities = findSimilarFunctions(similarityFiles, workingDirectory);
 
     // Extract metadata
-    const metadata = extractMetadata(files, workingDirectory);
+    const metadata = extractMetadata(analysisFiles, workingDirectory);
 
     // Find opportunities
-    const opportunities = findOpportunities(files, workingDirectory, dependencyMap, similarities);
+    const opportunities = findOpportunities(analysisFiles, workingDirectory, dependencyMap, similarities);
 
     // Build heavily optimized output
     const result = {

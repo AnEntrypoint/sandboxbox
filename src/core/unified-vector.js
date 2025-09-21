@@ -744,25 +744,34 @@ function createTimeoutToolHandler(handler, toolName = 'Unknown Tool', timeoutMs 
   };
 }
 
+import { createMCPResponse, withPagination } from './mcp-pagination.js';
+
 export const searchTools = [
   {
     name: "searchcode",
-    description: "Semantic code search using vector embeddings across multi-language codebases.",
+    description: "Semantic code search optimized for technical code discovery. Supports pagination for large result sets. Use precise terms: 'useState hooks' not 'manage state', 'API authentication' not 'login system'",
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Search query" },
-        path: { type: "string", description: "Path to search in" },
-        workingDirectory: { type: "string", description: "REQUIRED: Working directory for execution." }
+        query: { type: "string", description: "Search query. Use specific technical terms: 'React hooks', 'error handling', 'database connections'" },
+        path: { type: "string", description: "Directory to search in (default: current directory). MUST be absolute path like '/Users/username/project/src' not relative like './src'" },
+        workingDirectory: { type: "string", description: "REQUIRED: Absolute path to working directory base path. Use full paths like '/Users/username/project' not relative paths like './project'." },
+        cursor: { type: "string", description: "Pagination cursor from previous search results" },
+        pageSize: { type: "number", description: "Number of results per page (default: 6)" },
+        topK: { type: "number", description: "Maximum total results to consider (default: 20)" }
       },
       required: ["query", "workingDirectory"]
     },
-    handler: createTimeoutToolHandler(async ({ query, path = ".", workingDirectory }) => {
+    handler: createTimeoutToolHandler(withPagination(async ({ query, path = ".", workingDirectory, cursor, pageSize = 6, topK = 20 }) => {
       validateRequiredParams({ query, workingDirectory }, ['query', 'workingDirectory']);
-      const results = await searchCode(query, workingDirectory, [path]);
-      return results.length > 0
-        ? `Found ${results.length} semantic results for "${query}" in ${path}:\n\n${results.map(r => `${r.file}:${r.startLine}-${r.endLine}\n${r.content.substring(0, 200)}...\nScore: ${r.score.toFixed(3)}`).join('\n\n')}`
-        : `No semantic results found for "${query}" in ${path}`;
-    }, 'searchcode', 45000)
+      const results = await searchCode(query, workingDirectory, [path], undefined, topK);
+
+      return results.map(r => ({
+        file: r.file,
+        line: `${r.startLine}-${r.endLine}`,
+        content: r.content.substring(0, 200) + (r.content.length > 200 ? '...' : ''),
+        score: r.score.toFixed(3)
+      }));
+    }, 'search-results'), 'searchcode', 45000)
   }
 ];

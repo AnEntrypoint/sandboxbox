@@ -1386,9 +1386,10 @@ module.exports = {
             if (isStep) {
               incrementalStepData.push(item);
 
-              // Incrementally update step file every 25 steps, on system messages, or on significant tool usage
-              if (incrementalStepData.length % 25 === 0 || item.type === 'system' ||
-                  (toolCalls.length > 0 && toolCalls.length % 5 === 0)) {
+              // Incrementally update step file more frequently for better partial completion
+              if (incrementalStepData.length % 5 === 0 || item.type === 'system' ||
+                  (toolCalls.length > 0 && toolCalls.length % 2 === 0) ||
+                  incrementalStepData.length === 1 || incrementalStepData.length === 10) {
                 const incrementalUpdate = {
                   ...incrementalData,
                   stepData: incrementalStepData,
@@ -1420,7 +1421,7 @@ module.exports = {
                     toolsUsed: incrementalUpdate.toolsUsed
                   }, null, 2));
 
-                  console.log(`   📝 Incremental update: ${incrementalStepData.length} steps, ${toolCalls.length} calls (reduced frequency)`);
+                  console.log(`   📝 Incremental update: ${incrementalStepData.length} steps, ${toolCalls.length} calls (frequent writes)`);
                 } catch (writeError) {
                   console.warn(`   ⚠️  Could not write incremental step update: ${writeError.message}`);
                 }
@@ -1604,36 +1605,37 @@ module.exports = {
       console.log(`    Improvement: ${test.improvement}%`);
     });
   }
+
+  generatePerformanceSummary(performanceResults) {
+    // Generate a detailed performance summary from the test results
+    let summary = 'PERFORMANCE TEST RESULTS SUMMARY:\n\n';
+
+    summary += `Average Improvement: ${performanceResults.avgImprovement}%\n`;
+    summary += `Total Tests: ${performanceResults.tests.length}\n`;
+
+    const successful = performanceResults.tests.filter(t => t.baseline.success && t.optimized.success).length;
+    const failed = performanceResults.tests.length - successful;
+    summary += `Successful Tests: ${successful}\n`;
+    summary += `Failed Tests: ${failed}\n\n`;
+
+    summary += 'DETAILED TEST RESULTS:\n';
+    performanceResults.tests.forEach(test => {
+      summary += `\n${test.name}:\n`;
+      summary += `  Baseline: ${test.baseline.success ? test.baseline.duration.toFixed(1) + 's' : 'FAILED'}\n`;
+      summary += `  MCP: ${test.optimized.success ? test.optimized.duration.toFixed(1) + 's' : 'FAILED'}\n`;
+      summary += `  Improvement: ${test.improvement}%\n`;
+    });
+
+    return summary;
+  }
+
   async generateUserReview(testDir, performanceResults) {
     try {
       console.log('Generating user review...');
-      const reviewCmd = `claude -p "I need you to analyze the actual experiences of the coding agents during the MCP Glootie v3.1.4 benchmarking test by examining their step outputs and history. Please base your analysis on a complete examination of the saved step files to find out what went right and what went wrong.
 
-CRITICAL: You must examine the actual step files in the results/ directory:
-- results/claude-steps-*.json files contain the actual step-by-step execution data
-- results/claude-output-*.json files contain the raw Claude outputs
-- evaluate the difference between the work done on each project, the baseline vs the mcp, in their optimized-test directories
-- The step files show tool calls, results, and execution patterns
-- Compare baseline vs MCP tool usage patterns
+      const performanceSummary = this.generatePerformanceSummary(performanceResults);
 
-Analysis Requirements:
-Use the glootie tools to improve your analysis performance
-Use git to check which files have changed in each projects optimized-test folder and compare the changes between the baseline and the mcp test 
-
-Focus Areas:
-- What the step outputs reveal about tool reliability and coding skill
-- Which tools actually helped agents accomplish tasks vs which created friction
-- Real-world experience of agents using these tools for development tasks
-- Timing patterns (only if something takes over 1 minute or times out), error rates, and success points from the step data
-- When these tools would actually be worth using vs when they'd get in the way
-- Pay close attention to any chekovs guns that threw off the agents
-- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there's no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.
-- Ignore the cost of the authorization step, its instant
-- Permission denied messages on authorization is intentional, its to make the client know its supposed to use regular tooling for tasks where the steps are already known
-
-results is in ./results, with all the steps taken by agents
-
-Write an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
+      const reviewCmd = 'claude -p "I need you to analyze the actual experiences of the coding agents during the MCP Glootie v3.1.4 benchmarking test by examining their step outputs and history. Please base your analysis on a complete examination of the saved step files to find out what went right and what went wrong.\n\nCRITICAL: You must examine the actual step files in the results/ directory:\n- results/claude-steps-*.json files contain the actual step-by-step execution data\n- results/claude-output-*.json files contain the raw Claude outputs\n- evaluate the difference between the work done on each project, the baseline vs the mcp, in their optimized-test directories\n- The step files show tool calls, results, and execution patterns\n- Compare baseline vs MCP tool usage patterns\n\nIMPORTANT PERFORMANCE TEST RESULTS:\n' + performanceSummary + '\n\nAnalysis Requirements:\nUse the glootie tools to improve your analysis performance\nUse git to check which files have changed in each projects optimized-test folder and compare the changes between the baseline and the mcp test \n\nFocus Areas:\n- What the step outputs reveal about tool reliability and coding skill\n- Which tools actually helped agents accomplish tasks vs which created friction\n- Real-world experience of agents using these tools for development tasks\n- When these tools would actually be worth using vs when they\'d get in the way\n- Pay close attention to any chekovs guns that threw off the agents\n- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there\'s no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.\n- Ignore the cost of the begin step, its instant\n\nresults is in ./results, with all the steps taken by agents\n\nWrite an honest END_USER_REVIEW.md from the perspective of the agents who actually ran the tests. Base it entirely on the step data and outputs you examine. Be comprehensive and tell the real story of what happened during testing, not theoretical analysis or any drama or theatrics, just their story as the agents who had to do the work. It should be in natural language and it should be a review, not a report. Be as explicit and detailed about the experience as possible." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose';
       const reviewOutput = execSync(reviewCmd, {
         cwd: './',
         timeout: 1200000,
@@ -1649,33 +1651,10 @@ Write an honest END_USER_REVIEW.md from the perspective of the agents who actual
   async generateSuggestions(testDir, performanceResults) {
     try {
       console.log('Generating suggestions...');
-      const suggestionsCmd = `claude -p "I need you to analyze the actual experiences of coding agents using MCP Glootie v3.1.4 by examining their step history and outputs to write detailed SUGGESTIONS.md. Please base your analysis entirely on the saved step files to understand what the agents really experienced.
 
-CRITICAL: You must examine the actual step files in the results/ directory:
-- results/claude-steps-*.json files contain the real step-by-step execution data
-- results/claude-output-*.json files contain the raw Claude outputs
-- These files show what actually happened during testing
+      const performanceSummary = this.generatePerformanceSummary(performanceResults);
 
-Analysis Requirements:
-Use the glootie tools to improve your analysis capabilities, remember to begin first, ths is a complex task
-
-Also pay close attention END_USER_REVIEW.md for a prepared work on the same subject, but dont let it throw you off your findings, it might be wrong, you're providing a second opinion
-
-Focus Areas:
-- What friction points did agents encounter when using specific tools?
-- Where did agents succeed or fail in accomplishing their assigned tasks?
-- What timing patterns reveal about tool usability from the agent's perspective?
-- Which tools actually improved the agent experience vs which created new problems?
-- What do the actual step outputs reveal about tool reliability and usability?
-- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there's no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.
-- Ignore the cost of the authorization step, its instant
-- Permission denied messages on authorization is intentional, its to make the client know its supposed to use regular tooling for tasks where the steps are already known
-
-We have to consider that if we add more tools, it will add potentially more calls, and potentially more instructive documentation which will make the context bigger, smaller contexts improve intelligent behavior and reduce chekovs guns
-Pay close attention to any chekovs guns that threw off the agents
-results is in ./results, with all the steps taken by agents
-
-Write SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis. Use lateral thinking to expose potential changes that havent previously been ideantified. Use critical thinking to get rid of any ideas not worth exploring. WGFY all the different opportunities for change to find the best ones." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose`;
+      const suggestionsCmd = 'claude -p "I need you to analyze the actual experiences of coding agents using MCP Glootie v3.1.4 by examining their step history and outputs to write detailed SUGGESTIONS.md. Please base your analysis entirely on the saved step files to understand what the agents really experienced.\n\nCRITICAL: You must examine the actual step files in the results/ directory:\n- results/claude-steps-*.json files contain the real step-by-step execution data\n- results/claude-output-*.json files contain the raw Claude outputs\n- These files show what actually happened during testing\n\nIMPORTANT PERFORMANCE TEST RESULTS:\n' + performanceSummary + '\n\nAnalysis Requirements:\nUse the glootie tools to improve your analysis capabilities, remember to begin first, ths is a complex task\n\nAlso pay close attention END_USER_REVIEW.md for a prepared work on the same subject, but dont let it throw you off your findings, it might be wrong, you\'re providing a second opinion\n\nFocus Areas:\n- What friction points did agents encounter when using specific tools?\n- Where did agents succeed or fail in accomplishing their assigned tasks?\n- Which tools actually improved the agent experience vs which created new problems?\n- What do the actual step outputs reveal about tool reliability and usability?\n- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there\'s no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.\n\nWe have to consider that if we add more tools, it will add potentially more calls, and potentially more instructive documentation which will make the context bigger, smaller contexts improve intelligent behavior and reduce chekovs guns\nPay close attention to any chekovs guns that threw off the agents\nresults is in ./results, with all the steps taken by agents\n\nWrite SUGGESTIONS.md as a comprehensive, no-nonsense technical improvement document that specifically addresses the pain points and successes you observed in the actual agent experiences. Provide concrete, actionable suggestions for making the tooling better based on what the agents actually went through. Focus on practical improvements rather than theoretical benefits, based entirely on the step data analysis. Use lateral thinking to expose potential changes that havent previously been ideantified. Use critical thinking to get rid of any ideas not worth exploring. WGFY all the different opportunities for change to find the best ones." --add-dir "./" --allowed-tools "Bash,Read,Edit,Write,Grep,WebSearch,Task,BashOutput,Glob,ExitPlanMode,NotebookEdit,MultiEdit,WebFetch,TodoWrite,KillShell" --verbose';
       const suggestionsOutput = execSync(suggestionsCmd, {
         cwd: './',
         timeout: 1200000,

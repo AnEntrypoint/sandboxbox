@@ -138,35 +138,104 @@ export async function executeProcess(command, args = [], options = {}) {
   });
 }
 
-export async function executeBashCommands(commands, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-  const commandString = Array.isArray(commands) ? commands.join(' && ') : commands;
+// Unified execution configuration for different languages
+const EXECUTION_CONFIGS = {
+  nodejs: { command: 'node', args: ['-e'], description: 'Node.js JavaScript' },
+  deno: { command: 'deno', args: ['eval', '--no-check'], description: 'Deno JavaScript/TypeScript' },
+  bash: { command: 'bash', args: ['-c'], description: 'Bash shell commands' },
+  go: { command: 'go', args: ['run'], description: 'Go programming language', requiresFile: true },
+  rust: { command: 'rustc', args: [], description: 'Rust programming language', requiresCompile: true },
+  python: { command: 'python3', args: ['-c'], description: 'Python programming language' },
+  c: { command: 'gcc', args: [], description: 'C programming language', requiresCompile: true },
+  cpp: { command: 'g++', args: [], description: 'C++ programming language', requiresCompile: true }
+};
 
-  return executeProcess('bash', ['-c', commandString], {
+export async function executeWithRuntime(codeOrCommands, runtime, options = {}) {
+  const { workingDirectory, timeout = 120000 } = options;
+  const config = EXECUTION_CONFIGS[runtime];
+
+  if (!config) {
+    throw new Error(`Unsupported runtime: ${runtime}`);
+  }
+
+  // Handle special cases
+  if (runtime === 'bash') {
+    const commandString = Array.isArray(codeOrCommands) ? codeOrCommands.join(' && ') : codeOrCommands;
+    return executeProcess(config.command, [...config.args, commandString], {
+      cwd: workingDirectory,
+      timeout,
+      encoding: 'utf8'
+    });
+  }
+
+  if (config.requiresFile) {
+    // Go requires temporary file
+    const tempFile = path.join(os.tmpdir(), `glootie_${runtime}_${Date.now()}.${runtime === 'go' ? 'go' : 'rs'}`);
+    try {
+      fs.writeFileSync(tempFile, codeOrCommands);
+      return executeProcess(config.command, [...config.args, tempFile], {
+        cwd: workingDirectory,
+        timeout,
+        encoding: 'utf8'
+      });
+    } finally {
+      try { fs.unlinkSync(tempFile); } catch (e) {}
+    }
+  }
+
+  if (config.requiresCompile) {
+    // Languages requiring compilation (Rust, C, C++)
+    const extensions = { rust: 'rs', c: 'c', cpp: 'cpp' };
+    const compilers = { rust: 'rustc', c: 'gcc', cpp: 'g++' };
+
+    const tempFile = path.join(os.tmpdir(), `glootie_${runtime}_${Date.now()}.${extensions[runtime]}`);
+    const tempExec = path.join(os.tmpdir(), `glootie_${runtime}_${Date.now()}`);
+
+    try {
+      fs.writeFileSync(tempFile, codeOrCommands);
+
+      // Compile
+      const compileResult = await executeProcess(compilers[runtime], [tempFile, '-o', tempExec], {
+        cwd: workingDirectory,
+        timeout: timeout / 2,
+        encoding: 'utf8'
+      });
+
+      if (!compileResult.success) {
+        return compileResult;
+      }
+
+      // Execute
+      return await executeProcess(tempExec, [], {
+        cwd: workingDirectory,
+        timeout: timeout / 2,
+        encoding: 'utf8'
+      });
+    } finally {
+      try { fs.unlinkSync(tempFile); } catch (e) {}
+      try { fs.unlinkSync(tempExec); } catch (e) {}
+    }
+  }
+
+  // Simple interpreted languages (Node.js, Deno, Python)
+  return executeProcess(config.command, [...config.args, codeOrCommands], {
     cwd: workingDirectory,
     timeout,
     encoding: 'utf8'
   });
+}
+
+// Legacy functions for backward compatibility
+export async function executeBashCommands(commands, options = {}) {
+  return executeWithRuntime(commands, 'bash', options);
 }
 
 export async function executeNodeCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-
-  return executeProcess('node', ['-e', code], {
-    cwd: workingDirectory,
-    timeout,
-    encoding: 'utf8'
-  });
+  return executeWithRuntime(code, 'nodejs', options);
 }
 
 export async function executeDenoCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-
-  return executeProcess('deno', ['eval', '--no-check', code], {
-    cwd: workingDirectory,
-    timeout,
-    encoding: 'utf8'
-  });
+  return executeWithRuntime(code, 'deno', options);
 }
 
 export async function executeBashCommand(commands, timeout = 120000, workingDirectory, defaultWorkingDir) {
@@ -184,9 +253,15 @@ export async function executeBashCommand(commands, timeout = 120000, workingDire
 
   const commandArray = Array.isArray(commands) ? commands : [commands];
 
-  const validationResult = validateBashCommands(commandArray);
+  const validationResult = validateExecutionContent(commandArray, 'Commands');
   if (!validationResult.valid) {
     return createErrorResponse(validationResult.error, startTime);
+  }
+
+  // Additional bash-specific security validation
+  const securityValidation = validateBashCommands(commandArray);
+  if (!securityValidation.valid) {
+    return createErrorResponse(securityValidation.error, startTime);
   }
 
   const result = await executeBashCommands(commands, {
@@ -280,11 +355,41 @@ export function createErrorResponseUtil(message) {
   return createToolResponse(`Error: ${message}`, true);
 }
 
+// Unified validation functions
 function validateRequiredParamsUtil(params, requiredParams) {
   const missingParams = requiredParams.filter(param => !params[param]);
   if (missingParams.length > 0) {
     throw new Error(`Missing required parameters: ${missingParams.join(', ')}`);
   }
+}
+
+// Unified content validation for different execution types
+function validateExecutionContent(content, type) {
+  if (!content || (typeof content !== 'string' && !Array.isArray(content))) {
+    return { valid: false, error: `${type} must be a non-empty string or array` };
+  }
+
+  if (typeof content === 'string' && content.trim().length === 0) {
+    return { valid: false, error: `${type} cannot be empty or whitespace only` };
+  }
+
+  if (Array.isArray(content) && content.length === 0) {
+    return { valid: false, error: `${type} array cannot be empty` };
+  }
+
+  if (Array.isArray(content)) {
+    for (let i = 0; i < content.length; i++) {
+      const item = content[i];
+      if (typeof item !== 'string') {
+        return { valid: false, error: `${type} array item ${i} must be a string` };
+      }
+      if (item.trim().length === 0) {
+        return { valid: false, error: `${type} array item ${i} cannot be empty` };
+      }
+    }
+  }
+
+  return { valid: true };
 }
 
 function createTimeoutToolHandler(handler, toolName = 'Unknown Tool', timeoutMs = 30000) {
@@ -342,181 +447,59 @@ export function detectAvailableRuntimes() {
   return runtimes;
 }
 
-export async function executeGoCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
+// Unified execution with runtime validation
+export async function executeWithRuntimeValidation(codeOrCommands, runtime, options = {}) {
   const startTime = Date.now();
+  const { workingDirectory, timeout = 120000 } = options;
 
+  // Validate runtime availability
   const runtimes = detectAvailableRuntimes();
-  if (!runtimes.go.available) {
-    return createErrorResponse('Go runtime not available. Install go to use this feature.', startTime);
+  const runtimeInfo = runtimes[runtime];
+
+  if (!runtimeInfo || !runtimeInfo.available) {
+    const config = EXECUTION_CONFIGS[runtime];
+    const errorMessage = `${config.description} runtime not available. Install ${config.command} to use this feature.`;
+    return createErrorResponse(errorMessage, startTime);
   }
 
-  // Create temporary file
-  const tempFile = path.join(os.tmpdir(), `glootie_go_${Date.now()}.go`);
+  return executeWithRuntime(codeOrCommands, runtime, options);
+}
 
-  try {
-    fs.writeFileSync(tempFile, code);
-    return await executeProcess('go', ['run', tempFile], {
-      cwd: workingDirectory,
-      timeout,
-      encoding: 'utf8'
-    });
-  } finally {
-    // Cleanup
-    try { fs.unlinkSync(tempFile); } catch (e) {}
-  }
+// Legacy functions for backward compatibility (now using unified approach)
+export async function executeGoCode(code, options = {}) {
+  return executeWithRuntimeValidation(code, 'go', options);
 }
 
 export async function executePythonCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-  const startTime = Date.now();
-
-  const runtimes = detectAvailableRuntimes();
-  if (!runtimes.python.available) {
-    return createErrorResponse('Python runtime not available. Install python3 to use this feature.', startTime);
-  }
-
-  return executeProcess('python3', ['-c', code], {
-    cwd: workingDirectory,
-    timeout,
-    encoding: 'utf8'
-  });
+  return executeWithRuntimeValidation(code, 'python', options);
 }
 
 export async function executeRustCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-  const startTime = Date.now();
-
-  const runtimes = detectAvailableRuntimes();
-  if (!runtimes.rust.available) {
-    return createErrorResponse('Rust runtime not available. Install rustc to use this feature.', startTime);
-  }
-
-  // Create temporary files
-  const tempFile = path.join(os.tmpdir(), `glootie_rust_${Date.now()}.rs`);
-  const tempExec = path.join(os.tmpdir(), `glootie_rust_${Date.now()}`);
-
-  try {
-    fs.writeFileSync(tempFile, code);
-
-    // Compile first
-    const compileResult = await executeProcess('rustc', [tempFile, '-o', tempExec], {
-      cwd: workingDirectory,
-      timeout: timeout / 2,
-      encoding: 'utf8'
-    });
-
-    if (!compileResult.success) {
-      return compileResult;
-    }
-
-    // Execute
-    return await executeProcess(tempExec, [], {
-      cwd: workingDirectory,
-      timeout: timeout / 2,
-      encoding: 'utf8'
-    });
-  } finally {
-    // Cleanup
-    try { fs.unlinkSync(tempFile); } catch (e) {}
-    try { fs.unlinkSync(tempExec); } catch (e) {}
-  }
+  return executeWithRuntimeValidation(code, 'rust', options);
 }
 
 export async function executeCCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-  const startTime = Date.now();
-
-  const runtimes = detectAvailableRuntimes();
-  if (!runtimes.c.available) {
-    return createErrorResponse('C compiler not available. Install gcc to use this feature.', startTime);
-  }
-
-  // Create temporary files
-  const tempFile = path.join(os.tmpdir(), `glootie_c_${Date.now()}.c`);
-  const tempExec = path.join(os.tmpdir(), `glootie_c_${Date.now()}`);
-
-  try {
-    fs.writeFileSync(tempFile, code);
-
-    // Compile first
-    const compileResult = await executeProcess('gcc', [tempFile, '-o', tempExec], {
-      cwd: workingDirectory,
-      timeout: timeout / 2,
-      encoding: 'utf8'
-    });
-
-    if (!compileResult.success) {
-      return compileResult;
-    }
-
-    // Execute
-    return await executeProcess(tempExec, [], {
-      cwd: workingDirectory,
-      timeout: timeout / 2,
-      encoding: 'utf8'
-    });
-  } finally {
-    // Cleanup
-    try { fs.unlinkSync(tempFile); } catch (e) {}
-    try { fs.unlinkSync(tempExec); } catch (e) {}
-  }
+  return executeWithRuntimeValidation(code, 'c', options);
 }
 
 export async function executeCppCode(code, options = {}) {
-  const { workingDirectory, timeout = 120000 } = options;
-  const startTime = Date.now();
-
-  const runtimes = detectAvailableRuntimes();
-  if (!runtimes.cpp.available) {
-    return createErrorResponse('C++ compiler not available. Install g++ to use this feature.', startTime);
-  }
-
-  // Create temporary files
-  const tempFile = path.join(os.tmpdir(), `glootie_cpp_${Date.now()}.cpp`);
-  const tempExec = path.join(os.tmpdir(), `glootie_cpp_${Date.now()}`);
-
-  try {
-    fs.writeFileSync(tempFile, code);
-
-    // Compile first
-    const compileResult = await executeProcess('g++', [tempFile, '-o', tempExec], {
-      cwd: workingDirectory,
-      timeout: timeout / 2,
-      encoding: 'utf8'
-    });
-
-    if (!compileResult.success) {
-      return compileResult;
-    }
-
-    // Execute
-    return await executeProcess(tempExec, [], {
-      cwd: workingDirectory,
-      timeout: timeout / 2,
-      encoding: 'utf8'
-    });
-  } finally {
-    // Cleanup
-    try { fs.unlinkSync(tempFile); } catch (e) {}
-    try { fs.unlinkSync(tempExec); } catch (e) {}
-  }
+  return executeWithRuntimeValidation(code, 'cpp', options);
 }
 
 export const executionTools = [
   {
     name: "execute",
-    description: "Execute code in multiple languages (JS/TS, Go, Rust, Python, C, C++) with automatic runtime detection. Use to test ideas before implementing.",
+    description: "MANDATORY: TEST CODE IDEAS BEFORE IMPLEMENTING THEM - Execute code snippets in any languages (JS/TS, Go, Rust, Python, C, C++) with automatic runtime detection. ALWAYS USE THIS FIRST for: testing hypotheses, validating approaches, prototyping functions, debugging issues. Perfect for 'what if' scenarios before committing to implementation.",
     inputSchema: {
       type: "object",
       properties: {
         workingDirectory: {
           type: "string",
-          description: "REQUIRED: Working directory for execution."
+          description: "REQUIRED: Absolute path to working directory for execution. Use full paths like '/Users/username/project' not relative paths like './project'."
         },
         code: {
           type: "string",
-          description: "JavaScript/TypeScript code to execute"
+          description: "Jcode to execute"
         },
         commands: {
           type: ["string", "array"],
@@ -536,25 +519,12 @@ export const executionTools = [
     },
     handler: createTimeoutToolHandler(async ({ code, commands, workingDirectory, runtime = "auto", timeout = 120000 }) => {
       if (code) {
-        if (runtime === "nodejs" || runtime === "auto") {
-          return await executeNodeCode(code, { workingDirectory, timeout });
-        } else if (runtime === "deno") {
-          return await executeDenoCode(code, { workingDirectory, timeout });
-        } else if (runtime === "go") {
-          return await executeGoCode(code, { workingDirectory, timeout });
-        } else if (runtime === "rust") {
-          return await executeRustCode(code, { workingDirectory, timeout });
-        } else if (runtime === "python") {
-          return await executePythonCode(code, { workingDirectory, timeout });
-        } else if (runtime === "c") {
-          return await executeCCode(code, { workingDirectory, timeout });
-        } else if (runtime === "cpp") {
-          return await executeCppCode(code, { workingDirectory, timeout });
-        }
+        const targetRuntime = runtime === "auto" ? "nodejs" : runtime;
+        return await executeWithRuntimeValidation(code, targetRuntime, { workingDirectory, timeout });
       }
 
       if (commands) {
-        return await executeBashCommand(commands, timeout, workingDirectory);
+        return await executeWithRuntimeValidation(commands, 'bash', { workingDirectory, timeout });
       }
 
       return { content: [{ type: "text", text: "No code or commands provided" }] };

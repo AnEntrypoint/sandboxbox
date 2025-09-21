@@ -9,10 +9,7 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 
 ### Core Analysis Tools
 - **searchcode** - Semantic code search with AI-powered discovery across all supported languages
-- **parse_ast** - Code parsing with intelligent file reading and ignore filtering for understanding code structure
-- **astgrep_search** - Structural code pattern matching with AST analysis for multi-language codebases
-- **astgrep_replace** - Safe code refactoring with pattern-based transformations across languages
-- **astgrep_lint** - Code quality analysis with custom AST pattern rules and ignore filtering
+- **ast_tool** - Unified AST operations combining code analysis, pattern search, safe replacement, and linting
 
 ### Advanced Tools
 - **batch_execute** - Coordinate multiple tools in single operations for efficiency
@@ -82,10 +79,7 @@ Add to your Cursor `mcpServers.json` configuration:
         "execute",
         "retrieve_overflow",
         "searchcode",
-        "astgrep_search",
-        "astgrep_replace",
-        "astgrep_lint",
-        "parse_ast",
+        "ast_tool",
         "batch_execute",
         "begin"
       ]
@@ -108,10 +102,7 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
         "execute",
         "retrieve_overflow",
         "searchcode",
-        "astgrep_search",
-        "astgrep_replace",
-        "astgrep_lint",
-        "parse_ast",
+        "ast_tool",
         "batch_execute",
         "begin"
       ]
@@ -141,11 +132,11 @@ Add to your VSCode MCP configuration:
 ## Recent Improvements
 
 ### AST Tool Consolidation (v3.2.0)
-- **Consolidated overlapping tools** - Merged duplicate AST tools into a single comprehensive set
-- **Enhanced batch execution** - Fixed "Missing required parameters" errors with intelligent file reading
-- **Improved documentation** - Added detailed examples, use cases, and pattern syntax
-- **Better validation** - Flexible parameter handling (accepts either code or filePath)
-- **Multi-language support** - Consistent AST parsing across JavaScript, TypeScript, Go, Rust, Python, C, and C++
+- **Unified AST tool** - Consolidated 4 separate AST tools (parse_ast, astgrep_search, astgrep_replace, astgrep_lint) into 1 unified interface
+- **Reduced choice paralysis** - Single tool with operation parameter instead of multiple similar tools
+- **Consistent interface** - Unified parameter handling and error reporting across all AST operations
+- **Enhanced functionality** - Added detailed analysis options and better pattern matching
+- **Better performance** - Optimized implementation with reduced context overhead
 
 ### Batch Execution Enhancements
 - **Smart file reading** - Automatically reads files when filePath is provided without code
@@ -156,68 +147,46 @@ Add to your VSCode MCP configuration:
 
 ### Core AST Tools
 
-#### parse_ast
-Parse AST from code with intelligent file reading and ignore filtering. Automatically reads files when filePath is provided without code. Perfect for understanding code structure and preparing for transformations.
+#### ast_tool
+Unified AST operations combining code analysis, pattern search, safe replacement, and linting in one powerful tool. This consolidates the previous 4 separate AST tools to reduce choice paralysis and provide a consistent interface.
+
+**Operations:**
+- **analyze** - Parse code structure, count functions/classes/imports, validate syntax
+- **search** - Find structural code patterns using AST matching with wildcards
+- **replace** - Safely transform code patterns while preserving syntax
+- **lint** - Apply custom linting rules using AST patterns
 
 **Key Features:**
+- Single unified interface for all AST operations
 - Intelligent file reading (accepts either code or filePath)
 - Multi-language support (JavaScript, TypeScript, Go, Rust, Python, C, C++)
 - Automatic ignore pattern filtering
-- Code structure analysis and syntax validation
-
-**Use Cases:**
-- Code structure analysis
-- Component analysis and pattern extraction
-- Syntax validation
-- Code transformation preparation
-
-#### astgrep_search
-Structural code pattern matching using AST-grep syntax. Finds code patterns across files, not just text. Use for finding specific code structures, functions, classes, or patterns.
-
-**Key Features:**
-- Structural pattern matching (not just text search)
-- Multi-language AST analysis
 - Advanced pattern syntax with wildcards ($VARIABLE)
-- File and directory scanning with ignore filtering
+- Safe AST-based transformations with automatic backups
+
+**Examples:**
+```javascript
+// Analyze code structure
+ast_tool(operation="analyze", path="./src", analysisType="detailed")
+
+// Find React components
+ast_tool(operation="search", pattern="const $NAME = ($PROPS) => { $BODY }")
+
+// Replace console.log with logger
+ast_tool(operation="replace", pattern="console.log($MSG)", replacement="logger.info($MSG)")
+
+// Lint for code quality issues
+ast_tool(operation="lint", path="./src", rules=[custom_rules])
+```
 
 **Common Patterns:**
 ```
 function $NAME($ARGS) { $BODY }           # Find function declarations
-const $NAME = () => { $BODY }            # Find React components
+const $NAME = ($PROPS) => { $BODY }        # Find React components
 interface $NAME { $MEMBERS }              # Find TypeScript interfaces
-console.log($ARGS)                       # Find all console.log calls
-import {$IMPORTS} from '$MODULE'         # Find specific import patterns
-```
-
-#### astgrep_replace
-Structural code replacement using AST-grep syntax. Safely transform code patterns across files while preserving structure. More reliable than text-based replacements.
-
-**Key Features:**
-- Safe AST-based transformations
-- Pattern-based refactoring across files
-- Automatic backup creation
-- Multi-language support
-
-**Common Transformations:**
-```
-console.log($ARGS) → logger.info($ARGS)     # Replace console.log
+console.log($ARGS)                       # Find console.log calls
 var $NAME = $VALUE → let $NAME = $VALUE      # Convert var to let/const
-require('$MODULE') → import $MODULE          # Update CommonJS to ES modules
 ```
-
-#### astgrep_lint
-Code quality analysis using AST patterns and ignore filtering. Define custom linting rules and apply them across your codebase. Perfect for enforcing coding standards and detecting patterns.
-
-**Key Features:**
-- Custom AST pattern rules
-- Built-in quality rules (no-console, no-var, etc.)
-- Multi-file linting with ignore patterns
-- Severity levels (error/warning)
-
-**Built-in Rules:**
-- `no-console-log` - Detect console.log statements
-- `no-debugger` - Find debugger statements
-- `no-var` - Identify var declarations that should be const/let
 
 ### Execution Tools
 
