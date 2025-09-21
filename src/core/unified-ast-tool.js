@@ -1,4 +1,5 @@
-import fs from 'fs';
+import fs from 'fs/promises';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -385,7 +386,7 @@ export async function unifiedASTOperation(operation, options = {}) {
   const targetPath = targetPathParam.startsWith('.') ? path.resolve(workingDirectory || __dirname, targetPathParam) : targetPathParam;
 
   // Validate path exists
-  if (!fs.existsSync(targetPath)) {
+  if (!existsSync(targetPath)) {
     throw new Error(`Path not found: ${targetPath}`);
   }
 
@@ -411,9 +412,13 @@ async function performAnalysis(helper, targetPath, code, analysisType, language)
   if (code) {
     // Analyze provided code directly
     return await helper.analyzeCode(code, analysisType);
-  } else if (fs.statSync(targetPath).isFile()) {
+  } else if (statSync(targetPath).isFile()) {
     // Analyze file content
-    const content = fs.readFileSync(targetPath, 'utf8');
+    const stat = statSync(targetPath);
+    if (stat.size > 150 * 1024) { // 150KB limit
+      throw new Error(`File too large for AST analysis: ${targetPath} (${stat.size} bytes > 150KB limit)`);
+    }
+    const content = readFileSync(targetPath, 'utf8');
     helper.setLanguage(helper.detectLanguageFromExtension(targetPath));
     return await helper.analyzeCode(content, analysisType);
   } else {
@@ -423,7 +428,11 @@ async function performAnalysis(helper, targetPath, code, analysisType, language)
 
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const stat = statSync(file);
+        if (stat.size > 150 * 1024) { // 150KB limit
+          continue; // Skip large files
+        }
+        const content = readFileSync(file, 'utf8');
         helper.setLanguage(helper.detectLanguageFromExtension(file));
         const analysis = await helper.analyzeCode(content, analysisType);
         results.push({ file, analysis });
@@ -441,7 +450,11 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
 
   const processFile = async (file) => {
     try {
-      const content = fs.readFileSync(file, 'utf8');
+      const stat = statSync(file);
+      if (stat.size > 150 * 1024) { // 150KB limit
+        return [{ file, error: 'File too large for search (>150KB)' }];
+      }
+      const content = readFileSync(file, 'utf8');
       helper.setLanguage(helper.detectLanguageFromExtension(file));
       const matches = await helper.searchPattern(content, pattern);
 
@@ -458,7 +471,7 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
     }
   };
 
-  if (fs.statSync(targetPath).isDirectory()) {
+  if (statSync(targetPath).isDirectory()) {
     const files = await findFiles(targetPath, { recursive });
     for (const file of files.slice(0, maxResults)) {
       const fileResults = await processFile(file);
@@ -505,7 +518,7 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
     }
   };
 
-  if (fs.statSync(targetPath).isDirectory()) {
+  if (statSync(targetPath).isDirectory()) {
     const files = await findFiles(targetPath, { recursive });
     for (const file of files) {
       const result = await processFile(file);
@@ -554,7 +567,11 @@ async function performLint(helper, targetPath, rules, yamlConfig, recursive) {
 
   const processFile = async (file) => {
     try {
-      const content = fs.readFileSync(file, 'utf8');
+      const stat = statSync(file);
+      if (stat.size > 150 * 1024) { // 150KB limit
+        return [{ file, error: 'File too large for linting (>150KB)' }];
+      }
+      const content = readFileSync(file, 'utf8');
       const issues = [];
 
       helper.setLanguage(helper.detectLanguageFromExtension(file));
@@ -592,7 +609,7 @@ async function performLint(helper, targetPath, rules, yamlConfig, recursive) {
     }
   };
 
-  if (fs.statSync(targetPath).isDirectory()) {
+  if (statSync(targetPath).isDirectory()) {
     const files = await findFiles(targetPath, { recursive });
     for (const file of files) {
       const fileIssues = await processFile(file);
@@ -633,9 +650,10 @@ async function findFiles(dir, options = {}) {
   ig.add(allPatterns);
 
   const scan = async (currentDir) => {
-    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
 
-    for (const entry of entries) {
+    // Process files in parallel for better performance
+    const filePromises = entries.map(async (entry) => {
       const fullPath = path.join(currentDir, entry.name);
 
       let shouldIgnore = false;
@@ -644,16 +662,19 @@ async function findFiles(dir, options = {}) {
         shouldIgnore = ig.ignores(relativePath) || ig.ignores(entry.name);
       }
 
-      if (shouldIgnore) continue;
+      if (shouldIgnore) return null;
 
       if (entry.isDirectory() && recursive) {
-        await scan(fullPath);
+        return scan(fullPath);
       } else if (entry.isFile()) {
         if (extensions.some(ext => fullPath.endsWith(ext))) {
           results.push(fullPath);
         }
       }
-    }
+      return null;
+    });
+
+    await Promise.all(filePromises);
   };
 
   await scan(dir);

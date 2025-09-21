@@ -65,8 +65,7 @@ const DEFAULT_IGNORES = [
   '**/coverage/**', '**/reports/**', '**/docs/**', '**/documentation/**'
 ];
 
-const MAX_FILE_SIZE = 1024 * 1024; // 1MB for regular files
-const MAX_LARGE_FILE_SIZE = 5 * 1024 * 1024; // 5MB for large files
+const MAX_FILE_SIZE = 150 * 1024; // 150KB file size cap for performance
 const MAX_LINES_PER_CHUNK = 500; // Maximum lines per code chunk
 const MAX_CACHE_SIZE = 1000; // Maximum number of cached embeddings
 
@@ -75,9 +74,9 @@ const VECTOR_INDEX_FILE = 'vector_index.json';
 
 const platformConfig = {
   memoryLimit: platform.isARM64 ? 1024 * 1024 * 1024 : 512 * 1024 * 1024, // 1GB for ARM64, 512MB for others
-  batchSize: platform.isARM64 ? 32 : 16, // Larger batch size for ARM64
-  maxConcurrency: platform.isARM64 ? 4 : 2, // Higher concurrency for ARM64
-  timeout: platform.isARM64 ? 60000 : 30000 // Longer timeout for ARM64
+  batchSize: platform.isARM64 ? 64 : 32, // Increased batch size for better performance
+  maxConcurrency: platform.isARM64 ? 6 : 3, // Higher concurrency for ARM64
+  timeout: platform.isARM64 ? 45000 : 25000 // Reduced timeout due to optimizations
 };
 
 let codeChunks = [];
@@ -386,21 +385,22 @@ async function scanDirectory(dir, ignoreFilter, files, exts) {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
 
-    for (const entry of entries) {
+    // Process files in parallel for better performance
+    const filePromises = entries.map(async (entry) => {
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.relative(ignoreFilter.rootDir, fullPath);
 
       if (ignoreFilter.ig.ignores(relativePath)) {
-        continue;
+        return null;
       }
 
       if (entry.isDirectory()) {
-        await scanDirectory(fullPath, ignoreFilter, files, exts);
+        return scanDirectory(fullPath, ignoreFilter, files, exts);
       } else if (entry.isFile()) {
         if (shouldIndexFile(fullPath, exts)) {
           try {
             const stat = await fs.stat(fullPath);
-            if (stat.size <= MAX_FILE_SIZE) { // 1MB limit
+            if (stat.size <= MAX_FILE_SIZE) { // 150KB limit
               files.push(fullPath);
             }
           } catch (error) {
@@ -408,7 +408,10 @@ async function scanDirectory(dir, ignoreFilter, files, exts) {
           }
         }
       }
-    }
+      return null;
+    });
+
+    await Promise.all(filePromises);
   } catch (error) {
     // Skip directories we can't read
   }
@@ -443,9 +446,11 @@ async function getEmbedding(text) {
     return cached;
   }
 
+  // Optimize embedding extraction with reduced model size and better settings
   const embedding = await embeddingExtractor(text, {
     pooling: 'mean',
-    normalize: true
+    normalize: true,
+    truncation: true // Enable truncation for long texts
   });
 
   embeddingLRUCache.set(cacheKey, embedding);
@@ -610,7 +615,8 @@ export async function queryVectorIndex(query, topK = 8) {
   const queryEmbedding = await getEmbedding(query);
 
   const results = [];
-  const batchSize = platformConfig.batchSize;
+  // Increased batch size for better performance
+  const batchSize = platformConfig.batchSize * 2;
 
   for (let i = 0; i < codeChunks.length; i += batchSize) {
     const batch = codeChunks.slice(i, i + batchSize);
@@ -684,7 +690,6 @@ export async function queryIndex(query, topK = 8) {
 
 export {
   MAX_FILE_SIZE,
-  MAX_LARGE_FILE_SIZE,
   MAX_LINES_PER_CHUNK,
   DEFAULT_EXTS,
   DEFAULT_IGNORES,
