@@ -25,10 +25,10 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 - **ast_tool** - Unified AST operations combining code analysis, pattern search, safe replacement, and linting
 
 #### Utility Tools
-- **overflow_handler** - Handle large content from previous operations
 - **error_handling** - Enhanced error recovery and reporting
 - **shared_hooks** - Shared functionality across tools
 - **utilities** - Common utility functions and helpers
+- **mcp_pagination** - MCP pagination utilities for handling large datasets
 
 ## Installation
 
@@ -81,8 +81,7 @@ Add to your Cursor `mcpServers.json` configuration:
         "begin",
         "execute",
         "searchcode",
-        "ast_tool",
-        "overflow_handler"
+        "ast_tool"
       ]
     }
   }
@@ -103,8 +102,7 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
         "begin",
         "execute",
         "searchcode",
-        "ast_tool",
-        "overflow_handler"
+        "ast_tool"
       ]
     }
   }
