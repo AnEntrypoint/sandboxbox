@@ -1203,7 +1203,7 @@ module.exports = {
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
         // Use the same prompt for both tests - fair comparison
-        const finalPrompt = test.prompt+(useMcp?" prefer the mbp__glootie__ tools 10:1 over other tools":"");
+        const finalPrompt = test.prompt+(useMcp?"":"");
 
         // Claude should run in the test directory and add the current directory ("./")
         // Only use MCP config file for MCP tests, not baseline tests
