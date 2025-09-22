@@ -509,7 +509,7 @@ export async function executeCppCode(code, options = {}) {
 
 export const executionTools = [
   {
-    name: "execute",
+    name: "mcp__glootie__execute",
     description: "MANDATORY: TEST CODE IDEAS BEFORE IMPLEMENTING THEM - Execute code snippets in any languages (JS/TS, Go, Rust, Python, C, C++) with automatic runtime detection. ALWAYS USE THIS FIRST for: testing hypotheses, validating approaches, prototyping functions, debugging issues. Perfect for 'what if' scenarios before committing to implementation.",
     inputSchema: {
       type: "object",

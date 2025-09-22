@@ -1,5 +1,5 @@
 {
-  "timestamp": 1758550326433,
+  "timestamp": 1758571666748,
   "chunks": [
     {
       "file": "/config/workspace/mcp-repl/test-gitignore.txt",
@@ -1815,9 +1815,93 @@
     },
     {
       "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
-      "content": "const targetRuntime = runtime === \"auto\" ? \"nodejs\" : runtime;\r\n        return await executeWithRuntimeValidation(code, targetRuntime, { workingDirectory, timeout });\r\n      }\r\n\r\n      if (commands) {\r\n        return await executeWithRuntimeValidation(commands, 'bash', { workingDirectory, timeout });\r\n      }\r\n\r\n      return { content: [{ type: \"text\", text: \"No code or commands provided\" }] };\r\n    }, 'execute', 120000)\r\n  }\r\n];",
+      "content": "const targetRuntime = runtime === \"auto\" ? \"nodejs\" : runtime;",
       "startLine": 542,
-      "endLine": 553
+      "endLine": 543
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "const result = await executeWithRuntimeValidation(code, targetRuntime, { workingDirectory, timeout });\r\n\r\n        // Enhance result with error detection and troubleshooting guidance\r\n        return enhanceExecutionResult(result, code, targetRuntime, workingDirectory);\r\n      }\r\n\r\n      if (commands) {",
+      "startLine": 543,
+      "endLine": 550
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "const result = await executeWithRuntimeValidation(commands, 'bash', { workingDirectory, timeout });\r\n        return enhanceExecutionResult(result, commands, 'bash', workingDirectory);\r\n      }\r\n\r\n      return { content: [{ type: \"text\", text: \"No code or commands provided\" }] };\r\n    }, 'execute', 120000)\r\n  }\r\n];\r\n\r\n// Enhanced result processing with error detection and troubleshooting",
+      "startLine": 550,
+      "endLine": 560
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "function enhanceExecutionResult(result, code, runtime, workingDirectory) {\r\n  // If result already has content (like from MCP pagination), return as-is\r\n  if (result.content) {\r\n    return result;\r\n  }\r\n\r\n  // Extract stdout/stderr for analysis",
+      "startLine": 560,
+      "endLine": 567
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "const stdout = result.stdout || '';",
+      "startLine": 567,
+      "endLine": 568
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "const stderr = result.stderr || '';",
+      "startLine": 568,
+      "endLine": 569
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "const hasError = !result.success || stderr.includes('Error') || stderr.includes('error') || stderr.includes('SyntaxError');",
+      "startLine": 569,
+      "endLine": 571
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "let enhancedContent = '';\r\n\r\n  if (result.success) {\r\n    enhancedContent += `✅ Execution successful (${result.executionTimeMs}ms)\\n\\n`;\r\n    if (stdout) {\r\n      enhancedContent += `📋 Output:\\n${stdout}\\n`;\r\n    }\r\n    if (stderr && !stderr.includes('Error') && !stderr.includes('error')) {\r\n      enhancedContent += `⚠️ Warnings:\\n${stderr}\\n`;\r\n    }\r\n  } else {\r\n    enhancedContent += `❌ Execution failed (${result.executionTimeMs}ms)\\n\\n`;\r\n    enhancedContent += `🔍 Error Analysis:\\n`;\r\n    enhancedContent += `• Error: ${result.error}\\n`;\r\n    if (stderr) {\r\n      enhancedContent += `• Details: ${stderr}\\n`;\r\n    }\r\n    enhancedContent += `\\n💡 Troubleshooting Steps:\\n`;\r\n\r\n    // Runtime-specific troubleshooting guidance\r\n    if (runtime === 'nodejs' || runtime === 'javascript') {\r\n      enhancedContent += generateJavaScriptTroubleshooting(code, stderr);\r\n    } else if (runtime === 'python') {\r\n      enhancedContent += generatePythonTroubleshooting(code, stderr);\r\n    } else if (runtime === 'bash') {\r\n      enhancedContent += generateBashTroubleshooting(code, stderr);\r\n    } else {\r\n      enhancedContent += generateGenericTroubleshooting(code, stderr);\r\n    }\r\n  }\r\n\r\n  // Always add execution summary and suggestions\r\n  enhancedContent += `\\n📊 Execution Summary:\\n`;\r\n  enhancedContent += `• Runtime: ${runtime}\\n`;\r\n  enhancedContent += `• Duration: ${result.executionTimeMs}ms\\n`;\r\n  enhancedContent += `• Working Directory: ${workingDirectory}\\n`;\r\n\r\n  if (hasError) {\r\n    enhancedContent += `\\n🔧 Recommended Actions:\\n`;\r\n    enhancedContent += `1. Check syntax and imports in your code\\n`;\r\n    enhancedContent += `2. Ensure all dependencies are available\\n`;\r\n    enhancedContent += `3. Verify file paths and permissions\\n`;\r\n    enhancedContent += `4. Test with simpler code snippets first\\n`;\r\n    enhancedContent += `5. Use the searchcode tool to examine existing patterns\\n`;\r\n    enhancedContent += `6. Consider using ast_tool for syntax validation\\n`;\r\n  }\r\n\r\n  enhancedContent += `\\n💭 Remember: This execute tool is perfect for testing hypotheses before implementation. Use it to validate approaches and catch issues early!`;\r\n\r\n  return {\r\n    content: [{ type: \"text\", text: enhancedContent }],\r\n    isError: hasError\r\n  };\r\n}",
+      "startLine": 571,
+      "endLine": 626
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "function generateJavaScriptTroubleshooting(code, stderr) {",
+      "startLine": 626,
+      "endLine": 627
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "let guidance = '';\r\n\r\n  if (stderr.includes('SyntaxError')) {\r\n    guidance += `• Syntax Error Detected:\\n`;\r\n    guidance += `  - Check for missing brackets, parentheses, or quotes\\n`;\r\n    guidance += `  - Verify import/export syntax\\n`;\r\n    guidance += `  - Look for trailing commas in object literals\\n`;\r\n    guidance += `  - Ensure proper JSX syntax if using React\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('module not found') || stderr.includes('Cannot find module')) {\r\n    guidance += `• Missing Module:\\n`;\r\n    guidance += `  - Check npm dependencies are installed\\n`;\r\n    guidance += `  - Verify import paths are correct\\n`;\r\n    guidance += `  - Use absolute paths or proper relative paths\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('require is not defined')) {\r\n    guidance += `• Module System Issue:\\n`;\r\n    guidance += `  - Use ES6 imports: import { thing } from 'module'\\n`;\r\n    guidance += `  - Or switch to CommonJS if needed\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('Unexpected token')) {\r\n    guidance += `• Parsing Error:\\n`;\r\n    guidance += `  - Check for TypeScript syntax in JavaScript files\\n`;\r\n    guidance += `  - Verify proper JSX usage\\n`;\r\n    guidance += `  - Look for special characters or encoding issues\\n\\n`;\r\n  }\r\n\r\n  if (!guidance) {\r\n    guidance += `• General JavaScript Issues:\\n`;\r\n    guidance += `  - Check variable scope and declarations\\n`;\r\n    guidance += `  - Verify async/await usage\\n`;\r\n    guidance += `  - Ensure proper error handling with try/catch\\n\\n`;\r\n  }\r\n\r\n  return guidance;\r\n}",
+      "startLine": 627,
+      "endLine": 667
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "function generatePythonTroubleshooting(code, stderr) {",
+      "startLine": 667,
+      "endLine": 668
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "let guidance = '';\r\n\r\n  if (stderr.includes('SyntaxError')) {\r\n    guidance += `• Python Syntax Error:\\n`;\r\n    guidance += `  - Check indentation (Python uses spaces, not tabs)\\n`;\r\n    guidance += `  - Verify colons after if/for/def statements\\n`;\r\n    guidance += `  - Check for unmatched parentheses or quotes\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('ModuleNotFoundError')) {\r\n    guidance += `• Missing Python Module:\\n`;\r\n    guidance += `  - Install with: pip install module-name\\n`;\r\n    guidance += `  - Check virtual environment activation\\n`;\r\n    guidance += `  - Verify requirements.txt dependencies\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('NameError')) {\r\n    guidance += `• Undefined Variable:\\n`;\r\n    guidance += `  - Check variable spelling and scope\\n`;\r\n    guidance += `  - Ensure variables are defined before use\\n`;\r\n    guidance += `  - Verify function parameter names\\n\\n`;\r\n  }\r\n\r\n  if (!guidance) {\r\n    guidance += `• General Python Issues:\\n`;\r\n    guidance += `  - Check import statements\\n`;\r\n    guidance += `  - Verify Python version compatibility\\n`;\r\n    guidance += `  - Ensure proper exception handling\\n\\n`;\r\n  }\r\n\r\n  return guidance;\r\n}",
+      "startLine": 668,
+      "endLine": 701
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "function generateBashTroubleshooting(code, stderr) {",
+      "startLine": 701,
+      "endLine": 702
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "let guidance = '';\r\n\r\n  if (stderr.includes('command not found')) {\r\n    guidance += `• Missing Command:\\n`;\r\n    guidance += `  - Verify the command exists on the system\\n`;\r\n    guidance += `  - Check PATH environment variable\\n`;\r\n    guidance += `  - Install missing packages or tools\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('Permission denied')) {\r\n    guidance += `• Permission Issue:\\n`;\r\n    guidance += `  - Check file permissions with ls -la\\n`;\r\n    guidance += `  - Use chmod +x to make files executable\\n`;\r\n    guidance += `  - Consider using sudo if appropriate\\n\\n`;\r\n  }\r\n\r\n  if (stderr.includes('No such file or directory')) {\r\n    guidance += `• File/Directory Not Found:\\n`;\r\n    guidance += `  - Verify file paths are correct\\n`;\r\n    guidance += `  - Check current working directory\\n`;\r\n    guidance += `  - Use absolute paths for reliability\\n\\n`;\r\n  }\r\n\r\n  if (!guidance) {\r\n    guidance += `• General Bash Issues:\\n`;\r\n    guidance += `  - Check shell syntax and quoting\\n`;\r\n    guidance += `  - Verify variable expansion\\n`;\r\n    guidance += `  - Ensure proper escape sequences\\n\\n`;\r\n  }\r\n\r\n  return guidance;\r\n}",
+      "startLine": 702,
+      "endLine": 735
+    },
+    {
+      "file": "/config/workspace/mcp-repl/src/core/unified-executor.js",
+      "content": "function generateGenericTroubleshooting(code, stderr) {\r\n  return `• General Troubleshooting:\\n` +\r\n         `  - Check basic syntax and structure\\n` +\r\n         `  - Verify runtime environment setup\\n` +\r\n         `  - Ensure all dependencies are available\\n` +\r\n         `  - Test with minimal code examples\\n` +\r\n         `  - Consult language-specific documentation\\n\\n`;\r\n}",
+      "startLine": 734,
+      "endLine": 742
     },
     {
       "file": "/config/workspace/mcp-repl/src/core/unified-vector.js",

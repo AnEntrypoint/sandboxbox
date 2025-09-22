@@ -604,7 +604,7 @@ function loadGitignorePatterns(dir) {
 
 // Create the unified AST tool
 export const UNIFIED_AST_TOOL = {
-  name: 'ast_tool',
+  name: 'mcp__glootie__ast_tool',
   description: 'Direct ast-grep access. Patterns use $VAR syntax: "console.log($$$)" finds all console.log calls. Relational: "$FUNC has $CALL" matches functions containing calls. Transform: "var $X" → "let $X" converts declarations.',
   examples: [
     'ast_tool(operation="search", pattern="console.log($$$)")',

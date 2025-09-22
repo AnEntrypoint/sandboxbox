@@ -841,7 +841,7 @@ import { createMCPResponse, withPagination } from './mcp-pagination.js';
 
 export const searchTools = [
   {
-    name: "searchcode",
+    name: "mcp__glootie__searchcode",
     description: "Semantic code search optimized for technical code discovery. Supports pagination for large result sets. Use precise terms: 'useState hooks' not 'manage state', 'API authentication' not 'login system'",
     inputSchema: {
       type: "object",
