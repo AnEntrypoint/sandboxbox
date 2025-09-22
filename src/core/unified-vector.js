@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import fs from 'fs/promises';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
-import path from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname, extname, basename, relative as pathRelative } from 'path';
 import os from 'os';
 import ignore from 'ignore';
+import { cacheSearchResult, getSearchResult, addContextPattern } from './hooks/context-store.js';
 
 const platform = {
   arch: os.arch(),
@@ -171,14 +172,14 @@ export function getDefaultIgnorePatterns(workingDirectory) {
   // Try to read custom ignore patterns from the working directory
   try {
     // Check for custom search defaults
-    const searchDefaultsPath = path.join(workingDirectory, '.search-defaults.json');
+    const searchDefaultsPath = join(workingDirectory, '.search-defaults.json');
     if (existsSync(searchDefaultsPath)) {
       const customDefaults = JSON.parse(readFileSync(searchDefaultsPath, 'utf8'));
       return { ...defaultPatterns, ...customDefaults };
     }
 
     // Check for .gitignore
-    const gitignorePath = path.join(workingDirectory, '.gitignore');
+    const gitignorePath = join(workingDirectory, '.gitignore');
     if (existsSync(gitignorePath)) {
       const gitignoreContent = readFileSync(gitignorePath, 'utf8');
       const gitignorePatterns = gitignoreContent
@@ -200,7 +201,7 @@ export function getDefaultIgnorePatterns(workingDirectory) {
 }
 
 
-function createIgnoreFilter(rootDir) {
+async function createIgnoreFilter(rootDir) {
   const ig = ignore();
   ig.add(DEFAULT_IGNORES);
 
@@ -218,23 +219,23 @@ function createIgnoreFilter(rootDir) {
   }
 
   // Find and add all .gitignore files in the directory tree
-  const addGitignoreFiles = (dir) => {
+  const addGitignoreFiles = async (dir) => {
     try {
-      const entries = readdirSync(dir, { withFileTypes: true });
+      const entries = await fs.readdir(dir, { withFileTypes: true });
 
       for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
+        const fullPath = join(dir, entry.name);
 
         if (entry.isFile() && entry.name === '.gitignore') {
           try {
-            const content = readFileSync(fullPath, 'utf8');
+            const content = await fs.readFile(fullPath, 'utf8');
             ig.add(content);
           } catch (error) {
             // Silently handle .gitignore read errors
           }
         } else if (entry.isDirectory() && !entry.name.startsWith('.') && !DEFAULT_IGNORES.includes(entry.name)) {
           // Recursively add .gitignore files from subdirectories
-          addGitignoreFiles(fullPath);
+          await addGitignoreFiles(fullPath);
         }
       }
     } catch (error) {
@@ -242,17 +243,17 @@ function createIgnoreFilter(rootDir) {
     }
   };
 
-  addGitignoreFiles(rootDir);
+  await addGitignoreFiles(rootDir);
   return { ig, rootDir };
 }
 
 function shouldIndexFile(filePath, allowedExtensions) {
-  const ext = path.extname(filePath).slice(1).toLowerCase();
+  const ext = extname(filePath).slice(1).toLowerCase();
   if (!ext || !allowedExtensions.includes(ext)) {
     return false;
   }
 
-  const filename = path.basename(filePath);
+  const filename = basename(filePath);
   const excludedPatterns = [
     /\.min\.js$/, /\.bundle\.js$/, /\.pack\.js$/,
     /\.d\.ts$/, /\.d\.tsx$/,
@@ -268,7 +269,7 @@ function shouldIndexFile(filePath, allowedExtensions) {
 }
 
 function detectLanguageFromPath(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
+  const ext = extname(filePath).toLowerCase();
   const languageMap = {
     '.js': 'javascript',
     '.jsx': 'javascript',
@@ -312,24 +313,30 @@ function processCodeIntoChunks(content, filePath) {
   let braceCount = 0;
   let chunkLineCount = 0;
 
+  // Enhanced chunking with better semantic boundaries
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
 
-    if (trimmedLine.match(languagePattern)) {
+    // Start new chunk on language patterns or important keywords
+    if (trimmedLine.match(languagePattern) ||
+        trimmedLine.match(/^(export|import|interface|type|enum|trait|impl|use|mod)\s/) ||
+        trimmedLine.match(/^(component|directive|service|controller|middleware)\s/)) {
+
       if (currentChunk.trim()) {
         chunks.push({
           content: currentChunk.trim(),
           file: filePath,
           language: language,
           startLine: Math.max(0, i - currentChunk.split('\n').length),
-          endLine: i
+          endLine: i,
+          type: getCodeChunkType(currentChunk, language)
         });
       }
       currentChunk = line;
       braceCount = (line.match(/{/g) || []).length;
-      inFunction = trimmedLine.startsWith('function');
-      inClass = trimmedLine.startsWith('class');
+      inFunction = trimmedLine.startsWith('function') || trimmedLine.includes('=>');
+      inClass = trimmedLine.startsWith('class') || trimmedLine.startsWith('interface');
       chunkLineCount = 1;
     } else {
       currentChunk += '\n' + line;
@@ -338,12 +345,14 @@ function processCodeIntoChunks(content, filePath) {
       braceCount += (line.match(/{/g) || []).length;
       braceCount -= (line.match(/}/g) || []).length;
 
+      // End chunk on function/class completion or size limit
       if ((braceCount === 0 && (inFunction || inClass)) || chunkLineCount >= MAX_LINES_PER_CHUNK) {
         chunks.push({
           content: currentChunk.trim(),
           file: filePath,
           startLine: Math.max(0, i - currentChunk.split('\n').length),
-          endLine: i
+          endLine: i,
+          type: getCodeChunkType(currentChunk, language)
         });
         currentChunk = '';
         inFunction = false;
@@ -353,29 +362,46 @@ function processCodeIntoChunks(content, filePath) {
     }
   }
 
+  // Add final chunk if there's remaining content
   if (currentChunk.trim()) {
     chunks.push({
       content: currentChunk.trim(),
       file: filePath,
       language: language,
       startLine: Math.max(0, lines.length - currentChunk.split('\n').length),
-      endLine: lines.length - 1
+      endLine: lines.length - 1,
+      type: getCodeChunkType(currentChunk, language)
     });
   }
 
   return chunks;
 }
 
+function getCodeChunkType(content, language) {
+  const trimmed = content.trim();
+  if (trimmed.startsWith('function') || trimmed.includes('=>')) return 'function';
+  if (trimmed.startsWith('class') || trimmed.startsWith('interface')) return 'class';
+  if (trimmed.startsWith('import') || trimmed.startsWith('export')) return 'import';
+  if (trimmed.startsWith('const') || trimmed.startsWith('let') || trimmed.startsWith('var')) return 'variable';
+  if (trimmed.match(/^(if|for|while|switch|try|catch)\s/)) return 'control';
+  return 'code';
+}
+
 async function loadIndex(indexDir) {
   try {
-    const indexPath = path.join(indexDir, INDEX_FILE);
+    const indexPath = join(indexDir, INDEX_FILE);
     if (existsSync(indexPath)) {
       const indexData = JSON.parse(readFileSync(indexPath, 'utf8'));
       codeChunks = indexData.chunks || [];
       indexTimestamp = indexData.timestamp || 0;
+      console.log(`Loaded existing index with ${codeChunks.length} chunks`);
+    } else {
+      console.log("No existing index found, starting fresh");
+      codeChunks = [];
+      indexTimestamp = 0;
     }
   } catch (error) {
-    // If loading fails, start fresh
+    console.warn("Failed to load index, starting fresh:", error.message);
     codeChunks = [];
     indexTimestamp = 0;
   }
@@ -383,12 +409,14 @@ async function loadIndex(indexDir) {
 
 async function scanDirectory(dir, ignoreFilter, files, exts) {
   try {
+    console.log(`Scanning directory: ${dir}`);
     const entries = await fs.readdir(dir, { withFileTypes: true });
+    console.log(`Found ${entries.length} entries in ${dir}`);
 
     // Process files in parallel for better performance
     const filePromises = entries.map(async (entry) => {
-      const fullPath = path.join(dir, entry.name);
-      const relativePath = path.relative(ignoreFilter.rootDir, fullPath);
+      const fullPath = join(dir, entry.name);
+      const relativePath = pathRelative(ignoreFilter.rootDir, fullPath);
 
       if (ignoreFilter.ig.ignores(relativePath)) {
         return null;
@@ -402,9 +430,12 @@ async function scanDirectory(dir, ignoreFilter, files, exts) {
             const stat = await fs.stat(fullPath);
             if (stat.size <= MAX_FILE_SIZE) { // 150KB limit
               files.push(fullPath);
+              console.log(`Added file: ${fullPath} (${stat.size} bytes)`);
+            } else {
+              console.log(`Skipping large file: ${fullPath} (${stat.size} bytes)`);
             }
           } catch (error) {
-            // Skip files we can't stat
+            console.error(`Error stating file ${fullPath}:`, error.message);
           }
         }
       }
@@ -413,7 +444,7 @@ async function scanDirectory(dir, ignoreFilter, files, exts) {
 
     await Promise.all(filePromises);
   } catch (error) {
-    // Skip directories we can't read
+    console.error(`Error scanning directory ${dir}:`, error.message);
   }
 }
 
@@ -425,7 +456,7 @@ async function getLastModifiedTime(folders) {
       const files = await fs.readdir(folder, { withFileTypes: true });
       for (const file of files) {
         if (file.isFile()) {
-          const fullPath = path.join(folder, file.name);
+          const fullPath = join(folder, file.name);
           const stats = await fs.stat(fullPath);
           lastModified = Math.max(lastModified, stats.mtimeMs);
         }
@@ -481,6 +512,7 @@ export async function initializeVectorSystem(indexDir = INDEX_DIR) {
   try {
     if (!existsSync(indexDir)) {
       mkdirSync(indexDir, { recursive: true });
+      console.log(`Created index directory: ${indexDir}`);
     }
 
     if (!embeddingExtractor) {
@@ -492,19 +524,20 @@ export async function initializeVectorSystem(indexDir = INDEX_DIR) {
     isInitialized = true;
     return true;
   } catch (error) {
+    console.error("Vector system initialization failed:", error);
     throw new Error(`Vector system initialization failed: ${error.message}`);
   }
 }
 
 // Process files into chunks
-export function processFile(file, codeChunks) {
+export async function processFile(file, codeChunks) {
   const newChunks = [];
 
   try {
-    const stats = fs.statSync(file);
+    const stats = await fs.stat(file);
     if (stats.size > MAX_FILE_SIZE) {
       console.log(`File ${file} is large (${stats.size} bytes), truncating`);
-      let content = fs.readFileSync(file, 'utf8');
+      let content = await fs.readFile(file, 'utf8');
 
       if (content.length > MAX_FILE_SIZE) {
         content = content.substring(0, MAX_FILE_SIZE);
@@ -541,15 +574,21 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS, ignores = DE
   const files = [];
   const startTime = Date.now();
 
+  console.log(`Starting index sync for folders: ${folders.join(', ')}`);
+
   const lastModified = await getLastModifiedTime(folders);
   if (lastModified <= indexTimestamp && codeChunks.length > 0) {
+    console.log(`Index is up to date with ${codeChunks.length} chunks`);
     return codeChunks.length; // Index is up to date
   }
 
+  console.log(`Scanning directories for files...`);
   for (const folder of folders) {
-    const ignoreFilter = createIgnoreFilter(folder);
+    const ignoreFilter = await createIgnoreFilter(folder);
     await scanDirectory(folder, ignoreFilter, files, exts);
   }
+
+  console.log(`Found ${files.length} files to process`);
 
   const newChunks = [];
   let skippedFiles = 0;
@@ -558,12 +597,13 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS, ignores = DE
     try {
       const stats = await fs.stat(file);
 
-      if (stats.size > MAX_LARGE_FILE_SIZE) {
+      if (stats.size > MAX_FILE_SIZE) {
+        console.log(`Skipping large file: ${file} (${stats.size} bytes)`);
         skippedFiles++;
         continue;
       }
 
-      const ext = path.extname(file).toLowerCase();
+      const ext = extname(file).toLowerCase();
       if (['.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.pdf', '.zip', '.tar', '.gz', '.exe', '.dll', '.so', '.dylib'].includes(ext)) {
         skippedFiles++;
         continue;
@@ -576,10 +616,13 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS, ignores = DE
 
       const chunks = processCodeIntoChunks(content, file);
       newChunks.push(...chunks);
+      console.log(`Processed ${file}: ${chunks.length} chunks`);
     } catch (error) {
-      // Skip files that can't be processed
+      console.error(`Error processing file ${file}:`, error.message);
     }
   }
+
+  console.log(`Created ${newChunks.length} chunks total, skipped ${skippedFiles} files`);
 
   if (newChunks.length > codeChunks.length * 1.5 || newChunks.length < codeChunks.length * 0.5) {
     embeddingLRUCache.clear();
@@ -598,7 +641,14 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS, ignores = DE
     }))
   };
 
-  writeFileSync(path.join(INDEX_DIR, INDEX_FILE), JSON.stringify(indexData, null, 2));
+  // Ensure directory exists
+  if (!existsSync(INDEX_DIR)) {
+    mkdirSync(INDEX_DIR, { recursive: true });
+  }
+
+  const indexPath = join(INDEX_DIR, INDEX_FILE);
+  writeFileSync(indexPath, JSON.stringify(indexData, null, 2));
+  console.log(`Saved index to ${indexPath} with ${codeChunks.length} chunks`);
 
   return codeChunks.length;
 }
@@ -649,24 +699,62 @@ export async function queryVectorIndex(query, topK = 8) {
     }));
 }
 
-export async function searchCode(query, workingDirectory, folders = ['.'], extensions = DEFAULT_EXTS, topK = 6) {
+export async function searchCode(query, workingDirectory, folderPaths = ['.'], extensions = DEFAULT_EXTS, topK = 6) {
   try {
-    if (!existsSync(workingDirectory)) {
-      return [];
+    console.log(`searchCode called with query: "${query}", workingDir: "${workingDirectory}", folders: ${Array.isArray(folderPaths) ? folderPaths.join(', ') : folderPaths}`);
+
+    // Validate and normalize working directory
+    if (!workingDirectory || typeof workingDirectory !== 'string') {
+      workingDirectory = process.cwd();
     }
 
+    // Ensure working directory exists and is accessible
+    if (!existsSync(workingDirectory)) {
+      console.warn(`Working directory does not exist: ${workingDirectory}, using current directory`);
+      workingDirectory = process.cwd();
+    }
+
+    console.log(`Effective working directory: ${workingDirectory}`);
+
+    // Initialize with timeout
+    console.log("Initializing vector system...");
     const initPromise = isInitialized ? Promise.resolve() : initializeVectorSystem();
     await Promise.race([
       initPromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Initialization timeout')), 10000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Initialization timeout')), 15000))
     ]);
+    console.log("Vector system initialized successfully");
 
-    const absFolders = folders.map(f => path.resolve(workingDirectory, f));
+    // Resolve folder paths properly
+    const absFolders = folderPaths.map(f => {
+      const resolvedPath = workingDirectory + '/' + f;
+      console.log(`Resolving path: ${f} -> ${resolvedPath}`);
+      if (!existsSync(resolvedPath)) {
+        console.warn(`Search path does not exist: ${resolvedPath}, skipping`);
+        return null;
+      }
+      return resolvedPath;
+    }).filter(Boolean);
 
-    await syncVectorIndex(absFolders, extensions);
-    return await queryVectorIndex(query, topK);
+    if (absFolders.length === 0) {
+      console.warn(`No valid search paths found in: ${Array.isArray(folderPaths) ? folderPaths.join(', ') : folderPaths}`);
+      return [];
+    }
+
+    console.log(`Absolute folders: ${absFolders.join(', ')}`);
+
+    console.log("Starting index sync...");
+    const results = await syncVectorIndex(absFolders, extensions);
+    console.log(`Indexed ${results} chunks from ${absFolders.length} directories`);
+
+    console.log("Starting vector query...");
+    const searchResults = await queryVectorIndex(query, topK);
+    console.log(`Found ${searchResults.length} results for query: "${query}"`);
+
+    return searchResults;
 
   } catch (error) {
+    console.error(`Search failed for query "${query}":`, error);
     throw new Error(`Search failed: ${error.message}`);
   }
 }
@@ -768,16 +856,73 @@ export const searchTools = [
       required: ["query"]
     },
     handler: createTimeoutToolHandler(withPagination(async ({ query, path = ".", workingDirectory, cursor, pageSize = 6, topK = 20 }) => {
-      const effectiveWorkingDirectory = workingDirectory || process.cwd();
-      validateRequiredParams({ query, workingDirectory: effectiveWorkingDirectory }, ['query']);
-      const results = await searchCode(query, effectiveWorkingDirectory, [path], undefined, topK);
+      try {
+        // Validate and normalize parameters
+        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+          throw new Error('Query parameter is required and must be a non-empty string');
+        }
 
-      return results.map(r => ({
-        file: r.file,
-        line: `${r.startLine}-${r.endLine}`,
-        content: r.content.substring(0, 200) + (r.content.length > 200 ? '...' : ''),
-        score: r.score.toFixed(3)
-      }));
+        const effectiveWorkingDirectory = workingDirectory || process.cwd();
+        const searchPathParam = path || '.';
+
+        console.log(`Search request: query="${query}", path="${searchPathParam}", workingDir="${effectiveWorkingDirectory}"`);
+
+        // Validate working directory exists
+        if (!existsSync(effectiveWorkingDirectory)) {
+          console.warn(`Working directory does not exist: ${effectiveWorkingDirectory}`);
+          return [];
+        }
+
+        // Validate search path exists
+        const fullPath = effectiveWorkingDirectory + '/' + searchPathParam;
+        if (!existsSync(fullPath)) {
+          console.warn(`Search path does not exist: ${fullPath}`);
+          return [];
+        }
+
+        // Check for cached search results first
+        const cachedResults = getSearchResult(query, fullPath);
+        if (cachedResults) {
+          console.log(`Using cached results for query: "${query}"`);
+          return cachedResults;
+        }
+
+        const results = await searchCode(query, effectiveWorkingDirectory, [searchPathParam], undefined, topK);
+
+        if (!results || results.length === 0) {
+          console.log(`No results found for query: "${query}"`);
+          return [];
+        }
+
+        // Cache the search results
+        const formattedResults = results.map(r => ({
+          file: r.file,
+          line: `${r.startLine}-${r.endLine}`,
+          content: r.content.substring(0, 200) + (r.content.length > 200 ? '...' : ''),
+          score: r.score.toFixed(3),
+          type: r.type || 'code'
+        }));
+
+        cacheSearchResult(query, formattedResults, fullPath);
+
+        // Update context with search patterns
+        addContextPattern(query, 'search');
+
+        // Add relationships between found files
+        for (let i = 0; i < results.length; i++) {
+          for (let j = i + 1; j < results.length; j++) {
+            // Relationship tracking removed - handled by hooks
+          }
+        }
+
+        console.log(`Returning ${results.length} results for query: "${query}"`);
+
+        return formattedResults;
+
+      } catch (error) {
+        console.error(`Searchcode handler error:`, error);
+        throw error; // Re-throw to be caught by the timeout wrapper
+      }
     }, 'search-results'), 'searchcode', 45000)
   }
 ];

@@ -831,7 +831,7 @@ module.exports = {
     // Install dependencies
     console.log('📦 Installing dependencies...');
     await new Promise((resolve, reject) => {
-      const command = 'npm install --no-audit --prefer-offline --ignore-scripts --no-progress --silent';
+      const command = 'npm install --no-audit --prefer-offline --ignore-scripts --no-progress --silent @modelcontextprotocol/sdk @ast-grep/napi ignore';
       const child = spawn('script', ['-q', '-c', command, '/dev/null'], {
         cwd: testDir,
         stdio: 'pipe',

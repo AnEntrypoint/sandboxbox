@@ -1,4 +1,4 @@
-# MCP Glootie v3.2.8
+# MCP Glootie v3.2.13
 
 Complete MCP (Model Context Protocol) server for advanced development tools with full feature set restored.
 

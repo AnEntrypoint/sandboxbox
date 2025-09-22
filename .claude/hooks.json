@@ -1,0 +1,89 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/lint-after-edit.js \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_ARGS\""
+          },
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/update-context-on-change.js \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_ARGS\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__glootie__ast_tool.*replace",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/lint-after-ast-replace.js \"$CLAUDE_TOOL_ARGS\""
+          }
+        ]
+      },
+      ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/validate-bash-commands.js \"$CLAUDE_TOOL_ARGS\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/check-file-access.js \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_ARGS\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/check-context-requirements.js \"$CLAUDE_PROMPT\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/context-initialization.js"
+          },
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/project-discovery.js"
+          },
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/context-summary.js"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "save|commit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/src/core/hooks/lint-before-save.js"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,10 +1,10 @@
 import { spawn, execSync } from 'child_process';
-import { validateWorkingDirectory } from './utilities.js';
-import fs from 'fs';
+import { validateWorkingDirectory, createToolResponse, createTimeoutPromise } from './utilities-consolidated.js';
+import { writeFileSync, chmodSync, unlinkSync } from 'fs';
 import path from 'path';
 import os from 'os';
 
-function createErrorResponse(error, startTime, context = {}) {
+function createExecutionErrorResponse(error, startTime, context = {}) {
   return {
     success: false,
     error: error?.message || error || 'Unknown error occurred',
@@ -23,7 +23,7 @@ function createSuccessResponse(data, startTime, context = {}) {
 }
 
 function createTimeoutError(operation, timeoutMs, startTime) {
-  return createErrorResponse(
+  return createExecutionErrorResponse(
     `${operation} timed out after ${timeoutMs}ms`,
     startTime,
     { timeout: true, timeoutMs }
@@ -48,13 +48,13 @@ function handleProcessError(error, command, startTime) {
     errorContext.exitCode = error.code;
   }
 
-  return createErrorResponse(errorMessage, startTime, errorContext);
+  return createExecutionErrorResponse(errorMessage, startTime, errorContext);
 }
 
 function validateRequiredParams(params, required, startTime) {
   for (const param of required) {
     if (!params[param]) {
-      return createErrorResponse(
+      return createExecutionErrorResponse(
         `Parameter '${param}' is required`,
         startTime,
         { parameterError: true, parameter: param }
@@ -114,7 +114,7 @@ export async function executeProcess(command, args = [], options = {}) {
         if (code === 0) {
           resolve(createSuccessResponse({ stdout, stderr, code, signal }, startTime));
         } else {
-          resolve(createErrorResponse(
+          resolve(createExecutionErrorResponse(
             stderr || `Process exited with code ${code}`,
             startTime,
             { stdout, stderr, code, signal }
@@ -160,26 +160,45 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
 
   // Handle special cases
   if (runtime === 'bash') {
-    const commandString = Array.isArray(codeOrCommands) ? codeOrCommands.join(' && ') : codeOrCommands;
-    return executeProcess(config.command, [...config.args, commandString], {
-      cwd: workingDirectory,
-      timeout,
-      encoding: 'utf8'
-    });
+    // For bash, use the script approach to handle comments and multiple commands properly
+    if (Array.isArray(codeOrCommands)) {
+      const script = createBashScript(codeOrCommands);
+      const tempScript = path.join(os.tmpdir(), `glootie_bash_${Date.now()}.sh`);
+      writeFileSync(tempScript, script);
+      chmodSync(tempScript, '755');
+
+      // Execute and then clean up
+      return executeProcess(config.command, [tempScript], {
+        cwd: workingDirectory,
+        timeout,
+        encoding: 'utf8'
+      }).finally(() => {
+        try { unlinkSync(tempScript); } catch (e) {
+          // File might already be deleted or inaccessible
+        }
+      });
+    } else {
+      // Single command can be executed directly
+      return executeProcess(config.command, [...config.args, codeOrCommands], {
+        cwd: workingDirectory,
+        timeout,
+        encoding: 'utf8'
+      });
+    }
   }
 
   if (config.requiresFile) {
     // Go requires temporary file
     const tempFile = path.join(os.tmpdir(), `glootie_${runtime}_${Date.now()}.${runtime === 'go' ? 'go' : 'rs'}`);
     try {
-      fs.writeFileSync(tempFile, codeOrCommands);
+      writeFileSync(tempFile, codeOrCommands);
       return executeProcess(config.command, [...config.args, tempFile], {
         cwd: workingDirectory,
         timeout,
         encoding: 'utf8'
       });
     } finally {
-      try { fs.unlinkSync(tempFile); } catch (e) {}
+      try { unlinkSync(tempFile); } catch (e) {}
     }
   }
 
@@ -192,7 +211,7 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
     const tempExec = path.join(os.tmpdir(), `glootie_${runtime}_${Date.now()}`);
 
     try {
-      fs.writeFileSync(tempFile, codeOrCommands);
+      writeFileSync(tempFile, codeOrCommands);
 
       // Compile
       const compileResult = await executeProcess(compilers[runtime], [tempFile, '-o', tempExec], {
@@ -212,8 +231,8 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
         encoding: 'utf8'
       });
     } finally {
-      try { fs.unlinkSync(tempFile); } catch (e) {}
-      try { fs.unlinkSync(tempExec); } catch (e) {}
+      try { unlinkSync(tempFile); } catch (e) {}
+      try { unlinkSync(tempExec); } catch (e) {}
     }
   }
 
@@ -244,27 +263,40 @@ export async function executeBashCommand(commands, timeout = 120000, workingDire
   const paramError = validateRequiredParams({ workingDirectory }, ['workingDirectory'], startTime);
   if (paramError) return paramError;
 
-  const dirValidation = validateWorkingDirectory(workingDirectory, defaultWorkingDir);
-  if (!dirValidation.valid) {
-    return createErrorResponse(dirValidation.error, startTime);
+  const dirValidation = validateWorkingDirectory(workingDirectory);
+  if (!dirValidation.isValid) {
+    return createExecutionErrorResponse(dirValidation.error, startTime);
   }
 
-  const effectiveWorkingDir = dirValidation.effectiveDir;
+  const effectiveWorkingDir = dirValidation.resolvedDir;
 
   const commandArray = Array.isArray(commands) ? commands : [commands];
 
-  const validationResult = validateExecutionContent(commandArray, 'Commands');
+  // Filter out empty commands and comments before validation
+  const nonEmptyCommands = commandArray.filter(cmd => {
+    if (typeof cmd !== 'string') return false;
+    const trimmed = cmd.trim();
+    // Remove empty lines and full-line comments
+    return trimmed.length > 0 && !trimmed.startsWith('#');
+  });
+
+  if (nonEmptyCommands.length === 0) {
+    return createExecutionErrorResponse("No valid commands to execute", startTime);
+  }
+
+  const validationResult = validateExecutionContent(nonEmptyCommands, 'Commands');
   if (!validationResult.valid) {
-    return createErrorResponse(validationResult.error, startTime);
+    return createExecutionErrorResponse(validationResult.error, startTime);
   }
 
   // Additional bash-specific security validation
-  const securityValidation = validateBashCommands(commandArray);
+  const securityValidation = validateBashCommands(nonEmptyCommands);
   if (!securityValidation.valid) {
-    return createErrorResponse(securityValidation.error, startTime);
+    return createExecutionErrorResponse(securityValidation.error, startTime);
   }
 
-  const result = await executeBashCommands(commands, {
+  // Let bash handle comment parsing naturally - no need to strip manually
+  const result = await executeBashCommands(nonEmptyCommands, {
     workingDirectory: dirValidation.effectiveDir,
     timeout
   });
@@ -344,16 +376,7 @@ function createBashScript(commands) {
   return scriptLines.join('\n');
 }
 
-export function createToolResponse(content, isError = false) {
-  return {
-    content: [{ type: "text", text: content }],
-    isError
-  };
-}
-
-export function createErrorResponseUtil(message) {
-  return createToolResponse(`Error: ${message}`, true);
-}
+// These functions are now imported from utilities-consolidated.js
 
 // Unified validation functions
 function validateRequiredParamsUtil(params, requiredParams) {
@@ -392,20 +415,18 @@ function validateExecutionContent(content, type) {
   return { valid: true };
 }
 
+// These functions are now imported from utilities-consolidated.js at the top
+
 function createTimeoutToolHandler(handler, toolName = 'Unknown Tool', timeoutMs = 30000) {
   return async (args) => {
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs);
-    });
-
     try {
       return await Promise.race([
         handler(args),
-        timeoutPromise
+        createTimeoutPromise(timeoutMs, `Tool ${toolName}`)
       ]);
     } catch (error) {
       if (error.message.includes('timed out')) {
-        return createErrorResponseUtil(`Tool ${toolName} timed out after ${timeoutMs}ms`);
+        return createToolResponse(`Error: Tool ${toolName} timed out after ${timeoutMs}ms`, true);
       }
       throw error;
     }
@@ -459,7 +480,7 @@ export async function executeWithRuntimeValidation(codeOrCommands, runtime, opti
   if (!runtimeInfo || !runtimeInfo.available) {
     const config = EXECUTION_CONFIGS[runtime];
     const errorMessage = `${config.description} runtime not available. Install ${config.command} to use this feature.`;
-    return createErrorResponse(errorMessage, startTime);
+    return createExecutionErrorResponse(errorMessage, startTime);
   }
 
   return executeWithRuntime(codeOrCommands, runtime, options);
@@ -520,14 +541,203 @@ export const executionTools = [
     handler: createTimeoutToolHandler(async ({ code, commands, workingDirectory, runtime = "auto", timeout = 120000 }) => {
       if (code) {
         const targetRuntime = runtime === "auto" ? "nodejs" : runtime;
-        return await executeWithRuntimeValidation(code, targetRuntime, { workingDirectory, timeout });
+        const result = await executeWithRuntimeValidation(code, targetRuntime, { workingDirectory, timeout });
+
+        // Enhance result with error detection and troubleshooting guidance
+        return enhanceExecutionResult(result, code, targetRuntime, workingDirectory);
       }
 
       if (commands) {
-        return await executeWithRuntimeValidation(commands, 'bash', { workingDirectory, timeout });
+        const result = await executeWithRuntimeValidation(commands, 'bash', { workingDirectory, timeout });
+        return enhanceExecutionResult(result, commands, 'bash', workingDirectory);
       }
 
       return { content: [{ type: "text", text: "No code or commands provided" }] };
     }, 'execute', 120000)
   }
 ];
+
+// Enhanced result processing with error detection and troubleshooting
+function enhanceExecutionResult(result, code, runtime, workingDirectory) {
+  // If result already has content (like from MCP pagination), return as-is
+  if (result.content) {
+    return result;
+  }
+
+  // Extract stdout/stderr for analysis
+  const stdout = result.stdout || '';
+  const stderr = result.stderr || '';
+  const hasError = !result.success || stderr.includes('Error') || stderr.includes('error') || stderr.includes('SyntaxError');
+
+  let enhancedContent = '';
+
+  if (result.success) {
+    enhancedContent += `✅ Execution successful (${result.executionTimeMs}ms)\n\n`;
+    if (stdout) {
+      enhancedContent += `📋 Output:\n${stdout}\n`;
+    }
+    if (stderr && !stderr.includes('Error') && !stderr.includes('error')) {
+      enhancedContent += `⚠️ Warnings:\n${stderr}\n`;
+    }
+  } else {
+    enhancedContent += `❌ Execution failed (${result.executionTimeMs}ms)\n\n`;
+    enhancedContent += `🔍 Error Analysis:\n`;
+    enhancedContent += `• Error: ${result.error}\n`;
+    if (stderr) {
+      enhancedContent += `• Details: ${stderr}\n`;
+    }
+    enhancedContent += `\n💡 Troubleshooting Steps:\n`;
+
+    // Runtime-specific troubleshooting guidance
+    if (runtime === 'nodejs' || runtime === 'javascript') {
+      enhancedContent += generateJavaScriptTroubleshooting(code, stderr);
+    } else if (runtime === 'python') {
+      enhancedContent += generatePythonTroubleshooting(code, stderr);
+    } else if (runtime === 'bash') {
+      enhancedContent += generateBashTroubleshooting(code, stderr);
+    } else {
+      enhancedContent += generateGenericTroubleshooting(code, stderr);
+    }
+  }
+
+  // Always add execution summary and suggestions
+  enhancedContent += `\n📊 Execution Summary:\n`;
+  enhancedContent += `• Runtime: ${runtime}\n`;
+  enhancedContent += `• Duration: ${result.executionTimeMs}ms\n`;
+  enhancedContent += `• Working Directory: ${workingDirectory}\n`;
+
+  if (hasError) {
+    enhancedContent += `\n🔧 Recommended Actions:\n`;
+    enhancedContent += `1. Check syntax and imports in your code\n`;
+    enhancedContent += `2. Ensure all dependencies are available\n`;
+    enhancedContent += `3. Verify file paths and permissions\n`;
+    enhancedContent += `4. Test with simpler code snippets first\n`;
+    enhancedContent += `5. Use the searchcode tool to examine existing patterns\n`;
+    enhancedContent += `6. Consider using ast_tool for syntax validation\n`;
+  }
+
+  enhancedContent += `\n💭 Remember: This execute tool is perfect for testing hypotheses before implementation. Use it to validate approaches and catch issues early!`;
+
+  return {
+    content: [{ type: "text", text: enhancedContent }],
+    isError: hasError
+  };
+}
+
+function generateJavaScriptTroubleshooting(code, stderr) {
+  let guidance = '';
+
+  if (stderr.includes('SyntaxError')) {
+    guidance += `• Syntax Error Detected:\n`;
+    guidance += `  - Check for missing brackets, parentheses, or quotes\n`;
+    guidance += `  - Verify import/export syntax\n`;
+    guidance += `  - Look for trailing commas in object literals\n`;
+    guidance += `  - Ensure proper JSX syntax if using React\n\n`;
+  }
+
+  if (stderr.includes('module not found') || stderr.includes('Cannot find module')) {
+    guidance += `• Missing Module:\n`;
+    guidance += `  - Check npm dependencies are installed\n`;
+    guidance += `  - Verify import paths are correct\n`;
+    guidance += `  - Use absolute paths or proper relative paths\n\n`;
+  }
+
+  if (stderr.includes('require is not defined')) {
+    guidance += `• Module System Issue:\n`;
+    guidance += `  - Use ES6 imports: import { thing } from 'module'\n`;
+    guidance += `  - Or switch to CommonJS if needed\n\n`;
+  }
+
+  if (stderr.includes('Unexpected token')) {
+    guidance += `• Parsing Error:\n`;
+    guidance += `  - Check for TypeScript syntax in JavaScript files\n`;
+    guidance += `  - Verify proper JSX usage\n`;
+    guidance += `  - Look for special characters or encoding issues\n\n`;
+  }
+
+  if (!guidance) {
+    guidance += `• General JavaScript Issues:\n`;
+    guidance += `  - Check variable scope and declarations\n`;
+    guidance += `  - Verify async/await usage\n`;
+    guidance += `  - Ensure proper error handling with try/catch\n\n`;
+  }
+
+  return guidance;
+}
+
+function generatePythonTroubleshooting(code, stderr) {
+  let guidance = '';
+
+  if (stderr.includes('SyntaxError')) {
+    guidance += `• Python Syntax Error:\n`;
+    guidance += `  - Check indentation (Python uses spaces, not tabs)\n`;
+    guidance += `  - Verify colons after if/for/def statements\n`;
+    guidance += `  - Check for unmatched parentheses or quotes\n\n`;
+  }
+
+  if (stderr.includes('ModuleNotFoundError')) {
+    guidance += `• Missing Python Module:\n`;
+    guidance += `  - Install with: pip install module-name\n`;
+    guidance += `  - Check virtual environment activation\n`;
+    guidance += `  - Verify requirements.txt dependencies\n\n`;
+  }
+
+  if (stderr.includes('NameError')) {
+    guidance += `• Undefined Variable:\n`;
+    guidance += `  - Check variable spelling and scope\n`;
+    guidance += `  - Ensure variables are defined before use\n`;
+    guidance += `  - Verify function parameter names\n\n`;
+  }
+
+  if (!guidance) {
+    guidance += `• General Python Issues:\n`;
+    guidance += `  - Check import statements\n`;
+    guidance += `  - Verify Python version compatibility\n`;
+    guidance += `  - Ensure proper exception handling\n\n`;
+  }
+
+  return guidance;
+}
+
+function generateBashTroubleshooting(code, stderr) {
+  let guidance = '';
+
+  if (stderr.includes('command not found')) {
+    guidance += `• Missing Command:\n`;
+    guidance += `  - Verify the command exists on the system\n`;
+    guidance += `  - Check PATH environment variable\n`;
+    guidance += `  - Install missing packages or tools\n\n`;
+  }
+
+  if (stderr.includes('Permission denied')) {
+    guidance += `• Permission Issue:\n`;
+    guidance += `  - Check file permissions with ls -la\n`;
+    guidance += `  - Use chmod +x to make files executable\n`;
+    guidance += `  - Consider using sudo if appropriate\n\n`;
+  }
+
+  if (stderr.includes('No such file or directory')) {
+    guidance += `• File/Directory Not Found:\n`;
+    guidance += `  - Verify file paths are correct\n`;
+    guidance += `  - Check current working directory\n`;
+    guidance += `  - Use absolute paths for reliability\n\n`;
+  }
+
+  if (!guidance) {
+    guidance += `• General Bash Issues:\n`;
+    guidance += `  - Check shell syntax and quoting\n`;
+    guidance += `  - Verify variable expansion\n`;
+    guidance += `  - Ensure proper escape sequences\n\n`;
+  }
+
+  return guidance;
+}
+
+function generateGenericTroubleshooting(code, stderr) {
+  return `• General Troubleshooting:\n` +
+         `  - Check basic syntax and structure\n` +
+         `  - Verify runtime environment setup\n` +
+         `  - Ensure all dependencies are available\n` +
+         `  - Test with minimal code examples\n` +
+         `  - Consult language-specific documentation\n\n`;
+}

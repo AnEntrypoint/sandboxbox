@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import ignore from 'ignore';
 import { createMCPResponse } from './mcp-pagination.js';
+import { addContextAnalysis, getContextAnalysis, addContextPattern, getContextSummary } from './hooks/context-store.js';
 
 // Fix for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -383,7 +384,7 @@ export async function unifiedASTOperation(operation, options = {}) {
   } = options;
 
   const helper = new UnifiedASTHelper(language);
-  const targetPath = targetPathParam.startsWith('.') ? path.resolve(workingDirectory || __dirname, targetPathParam) : targetPathParam;
+  const targetPath = targetPathParam.startsWith('.') ? (workingDirectory || __dirname) + '/' + targetPathParam : targetPathParam;
 
   // Validate path exists
   if (!existsSync(targetPath)) {
@@ -391,59 +392,17 @@ export async function unifiedASTOperation(operation, options = {}) {
   }
 
   switch (operation) {
-    case 'analyze':
-      return await performAnalysis(helper, targetPath, code, analysisType, language);
-
     case 'search':
       return await performSearch(helper, targetPath, pattern, recursive, maxResults);
 
     case 'replace':
-      return await performReplace(helper, targetPath, pattern, replacement, recursive, backup);
-
-    case 'lint':
-      return await performLint(helper, targetPath, rules, yamlConfig, recursive);
+      return await performReplace(helper, targetPath, pattern, replacement, recursive, backup, true);
 
     default:
       throw new Error(`Unknown operation: ${operation}`);
   }
 }
 
-async function performAnalysis(helper, targetPath, code, analysisType, language) {
-  if (code) {
-    // Analyze provided code directly
-    return await helper.analyzeCode(code, analysisType);
-  } else if (statSync(targetPath).isFile()) {
-    // Analyze file content
-    const stat = statSync(targetPath);
-    if (stat.size > 150 * 1024) { // 150KB limit
-      throw new Error(`File too large for AST analysis: ${targetPath} (${stat.size} bytes > 150KB limit)`);
-    }
-    const content = readFileSync(targetPath, 'utf8');
-    helper.setLanguage(helper.detectLanguageFromExtension(targetPath));
-    return await helper.analyzeCode(content, analysisType);
-  } else {
-    // Analyze directory
-    const files = await findFiles(targetPath, { recursive: true });
-    const results = [];
-
-    for (const file of files) {
-      try {
-        const stat = statSync(file);
-        if (stat.size > 150 * 1024) { // 150KB limit
-          continue; // Skip large files
-        }
-        const content = readFileSync(file, 'utf8');
-        helper.setLanguage(helper.detectLanguageFromExtension(file));
-        const analysis = await helper.analyzeCode(content, analysisType);
-        results.push({ file, analysis });
-      } catch (error) {
-        results.push({ file, error: error.message });
-      }
-    }
-
-    return results;
-  }
-}
 
 async function performSearch(helper, targetPath, pattern, recursive, maxResults) {
   const results = [];
@@ -492,9 +451,9 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
   };
 }
 
-async function performReplace(helper, targetPath, pattern, replacement, recursive, backup) {
+async function performReplace(helper, targetPath, pattern, replacement, recursive, backup, autoLint = true) {
   const results = [];
-
+  
   const processFile = async (file) => {
     try {
       const content = fs.readFileSync(file, 'utf8');
@@ -509,7 +468,18 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
 
       if (newContent !== content) {
         fs.writeFileSync(file, newContent);
-        return { file, status: 'modified', changes: true };
+
+        // Linting is now handled by dedicated hooks - no longer needed here
+
+        return {
+          file,
+          status: 'modified',
+          changes: true,
+          linting: autoLint ? {
+            triggered: false,
+            message: "Linting delegated to dedicated hooks"
+          } : null
+        };
       } else {
         return { file, status: 'unchanged', changes: false };
       }
@@ -536,100 +506,14 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
     totalFiles: results.length,
     pattern,
     replacement,
-    path: targetPath
-  };
-}
-
-async function performLint(helper, targetPath, rules, yamlConfig, recursive) {
-  let effectiveRules = [];
-
-  // Load rules from YAML config if provided
-  if (yamlConfig && fs.existsSync(yamlConfig)) {
-    try {
-      effectiveRules = await loadYAMLConfig(yamlConfig);
-    } catch (error) {
-      throw new Error(`Failed to load YAML config: ${error.message}`);
-    }
-  } else if (rules.length > 0) {
-    // Use provided rules (enhanced with ast-grep features)
-    effectiveRules = rules.map(rule => ({
-      ...rule,
-      pattern: rule.pattern || rule.regex, // Support both pattern and regex
-      constraints: rule.constraints || {},
-      utils: rule.utils || {},
-      fix: rule.fix || null
-    }));
-  } else {
-    effectiveRules = getDefaultLintRules();
-  }
-
-  const results = [];
-
-  const processFile = async (file) => {
-    try {
-      const stat = statSync(file);
-      if (stat.size > 150 * 1024) { // 150KB limit
-        return [{ file, error: 'File too large for linting (>150KB)' }];
-      }
-      const content = readFileSync(file, 'utf8');
-      const issues = [];
-
-      helper.setLanguage(helper.detectLanguageFromExtension(file));
-
-      for (const rule of effectiveRules) {
-        const matches = await helper.searchPattern(content, rule.pattern);
-
-        // Apply relational constraints if specified
-        const filteredMatches = await applyRelationalConstraints(helper, content, matches, rule);
-
-        filteredMatches.forEach(match => {
-          const issue = {
-            file,
-            rule: rule.name || rule.id,
-            message: rule.message || `Pattern "${rule.pattern}" matched`,
-            severity: rule.severity || 'warning',
-            line: match.line,
-            column: match.column,
-            content: match.text,
-            fix: rule.fix || null
-          };
-
-          // Apply fix if specified
-          if (rule.fix && backup) {
-            applyFix(file, match, rule.fix);
-          }
-
-          issues.push(issue);
-        });
-      }
-
-      return issues;
-    } catch (error) {
-      return [{ file, error: error.message }];
-    }
-  };
-
-  if (statSync(targetPath).isDirectory()) {
-    const files = await findFiles(targetPath, { recursive });
-    for (const file of files) {
-      const fileIssues = await processFile(file);
-      results.push(...fileIssues);
-    }
-  } else {
-    const fileIssues = await processFile(targetPath);
-    results.push(...fileIssues);
-  }
-
-  return {
-    success: true,
-    results: results.filter(r => !r.error),
-    errors: results.filter(r => r.error),
-    totalIssues: results.filter(r => !r.error).length,
-    rules: effectiveRules.length,
     path: targetPath,
-    yamlConfig: yamlConfig || null
+    linting: autoLint ? {
+      triggered: false,
+      message: "Linting delegated to dedicated hooks - see hook outputs for linting results"
+    } : null
   };
 }
+
 
 async function findFiles(dir, options = {}) {
   const {
@@ -701,9 +585,9 @@ function loadGitignorePatterns(dir) {
   const gitignorePath = path.join(dir, '.gitignore');
   const patterns = [];
 
-  if (fs.existsSync(gitignorePath)) {
+  if (existsSync(gitignorePath)) {
     try {
-      const content = fs.readFileSync(gitignorePath, 'utf8');
+      const content = readFileSync(gitignorePath, 'utf8');
       const lines = content.split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#'));
@@ -716,249 +600,65 @@ function loadGitignorePatterns(dir) {
   return patterns;
 }
 
-function getDefaultLintRules() {
-  return [
-    {
-      id: 'no-console-log',
-      name: 'no-console-log',
-      pattern: 'console.log($$$)',
-      message: 'Avoid using console.log in production code',
-      severity: 'warning'
-    },
-    {
-      id: 'no-debugger',
-      name: 'no-debugger',
-      pattern: 'debugger',
-      kind: 'debugger_statement',
-      message: 'Remove debugger statements',
-      severity: 'error'
-    },
-    {
-      id: 'no-var',
-      name: 'no-var',
-      pattern: 'var $A',
-      message: 'Use let or const instead of var',
-      severity: 'warning'
-    }
-  ];
-}
 
-async function loadYAMLConfig(configPath) {
-  try {
-    // Check if yaml module is available
-    const yaml = await import('yaml');
-    const configContent = fs.readFileSync(configPath, 'utf8');
-    const config = yaml.parse(configContent);
-
-    // Convert YAML config to internal rule format
-    if (config.rules) {
-      return config.rules.map(rule => ({
-        ...rule,
-        name: rule.id || rule.name,
-        pattern: rule.pattern || rule.regex,
-        constraints: rule.constraints || {},
-        utils: rule.utils || {},
-        fix: rule.fix || null
-      }));
-    } else if (config.pattern) {
-      // Single rule config
-      return [{
-        ...config,
-        name: config.id || config.name,
-        constraints: config.constraints || {},
-        utils: config.utils || {},
-        fix: config.fix || null
-      }];
-    }
-    return [];
-  } catch (error) {
-    throw new Error(`YAML parsing failed: ${error.message}`);
-  }
-}
-
-async function applyRelationalConstraints(helper, content, matches, rule) {
-  if (!rule.constraints && !rule.utils) {
-    return matches;
-  }
-
-  const filteredMatches = [];
-
-  for (const match of matches) {
-    let satisfiesConstraints = true;
-
-    // Apply relational constraints (inside, has, follows, precedes)
-    if (rule.constraints.inside) {
-      const insideMatches = await helper.searchPattern(content, rule.constraints.inside);
-      satisfiesConstraints = satisfiesConstraints && insideMatches.some(m =>
-        match.start >= m.start && match.end <= m.end
-      );
-    }
-
-    if (rule.constraints.has && satisfiesConstraints) {
-      const hasMatches = await helper.searchPattern(content, rule.constraints.has);
-      satisfiesConstraints = satisfiesConstraints && hasMatches.some(m =>
-        match.start <= m.start && match.end >= m.end
-      );
-    }
-
-    if (satisfiesConstraints) {
-      filteredMatches.push(match);
-    }
-  }
-
-  return filteredMatches;
-}
-
-function applyFix(filePath, match, fixPattern) {
-  try {
-    const content = fs.readFileSync(filePath, 'utf8');
-    const helper = new UnifiedASTHelper();
-
-    // Apply the fix pattern with variable substitution
-    const fixedContent = content.substring(0, match.start) +
-                         fixPattern.replace(/\$(\w+)/g, (match, varName) => {
-                           // Extract variable from original match text
-                           return match; // Simplified for now
-                         }) +
-                         content.substring(match.end);
-
-    fs.writeFileSync(filePath, fixedContent);
-  } catch (error) {
-    console.warn(`Failed to apply fix to ${filePath}: ${error.message}`);
-  }
-}
 
 // Create the unified AST tool
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: 'ast-grep - Unified AST operations: analyze, search, replace, lint. Supports atomic/relational/composite rules, YAML config, multi-language pattern matching with $VARIABLE wildcards, structural transformations, and utility rule composition.',
-  supported_operations: [
-    'atomic/relational/composite rule matching', 'YAML rule config', 'multi-language AST pattern search',
-    'structural code transformation', 'utility rule composition', 'syntax-aware refactoring',
-    'constraint-based matching', 'positional pattern matching', 'regex + AST hybrid search',
-    'safe code rewriting', 'cross-language pattern detection', 'AST node relationship analysis'
-  ],
-  use_cases: [
-    'Find patterns using atomic rules with kind/regex/range/nthChild',
-    'Match node relationships with inside/has/follows/precedes',
-    'Combine rules with all/any/not boolean logic',
-    'Reuse patterns via utility rule composition',
-    'Transform code using fix/transformation/rewriter',
-    'Apply YAML-configurable rule sets across files',
-    'Safe multi-file refactoring with backup',
-    'Language-agnostic pattern detection'
-  ],
+  description: 'Direct ast-grep access. Patterns use $VAR syntax: "console.log($$$)" finds all console.log calls. Relational: "$FUNC has $CALL" matches functions containing calls. Transform: "var $X" → "let $X" converts declarations.',
   examples: [
-    'ast_tool(operation="search", pattern="console.log($$$)") - Atomic rule pattern',
-    'ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME") - Safe refactoring',
-    'ast_tool(operation="lint", rules=[{pattern:"debugger",severity:"error"}]) - YAML-style rules',
-    'ast_tool(operation="search", pattern="$FUNC has $CALL = console.log") - Relational rule'
+    'ast_tool(operation="search", pattern="console.log($$$)")',
+    'ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME")',
+    'ast_tool(operation="search", pattern="$FUNC has debugger")'
   ],
   inputSchema: {
     type: 'object',
     properties: {
       operation: {
         type: 'string',
-        enum: ['analyze', 'search', 'replace', 'lint'],
-        description: 'ast-grep operation: analyze (basic/detailed), search (atomic/relational patterns), replace (structural transformation), lint (YAML rules)'
+        enum: ['search', 'replace'],
+        description: 'search: find patterns, replace: transform code'
       },
       path: {
         type: 'string',
-        description: 'File/directory path. MUST be absolute: "/Users/username/project/src"'
+        description: 'File or directory path to search/modify'
       },
       pattern: {
         type: 'string',
-        description: 'ast-grep pattern with $VARIABLE wildcards. Supports atomic (kind/regex/range), relational (inside/has/follows/precedes), composite (all/any/not)'
+        description: 'ast-grep pattern. Use $VARIABLE wildcards. Examples: "console.log($$$)", "var $NAME", "$FUNC has $CALL"'
       },
       replacement: {
         type: 'string',
         description: 'Transformation pattern. Uses fix/transformation/rewriter for safe code rewriting. Can reference captured $VARIABLEs'
       },
-      code: {
-        type: 'string',
-        description: 'Direct code input (optional). If not provided, reads from file/directory'
-      },
       language: {
         type: 'string',
-        enum: ['javascript', 'typescript', 'jsx', 'tsx', 'python', 'go', 'rust', 'c', 'cpp', 'html', 'css', 'java', 'kotlin', 'ruby', 'yaml'],
-        default: 'javascript',
-        description: 'Language for AST parsing'
-      },
-      analysisType: {
-        type: 'string',
-        enum: ['basic', 'detailed'],
-        default: 'basic',
-        description: 'Analysis depth: basic (stats) or detailed (patterns)'
-      },
-      rules: {
-        type: 'array',
-        description: 'YAML-style lint rules. Supports atomic, relational, composite rules with constraints/utils/fix',
-        items: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            name: { type: 'string' },
-            pattern: { type: 'string' },
-            kind: { type: 'string' },
-            regex: { type: 'string' },
-            message: { type: 'string' },
-            severity: { type: 'string', enum: ['error', 'warning'] },
-            fix: { type: 'string' },
-            constraints: { type: 'object' },
-            utils: { type: 'object' }
-          }
-        }
-      },
-      yamlConfig: {
-        type: 'string',
-        description: 'ast-grep YAML configuration file path for complex rule definitions'
-      },
-      recursive: {
-        type: 'boolean',
-        default: true,
-        description: 'Recursive directory processing'
-      },
-      maxResults: {
-        type: 'number',
-        default: 100,
-        description: 'Max matches for search operations'
-      },
-      backup: {
-        type: 'boolean',
-        default: true,
-        description: 'Create .backup files for replace operations'
+        enum: ['javascript', 'typescript', 'jsx', 'tsx', 'python', 'go', 'rust', 'c', 'cpp'],
+        default: 'javascript'
       },
       workingDirectory: {
         type: 'string',
-        description: 'REQUIRED: Absolute working directory: "/Users/username/project"'
+        description: 'Working directory path'
       },
       cursor: {
         type: 'string',
-        description: 'Pagination cursor for search/lint'
+        description: 'Pagination cursor for large result sets'
       },
       pageSize: {
         type: 'number',
         default: 50,
-        description: 'Results per page for pagination'
-      },
-      ruleType: {
-        type: 'string',
-        enum: ['atomic', 'relational', 'composite', 'utility'],
-        description: 'Rule type for advanced matching'
+        description: 'Results per page'
       }
     },
     required: ['operation']
   },
   handler: async (args) => {
     try {
-      // For search and lint operations, use pagination
-      if (args.operation === 'search' || args.operation === 'lint') {
+      // Use pagination for search operations with cursor/pageSize
+      if (args.operation === 'search' && (args.cursor || args.pageSize !== 50)) {
         const result = await unifiedASTOperation(args.operation, args);
-
-        // Convert result to array if it's not already
         const results = Array.isArray(result) ? result : (result.results || []);
 
-        // Apply pagination
         return createMCPResponse(results, {
           cursor: args.cursor,
           pageSize: args.pageSize,
@@ -966,22 +666,20 @@ export const UNIFIED_AST_TOOL = {
             operation: args.operation,
             path: args.path,
             pattern: args.pattern,
-            yamlConfig: args.yamlConfig,
             timestamp: new Date().toISOString()
           }
         });
       }
 
-      // For other operations, use existing formatting
       const result = await unifiedASTOperation(args.operation, args);
-      switch (args.operation) {
-        case 'analyze':
-          return formatAnalysisResult(result, args);
-        case 'replace':
-          return formatReplaceResult(result, args);
-        default:
-          return result;
+
+      if (args.operation === 'search') {
+        return formatSearchResult(result, args);
+      } else if (args.operation === 'replace') {
+        return formatReplaceResult(result, args);
       }
+
+      return result;
     } catch (error) {
       return {
         success: false,
@@ -992,37 +690,6 @@ export const UNIFIED_AST_TOOL = {
   }
 };
 
-function formatAnalysisResult(result, args) {
-  if (Array.isArray(result)) {
-    // Directory analysis
-    const successful = result.filter(r => !r.error);
-    const failed = result.filter(r => r.error);
-
-    let output = `📊 Code Analysis Complete - ${successful.length} files analyzed\n\n`;
-
-    if (successful.length > 0) {
-      output += '✅ Successfully analyzed:\n';
-      successful.slice(0, 5).forEach(item => {
-        output += `├─ ${item.file}\n`;
-      });
-      if (successful.length > 5) {
-        output += `└─ ... and ${successful.length - 5} more files\n`;
-      }
-    }
-
-    if (failed.length > 0) {
-      output += `\n❌ Failed to analyze:\n`;
-      failed.forEach(item => {
-        output += `├─ ${item.file}: ${item.error}\n`;
-      });
-    }
-
-    return output;
-  } else {
-    // Single file or code analysis
-    return result;
-  }
-}
 
 function formatSearchResult(result, args) {
   if (!result.success) {
@@ -1056,49 +723,22 @@ function formatReplaceResult(result, args) {
     return `⚠️ No changes made - pattern "${args.pattern}" found no matches to replace\n\nVerify pattern matches actual code structure.`;
   }
 
-  return `✅ Successfully replaced pattern in ${result.modifiedFiles} of ${result.totalFiles} files\n\n` +
-         `📋 Replacement details:\n` +
-         `• Pattern: "${args.pattern}"\n` +
-         `• Replacement: "${args.replacement}"\n` +
-         `• Files modified: ${result.modifiedFiles}\n` +
-         `• Backups created: ${args.backup ? 'Yes' : 'No'}\n\n` +
-         `⚠️ Review changes carefully. Backup files created if enabled.`;
-}
+  let response = `✅ Successfully replaced pattern in ${result.modifiedFiles} of ${result.totalFiles} files\n\n` +
+                `📋 Replacement details:\n` +
+                `• Pattern: "${args.pattern}"\n` +
+                `• Replacement: "${args.replacement}"\n` +
+                `• Files modified: ${result.modifiedFiles}\n` +
+                `• Backups created: ${args.backup ? 'Yes' : 'No'}`;
 
-function formatLintResult(result, args) {
-  if (!result.success) {
-    return `❌ Lint failed: ${result.error}\n\nCheck target path and rule formatting.`;
+  // Note: Linting is now handled by dedicated hooks
+  if (args.autoLint !== false) {
+    response += `\n\n🔍 Linting will be handled by dedicated hooks after file modification.`;
   }
 
-  if (result.totalIssues === 0) {
-    return `✅ No issues found - code passed all ${result.rules} linting rules\n\n` +
-           `📋 Linting summary:\n` +
-           `• Rules applied: ${result.rules}\n` +
-           `• Files scanned: Multiple files in ${args.path}\n` +
-           `• Issues found: 0\n\n` +
-           `🎉 Your code meets quality standards!`;
-  }
+  response += `\n\n⚠️ Review changes carefully. Backup files created if enabled.`;
 
-  let output = `🔍 Found ${result.totalIssues} issues across ${result.rules} linting rules:\n\n`;
-
-  result.results.forEach((issue, i) => {
-    output += `${i + 1}. ${issue.severity.toUpperCase()}: ${issue.message}\n`;
-    output += `   📁 ${issue.file}:${issue.line}\n`;
-    output += `   💻 ${issue.content}\n`;
-    output += `   📋 Rule: ${issue.rule}\n\n`;
-  });
-
-  const errorCount = result.results.filter(r => r.severity === 'error').length;
-  const warningCount = result.results.filter(r => r.severity === 'warning').length;
-
-  output += `📊 Summary:\n` +
-            `• Total issues: ${result.totalIssues}\n` +
-            `• Errors: ${errorCount}\n` +
-            `• Warnings: ${warningCount}\n` +
-            `• Rules applied: ${result.rules}\n\n` +
-            `💡 Focus on errors first, then address warnings.`;
-
-  return output;
+  return response;
 }
+
 
 export default UNIFIED_AST_TOOL;
