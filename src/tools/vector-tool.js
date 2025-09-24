@@ -46,36 +46,6 @@ const DEFAULT_EXTS = [
   'c', 'cpp', 'cc', 'cxx', 'h', 'hpp', 'hh', 'hxx',
   'json', 'yaml', 'yml', 'toml', 'md', 'txt'
 ];
-const DEFAULT_IGNORES = [
-  '**/node_modules/**', '**/.git/**', '**/.node_modules/**',
-  '**/dist/**', '**/build/**', '**/coverage/**', '**/.nyc_output/**',
-  '**/tmp/**', '**/temp/**', '**/.tmp/**', '**/.cache/**', '**/.parcel-cache/**',
-  '**/.next/**', '**/.nuxt/**', '**/.vuepress/**', '**/.docusaurus/**',
-  '**/public/**', '**/static/**', '**/assets/**', '**/images/**', '**/img/**',
-  '**/.vscode/**', '**/.idea/**', '**/.DS_Store/**', '**/Thumbs.db/**',
-  '**/out/**', '**/output/**', '**/generated/**', '**/gen/**',
-  '**/.angular/**', '**/.react/**', '**/.svelte-kit/**',
-  '**/storybook-static/**', '**/docs-build/**', '**/build-docs/**',
-  '**/.vite/**', '**/.turbo/**', '**/.nx/**', '**/.swc/**',
-  '**/bower_components/**', '**/jspm_packages/**', '**/.pnp/**',
-  '**/__tests__/**', '**/__mocks__/**', '**/__snapshots__/**',
-  '**/.jest/**', '**/.mocha/**', '**/.cypress/**', '**/.playwright/**',
-  '**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml',
-  '**/.npmrc', '**/.yarnrc', '**/.pnpmrc',
-  '**/test-*.js', '**/test-*.ts', '**/*.test.js', '**/*.test.ts',
-    '**/optimized-test-*/**',
-  '**/*.spec.js', '**/*.spec.ts', '**/temp-*.js', '**/ab-test-*.js',
-  '**/*.min.js', '**/*.bundle.js', '**/*.chunk.js',
-  '**/target/**', '**/Cargo.lock', // Rust
-  '**/go.sum', '**/vendor/**', // Go
-  '**/__pycache__/**', '**/*.pyc', '**/venv/**', '**/env/**', '**/.env/**', // Python
-  '**/CMakeCache.txt', '**/CMakeFiles/**', '**/*.o', '**/*.a', '**/*.so', // C/C++
-  '**/*.log', '**/*.xml', '**/*.csv',
-  '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.svg', '**/*.ico',
-  '**/*.pdf', '**/*.zip', '**/*.tar', '**/*.gz', '**/*.7z', '**/*.dmg',
-  '**/*.exe', '**/*.dll', '**/*.so', '**/*.dylib',
-  '**/coverage/**', '**/reports/**', '**/docs/**', '**/documentation/**'
-];
 
 const MAX_FILE_SIZE = 150 * 1024; // 150KB file size cap for performance
 const MAX_LINES_PER_CHUNK = 500; // Maximum lines per code chunk
@@ -137,125 +107,7 @@ async function initializeEmbeddingProvider() {
   }
 }
 
-export function getDefaultIgnorePatterns(workingDirectory) {
-  const defaultPatterns = {
-    files: [
-      '**/node_modules/**',
-      '**/.next/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/out/**',
-      '**/coverage/**',
-      '**/.nyc_output/**',
-      '**/.git/**',
-      '**/.vscode/**',
-      '**/.idea/**',
-      '**/*.log',
-      '**/*.tmp',
-      '**/temp/**',
-      '**/tmp/**',
-      '**/.DS_Store',
-      '**/Thumbs.db',
-      '**/*.map',
-      '**/*.min.js',
-      '**/*.min.css',
-      '**/package-lock.json',
-      '**/yarn.lock'
-    ],
-    extensions: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json', '.md'],
-    directories: [
-      'node_modules',
-      '.next',
-      'dist',
-      'build',
-      'out',
-      'coverage',
-      '.nyc_output',
-      '.git',
-      '.vscode',
-      '.idea',
-      'temp',
-      'tmp'
-    ]
-  };
-
-  // Try to read custom ignore patterns from the working directory
-  try {
-    // Check for custom search defaults
-    const searchDefaultsPath = join(workingDirectory, '.search-defaults.json');
-    if (existsSync(searchDefaultsPath)) {
-      const customDefaults = JSON.parse(readFileSync(searchDefaultsPath, 'utf8'));
-      return { ...defaultPatterns, ...customDefaults };
-    }
-
-    // Check for .gitignore
-    const gitignorePath = join(workingDirectory, '.gitignore');
-    if (existsSync(gitignorePath)) {
-      const gitignoreContent = readFileSync(gitignorePath, 'utf8');
-      const gitignorePatterns = gitignoreContent
-        .split('\n')
-        .filter(line => line.trim() && !line.startsWith('#'))
-        .map(line => line.trim());
-
-      return {
-        ...defaultPatterns,
-        customGitignore: gitignorePatterns
-      };
-    }
-  } catch (error) {
-    // If we can't read files, just return defaults
-    console.warn('Warning: Could not read ignore patterns, using defaults:', error.message);
-  }
-
-  return defaultPatterns;
-}
-
-
-async function createLegacyIgnoreFilter(rootDir) {
-  const ig = ignore();
-  ig.add(DEFAULT_IGNORES);
-
-  // Get default patterns
-  const defaultPatterns = getDefaultIgnorePatterns(rootDir);
-
-  // Add any custom patterns from defaults
-  if (defaultPatterns.customGitignore) {
-    ig.add(defaultPatterns.customGitignore);
-  }
-
-  // Add file patterns from defaults
-  if (defaultPatterns.files) {
-    ig.add(defaultPatterns.files);
-  }
-
-  // Find and add all .gitignore files in the directory tree
-  const addGitignoreFiles = async (dir) => {
-    try {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
-
-        if (entry.isFile() && entry.name === '.gitignore') {
-          try {
-            const content = await fs.readFile(fullPath, 'utf8');
-            ig.add(content);
-          } catch (error) {
-            // Silently handle .gitignore read errors
-          }
-        } else if (entry.isDirectory() && !entry.name.startsWith('.') && !DEFAULT_IGNORES.includes(entry.name)) {
-          // Recursively add .gitignore files from subdirectories
-          await addGitignoreFiles(fullPath);
-        }
-      }
-    } catch (error) {
-      // Silently handle directory read errors
-    }
-  };
-
-  await addGitignoreFiles(rootDir);
-  return { ig, rootDir };
-}
+// Legacy ignore functions removed - using common ignore manager
 
 function shouldIndexFile(filePath, allowedExtensions) {
   const ext = extname(filePath).slice(1).toLowerCase();
@@ -581,7 +433,7 @@ export async function processFile(file, codeChunks) {
   return indexData;
 }
 
-export async function syncVectorIndex(folders, exts = DEFAULT_EXTS, ignores = DEFAULT_IGNORES) {
+export async function syncVectorIndex(folders, exts = DEFAULT_EXTS) {
   if (!isInitialized) {
     await initializeVectorSystem();
   }
@@ -609,9 +461,8 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS, ignores = DE
       });
       await scanDirectory(folder, ignoreFilter, files, exts);
     } catch (error) {
-      console.warn(`Error using common ignore filter for ${folder}, falling back to legacy:`, error);
-      const ignoreFilter = await createLegacyIgnoreFilter(folder);
-      await scanDirectory(folder, ignoreFilter, files, exts);
+      console.warn(`Error using common ignore filter for ${folder}, skipping:`, error);
+      // Continue with other folders if one fails
     }
   }
 
@@ -793,8 +644,8 @@ export async function initialize(indexDir = INDEX_DIR) {
   return await initializeVectorSystem(indexDir);
 }
 
-export async function syncIndex(folders, exts = DEFAULT_EXTS, ignores = DEFAULT_IGNORES) {
-  return await syncVectorIndex(folders, exts, ignores);
+export async function syncIndex(folders, exts = DEFAULT_EXTS) {
+  return await syncVectorIndex(folders, exts);
 }
 
 export async function queryIndex(query, topK = 8) {
@@ -805,7 +656,6 @@ export {
   MAX_FILE_SIZE,
   MAX_LINES_PER_CHUNK,
   DEFAULT_EXTS,
-  DEFAULT_IGNORES,
   INDEX_DIR,
   INDEX_FILE,
   VECTOR_INDEX_FILE,
