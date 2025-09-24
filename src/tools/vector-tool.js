@@ -211,32 +211,60 @@ function getLanguagePatterns(language) {
   };
   return patterns[language] || /^[a-zA-Z_]\w*\s*[({]/;
 }
-async function findCodeFiles(dir) {
+async function findCodeFiles(dir, depth = 0, maxDepth = 5) {
   const files = [];
   const allowedExtensions = ['js', 'jsx', 'ts', 'tsx', 'go', 'rs', 'py', 'c', 'cpp', 'cc', 'cxx', 'h', 'hpp'];
+  const MAX_FILES = 1000;
+
+  if (depth > maxDepth) {
+    console.warn(`Max depth ${maxDepth} exceeded at ${dir}`);
+    return files;
+  }
+
+  if (files.length >= MAX_FILES) {
+    console.warn(`Max files ${MAX_FILES} exceeded at ${dir}`);
+    return files;
+  }
+
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = pathJoin(dir, entry.name);
       if (entry.isDirectory()) {
-        
+
         if (entry.name.startsWith('.') ||
             entry.name === 'node_modules' ||
             entry.name === 'dist' ||
             entry.name === 'build' ||
             entry.name === 'target' ||
             entry.name === 'vendor' ||
-            entry.name === 'coverage') {
+            entry.name === 'coverage' ||
+            entry.name === '.git' ||
+            entry.name === '.next' ||
+            entry.name === '.nuxt' ||
+            entry.name === '.out' ||
+            entry.name === '.turbo' ||
+            entry.name === '.vercel' ||
+            entry.name === '.netlify' ||
+            entry.name === 'venv' ||
+            entry.name === 'env' ||
+            entry.name === '.pytest_cache' ||
+            entry.name === '__pycache__') {
           continue;
         }
-        
-        const subFiles = await findCodeFiles(fullPath);
-        files.push(...subFiles);
+
+        const subFiles = await findCodeFiles(fullPath, depth + 1, maxDepth);
+        files.push(...subFiles.slice(0, MAX_FILES - files.length));
       } else if (entry.isFile()) {
         const ext = pathExtname(entry.name).slice(1).toLowerCase();
         if (allowedExtensions.includes(ext) && shouldIndexFile(fullPath, allowedExtensions)) {
           files.push(fullPath);
         }
+      }
+
+      if (files.length >= MAX_FILES) {
+        console.warn(`Max files ${MAX_FILES} reached at ${dir}`);
+        break;
       }
     }
   } catch (error) {
@@ -933,24 +961,28 @@ export const searchTools = [
         console.error(`Searching for: "${query}" in ${fullPath}`);
         let results = [];
         try {
-          
+
           const files = await findCodeFiles(fullPath);
           if (files.length === 0) {
             console.error(`No code files found in: ${fullPath}`);
             results = [];
           } else {
-            
-            const processedQuery = preprocessQuery(query);
-            for (const filePath of files) {
+            console.error(`Found ${files.length} files to search in: ${fullPath}`);
+
+            const searchQuery = query.toLowerCase();
+            const maxFilesToSearch = Math.min(50, files.length);
+            const filesToSearch = files.slice(0, maxFilesToSearch);
+
+            for (const filePath of filesToSearch) {
               try {
                 const content = await fs.readFile(filePath, 'utf8');
-                const fileName = pathBasename(filePath);
-                
                 const lines = content.split('\n');
-                for (let i = 0; i < lines.length; i++) {
+                const maxLines = Math.min(1000, lines.length);
+
+                for (let i = 0; i < maxLines; i++) {
                   const line = lines[i];
-                  if (line.toLowerCase().includes(processedQuery.toLowerCase())) {
-                    
+                  if (line.toLowerCase().includes(searchQuery)) {
+
                     const startLine = Math.max(0, i - 2);
                     const endLine = Math.min(lines.length - 1, i + 2);
                     const matchContent = lines.slice(startLine, endLine + 1).join('\n');
@@ -962,7 +994,7 @@ export const searchTools = [
                       score: 0.8,
                       type: 'code'
                     });
-                    
+
                     if (results.length >= topK) {
                       break;
                     }
@@ -979,7 +1011,7 @@ export const searchTools = [
           }
         } catch (error) {
           console.error(`Error during search:`, error.message);
-          
+
           results = [];
         }
         

@@ -4,8 +4,8 @@
   "data": {
     "toolUsage": {
       "execute": {
-        "count": 79,
-        "lastUsed": 1758736754332,
+        "count": 81,
+        "lastUsed": 1758748273360,
         "files": [
           "src/index.js",
           "src/core/mcp-tools.js",
@@ -16,8 +16,8 @@
         ]
       },
       "searchcode": {
-        "count": 23,
-        "lastUsed": 1758736104114,
+        "count": 26,
+        "lastUsed": 1758748289043,
         "files": [
           "src/tools/vector-tool.js",
           "src/core/working-directory-context.js",
@@ -1527,11 +1527,23 @@
       "Execution failed: Unknown error",
       "Execution failed: Unknown error",
       "Execution failed: Unknown error",
-      "Execution failed: Unknown error"
+      "Execution failed: Unknown error",
+      "Execution failed: Unknown error",
+      "Execution failed: Unknown error",
+      "Found 0 results for query: \"React components TypeScript\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"import React\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"function\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "Function search - consider looking for related functions or usage patterns",
+      "No results found - try broader search terms or different keywords"
     ]
   },
   "metadata": {
-    "totalToolCalls": 120,
+    "totalToolCalls": 125,
     "commonPatterns": [
       {
         "pattern": "context-aware",
@@ -1686,6 +1698,6 @@
         "lastUsed": 1758649886179
       }
     ],
-    "lastModified": 1758736754333
+    "lastModified": 1758748289046
   }
 }
