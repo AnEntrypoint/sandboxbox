@@ -84,7 +84,6 @@ Add to your Cursor `mcpServers.json` configuration:
       "env": {},
       "disabled": false,
       "autoApprove": [
-        "begin",
         "execute",
         "searchcode",
         "ast_tool"
@@ -105,7 +104,6 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
       "env": {},
       "type": "local",
       "tools": [
-        "begin",
         "execute",
         "searchcode",
         "ast_tool"
