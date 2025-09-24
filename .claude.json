@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "glootie": {
+      "command": "node",
+      "args": [
+        "/config/workspace/mcp-repl/src/index.js"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -2,6 +2,8 @@ import ignore from 'ignore';
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 
+// Console output is now suppressed globally in index.js when MCP_MODE is set
+
 /**
  * Common Ignore Patterns Module
  * Provides unified ignore pattern handling for all tools and hooks

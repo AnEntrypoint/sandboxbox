@@ -6,6 +6,9 @@ import { dirname } from 'path';
 import { createMCPResponse } from '../core/mcp-pagination.js';
 import { workingDirectoryContext, createToolContext } from '../core/working-directory-context.js';
 import { createIgnoreFilter, loadCustomIgnorePatterns } from '../core/ignore-manager.js';
+import { suppressConsoleOutput } from '../core/console-suppression.js';
+
+// Console output is now suppressed globally in index.js when MCP_MODE is set
 
 // ast-grep disabled due to fs context issues
 const astGrepModule = null;
@@ -775,7 +778,7 @@ function getLintingPatterns(language) {
 // Create the unified AST tool
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: 'Direct ast-grep access. Patterns use $VAR syntax: "console.log($$$)" finds all console.log calls. Relational: "$FUNC has $CALL" matches functions containing calls. Transform: "var $X" → "let $X" converts declarations.',
+  description: 'Direct ast-grep access. Patterns use $VAR syntax: "console.log($$$)" finds all console.log calls. Relational: "$FUNC has $CALL" matches functions containing calls. Transform: "var $X" → "let $X" converts declarations. This allows advanced find and replace operations to happen across across entire folders. Careful for side-effects, useful for finding many cases of something and manipulating them.',
   examples: [
     'ast_tool(operation="search", pattern="console.log($$$)")',
     'ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME")',
@@ -823,6 +826,8 @@ export const UNIFIED_AST_TOOL = {
     required: ['operation']
   },
   handler: async (args) => {
+    // Apply console output suppression for MCP mode
+    const consoleRestore = suppressConsoleOutput();
     const workingDirectory = args.path || process.cwd();
     const query = args.pattern || args.operation || '';
 
@@ -897,6 +902,9 @@ export const UNIFIED_AST_TOOL = {
         error: error.message,
         operation: args.operation
       };
+    } finally {
+      // Always restore console output
+      consoleRestore.restore();
     }
   }
 };

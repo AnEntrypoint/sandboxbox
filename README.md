@@ -1,11 +1,17 @@
-# MCP Glootie v3.2.15
-
 Complete MCP (Model Context Protocol) server for advanced development tools with full feature set restored.
+
+The aim of the current version is to provide similar turn around times and more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
 ## Features
 
 ### Multi-Language Support
 **Supported Languages**: JavaScript, TypeScript, Go, Rust, Python, C, C++
+
+### Built-in Auto-Hooks
+- **Auto-linting**: Automatically lints files after editing operations (built into tools)
+- **Context management**: Intelligent context awareness and session tracking
+- **Zero configuration**: Works automatically without separate processes
+- **Multi-language support**: ESLint and ast-grep integration for various languages
 
 ### Available Tools
 
@@ -127,19 +133,61 @@ Add to your VSCode MCP configuration:
 
 **Note**: For Claude Code, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. For other clients using npx, the package will be downloaded automatically.
 
+## Built-in Auto-Hooks
+
+### Zero-Configuration Auto-Linting
+
+Glootie now includes built-in auto-linting that works automatically without any setup:
+
+- **Automatic Detection**: Tools automatically detect when files are modified
+- **Smart Linting**: Uses ESLint when available, falls back to ast-grep patterns
+- **Multi-Language**: Supports JavaScript, TypeScript, Python, and more
+- **Zero Setup**: No separate processes or configuration required
+
+### Auto-Linting Features
+
+- **ESLint Integration**: Automatically uses project ESLint configuration when available
+- **AST Grep Fallback**: Built-in linting patterns for projects without ESLint
+- **Real-time Feedback**: Linting results displayed immediately after file operations
+- **Non-blocking**: Linting errors don't prevent operations, just provide guidance
+- **Multi-tool**: Works with ast_tool, execute, and other file-modifying operations
+
+### Usage
+
+Auto-linting works automatically - no configuration needed:
+
+```bash
+# Just use the tools normally - auto-linting happens automatically
+ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME", path="./src")
+```
+
+The tools will automatically:
+1. Detect file modifications
+2. Run appropriate linters (ESLint or ast-grep)
+3. Display results with actionable feedback
+4. Continue operation even if linting fails
+
 ## Recent Improvements
 
-### AST Tool Consolidation (v3.2.2)
-- **Unified AST tool** - Consolidated 4 separate AST tools (parse_ast, astgrep_search, astgrep_replace, astgrep_lint) into 1 unified interface
-- **Enhanced ast-grep integration** - Added comprehensive ast-grep specific capabilities including YAML configuration, relational constraints, and multi-language support
-- **Improved working directory handling** - Fixed critical working directory mismatch issues in test runner to prevent analyzing wrong codebase
-- **Code cleanup** - Removed redundant ast-tools.js file and cleaned up exports for better maintainability
-- **Better performance** - Optimized implementation with reduced context overhead and streamlined architecture
+### Built-in Hooks Integration (v3.2.15)
+- **Eliminated separate hook startup** - Auto-linting now works automatically within tools
+- **Zero configuration** - No separate processes or setup required for hooks
+- **Smart linting** - Automatically uses ESLint when available, falls back to ast-grep patterns
+- **Multi-language support** - Auto-linting works with JavaScript, TypeScript, Python, and more
+- **Non-blocking operation** - Linting provides guidance without preventing operations
 
-### Batch Execution Enhancements
-- **Smart file reading** - Automatically reads files when filePath is provided without code
-- **Improved error handling** - Better validation and recovery for failed operations
-- **Enhanced integration** - Seamless coordination between AST tools in batch operations
+### AST Tool Consolidation (v3.2.2)
+- **Unified AST tool** - Consolidated 4 separate AST tools into 1 unified interface
+- **Enhanced ast-grep integration** - Comprehensive ast-grep capabilities with YAML configuration support
+- **Improved working directory handling** - Fixed critical working directory mismatch issues
+- **Code cleanup** - Removed redundant files and cleaned up exports for better maintainability
+- **Better performance** - Optimized implementation with reduced context overhead
+
+### Auto-Linting Enhancements
+- **Real-time feedback** - Linting results displayed immediately after file operations
+- **Smart fallback** - Uses ESLint when available, ast-grep patterns otherwise
+- **Multi-tool integration** - Works with ast_tool, execute, and other file-modifying operations
+- **Actionable results** - Provides specific guidance for fixing linting issues
 
 ## Tools
 

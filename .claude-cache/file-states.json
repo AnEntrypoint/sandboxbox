@@ -1,0 +1,302 @@
+{
+  "code_search_index/code_index.json": {
+    "hash": "d9cb252ba5e7438490ce1f41a4750298",
+    "size": 1566669,
+    "mtime": 1758583947946,
+    "lines": 4031
+  },
+  "comprehensive-test.js": {
+    "hash": "6e6ec15e91a7d1f1c88add186d6a9530",
+    "size": 9331,
+    "mtime": 1758586043235,
+    "lines": 305
+  },
+  "hooks/context-switch-hook.js": {
+    "hash": "8ee9b3bcac33e06748cbdc462bb420dd",
+    "size": 13228,
+    "mtime": 1758585886625,
+    "lines": 427
+  },
+  "hooks/file-change-hook.js": {
+    "hash": "008dd42b9bbc152b4347501d273032aa",
+    "size": 11856,
+    "mtime": 1758585876639,
+    "lines": 419
+  },
+  "hooks/hook-manager.js": {
+    "hash": "be1c601ac3afab782bb83d00447a06a2",
+    "size": 11294,
+    "mtime": 1758585677580,
+    "lines": 408
+  },
+  "hooks/index.js": {
+    "hash": "ac93aa501598ba651533c92c4e9b5ea4",
+    "size": 6264,
+    "mtime": 1758586208645,
+    "lines": 263
+  },
+  "hooks/project-init-hook.js": {
+    "hash": "375deba03148fc711005c5465a07b156",
+    "size": 9243,
+    "mtime": 1758585519187,
+    "lines": 307
+  },
+  "hooks/project-understanding.js": {
+    "hash": "a4b7a34719d49868d6d81043130558e1",
+    "size": 22124,
+    "mtime": 1758585904027,
+    "lines": 797
+  },
+  "hooks/shared-utils.js": {
+    "hash": "dc368aa9714583a0e6888cb2d7ee5e9b",
+    "size": 8331,
+    "mtime": 1758585714055,
+    "lines": 359
+  },
+  "package-lock.json": {
+    "hash": "5dbc070fe0f47beb110b2b548c7f5e31",
+    "size": 74874,
+    "mtime": 1758466037921,
+    "lines": 2058
+  },
+  "package.json": {
+    "hash": "23ea5759e1ab4d46e2db0fe4a2294a0e",
+    "size": 1257,
+    "mtime": 1758583967599,
+    "lines": 59
+  },
+  "results/claude-output-component-analysis-baseline.json": {
+    "hash": "3f680ffe344ebe66849a9a6992b1bccd",
+    "size": 103404,
+    "mtime": 1758584200768,
+    "lines": 20
+  },
+  "results/claude-output-component-analysis-mcp.json": {
+    "hash": "ef763bcc4bad07126012435e21297c97",
+    "size": 60111,
+    "mtime": 1758584187007,
+    "lines": 20
+  },
+  "results/claude-output-optimization-baseline.json": {
+    "hash": "c18880621bf86ed29c3c5a392256cebc",
+    "size": 59437,
+    "mtime": 1758584299294,
+    "lines": 20
+  },
+  "results/claude-output-optimization-mcp.json": {
+    "hash": "825a26a79cbdfa0d7fc66a26bffad23b",
+    "size": 72772,
+    "mtime": 1758584245615,
+    "lines": 20
+  },
+  "results/claude-output-refactoring-baseline.json": {
+    "hash": "1470cff8a99a3784bfdcf8a3eac78518",
+    "size": 94056,
+    "mtime": 1758584237983,
+    "lines": 20
+  },
+  "results/claude-output-refactoring-mcp.json": {
+    "hash": "8a51ab0938a0dfb216d8cba1a0efe9cc",
+    "size": 123543,
+    "mtime": 1758584267159,
+    "lines": 20
+  },
+  "results/claude-output-ui-generation-baseline.json": {
+    "hash": "6a661ee845e458e512df132d9581ad47",
+    "size": 24906,
+    "mtime": 1758584153755,
+    "lines": 20
+  },
+  "results/claude-output-ui-generation-mcp.json": {
+    "hash": "af9e2b59884ea83193eeaad3fca2c3b5",
+    "size": 25371,
+    "mtime": 1758584154782,
+    "lines": 20
+  },
+  "results/claude-steps-component-analysis-baseline.json": {
+    "hash": "59971e4b37508f226f2dad571e5aa153",
+    "size": 105297,
+    "mtime": 1758584200810,
+    "lines": 1439
+  },
+  "results/claude-steps-component-analysis-mcp.json": {
+    "hash": "37f82b2bf7d650be4052ac8b36e3d879",
+    "size": 61330,
+    "mtime": 1758584187029,
+    "lines": 965
+  },
+  "results/claude-steps-optimization-baseline.json": {
+    "hash": "ae5f4c59a58e73ee4ac94d72494a7d2f",
+    "size": 67314,
+    "mtime": 1758584299319,
+    "lines": 1424
+  },
+  "results/claude-steps-optimization-mcp.json": {
+    "hash": "7921623f02a65043da4e5b2bc6bc2e3f",
+    "size": 79299,
+    "mtime": 1758584245643,
+    "lines": 1531
+  },
+  "results/claude-steps-refactoring-baseline.json": {
+    "hash": "29e49427250658d36f50b4084825db91",
+    "size": 98272,
+    "mtime": 1758584238014,
+    "lines": 1362
+  },
+  "results/claude-steps-refactoring-mcp.json": {
+    "hash": "6299cddacafd15a857594e735e4871c5",
+    "size": 121270,
+    "mtime": 1758584267224,
+    "lines": 1690
+  },
+  "results/claude-steps-ui-generation-baseline.json": {
+    "hash": "529f3c866c0f1b9c7d5ae505149ce33e",
+    "size": 24575,
+    "mtime": 1758584153767,
+    "lines": 439
+  },
+  "results/claude-steps-ui-generation-mcp.json": {
+    "hash": "424bc7730008800d0929c609479efca8",
+    "size": 24626,
+    "mtime": 1758584154804,
+    "lines": 443
+  },
+  "results/mcp-performance-1758584299321.json": {
+    "hash": "b9a82baa5dd88a83235c468eec9c571a",
+    "size": 2432972,
+    "mtime": 1758584299341,
+    "lines": 23737
+  },
+  "simple-test.js": {
+    "hash": "8d86a695af9bb5fa316b3f9191d739ef",
+    "size": 896,
+    "mtime": 1758585854741,
+    "lines": 33
+  },
+  "src/core/error-handling.js": {
+    "hash": "ae8d1a5ae33057d5a71b934fe7739966",
+    "size": 10949,
+    "mtime": 1758217884472,
+    "lines": 386
+  },
+  "src/core/hooks/check-file-access.js": {
+    "hash": "f65f5d17c7835126ef4e4d0bd7194363",
+    "size": 3613,
+    "mtime": 1758538432737,
+    "lines": 142
+  },
+  "src/core/hooks/context-store.js": {
+    "hash": "ce4c0748c3fcfaa4b3f74704cb491c0e",
+    "size": 3136,
+    "mtime": 1758550154890,
+    "lines": 113
+  },
+  "src/core/hooks/context-summary.js": {
+    "hash": "a78733dee476007138782df637b01d83",
+    "size": 4779,
+    "mtime": 1758585539814,
+    "lines": 81
+  },
+  "src/core/hooks/validate-bash-commands.js": {
+    "hash": "7ea7455d28aa9837ba58cae6d1deea03",
+    "size": 2211,
+    "mtime": 1758537009000,
+    "lines": 78
+  },
+  "src/core/index.js": {
+    "hash": "7d6bd2582cf6b08c56344d492f8cfb5b",
+    "size": 193,
+    "mtime": 1758541183073,
+    "lines": 5
+  },
+  "src/core/mcp-pagination.js": {
+    "hash": "cebb53a2d2877a5b7a49f391fe1ec316",
+    "size": 6343,
+    "mtime": 1758541276555,
+    "lines": 239
+  },
+  "src/core/mcp-tools.js": {
+    "hash": "a63ebc91754f6e65674c2f024443c594",
+    "size": 933,
+    "mtime": 1758583908580,
+    "lines": 20
+  },
+  "src/core/shared-utils.js": {
+    "hash": "279361dcaea3006b9c8b8a6226c9165c",
+    "size": 5669,
+    "mtime": 1758547710131,
+    "lines": 220
+  },
+  "src/core/simple-linter.js": {
+    "hash": "ffec10dcb6c50c7168fefca4687356d9",
+    "size": 4179,
+    "mtime": 1758550221775,
+    "lines": 157
+  },
+  "src/core/unified-ast-tool.js": {
+    "hash": "2f962b7f29c609a9aa48bc34a4884f47",
+    "size": 23808,
+    "mtime": 1758581911936,
+    "lines": 744
+  },
+  "src/core/unified-executor.js": {
+    "hash": "b16be9c215616703909b27670428743f",
+    "size": 26237,
+    "mtime": 1758581892949,
+    "lines": 743
+  },
+  "src/core/unified-vector.js": {
+    "hash": "517d694848041e7e6d182f1e934fbe17",
+    "size": 30144,
+    "mtime": 1758581904334,
+    "lines": 928
+  },
+  "src/core/utilities-consolidated.js": {
+    "hash": "0edf421770e3582ce45f18419876b956",
+    "size": 7045,
+    "mtime": 1758541319129,
+    "lines": 293
+  },
+  "src/core/utilities.js": {
+    "hash": "59cf248ebf8edf2d201a4934979034e9",
+    "size": 12412,
+    "mtime": 1758547700866,
+    "lines": 435
+  },
+  "src/index.js": {
+    "hash": "09f711e3fe580608f5ee3b35ad508f24",
+    "size": 2770,
+    "mtime": 1758583973922,
+    "lines": 96
+  },
+  "test-claude-hooks.js": {
+    "hash": "a28caa8dccd15078b58f72474fd69011",
+    "size": 707,
+    "mtime": 1758586105205,
+    "lines": 30
+  },
+  "test-direct.js": {
+    "hash": "10279549821d34c1f992af3d607ce618",
+    "size": 795,
+    "mtime": 1758586084715,
+    "lines": 32
+  },
+  "test-hooks.js": {
+    "hash": "e5a80b1105dc380e9c4502615e68c785",
+    "size": 7364,
+    "mtime": 1758585785752,
+    "lines": 219
+  },
+  "test-import.js": {
+    "hash": "591071a3f7e8b44061cb6dc2524026cb",
+    "size": 151,
+    "mtime": 1758586069885,
+    "lines": 4
+  },
+  "test-project-overview.js": {
+    "hash": "4df88baa28a465dcf30af4d328e6c991",
+    "size": 2306,
+    "mtime": 1758465072029,
+    "lines": 76
+  }
+}

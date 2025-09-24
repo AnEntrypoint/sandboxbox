@@ -6,6 +6,9 @@ import { join, dirname, extname, basename, relative as pathRelative } from 'path
 import os from 'os';
 import ignore from 'ignore';
 import { createIgnoreFilter, loadCustomIgnorePatterns } from '../core/ignore-manager.js';
+import { suppressConsoleOutput } from '../core/console-suppression.js';
+
+// Console output is now suppressed globally in index.js when MCP_MODE is set
 // Stub functions for context-store functionality (hooks system removed)
 function cacheSearchResult(query, results, path) {
   // Stub implementation - caching handled by built-in hooks
@@ -909,6 +912,8 @@ export const searchTools = [
       required: ["query"]
     },
     handler: createTimeoutToolHandler(withPagination(async ({ query, path = ".", workingDirectory, cursor, pageSize = 6, topK = 20 }) => {
+      // Apply console output suppression for MCP mode
+      const consoleRestore = suppressConsoleOutput();
       try {
         // Validate and normalize parameters
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -998,6 +1003,9 @@ export const searchTools = [
         });
         await workingDirectoryContext.updateContext(workingDirectory || process.cwd(), 'searchcode', errorContext);
         throw error; // Re-throw to be caught by the timeout wrapper
+      } finally {
+        // Always restore console output
+        consoleRestore.restore();
       }
     }, 'search-results'), 'searchcode', 45000)
   }
