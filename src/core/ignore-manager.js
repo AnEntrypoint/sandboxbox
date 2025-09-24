@@ -66,6 +66,27 @@ export const CORE_IGNORE_PATTERNS = [
   '**/temp',
   '**/tmp'
 ];
+
+export const SOURCE_CODE_EXTENSIONS = [
+  '.js', '.jsx', '.ts', '.tsx',
+  '.go', '.rs', '.py', '.pyx',
+  '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp',
+  '.java', '.kt', '.scala', '.swift',
+  '.rb', '.php', '.cs', '.vb',
+  '.m', '.mm', '.swift',
+  '.sh', '.bash', '.zsh', '.fish',
+  '.pl', '.pm', '.t', '.pod',
+  '.lua', '.r', '.R', '.Rmd',
+  '.dart', '.elm', '.f#', '.fs', '.fsi',
+  '.vim', '.viml', '.ex', '.exs',
+  '.clj', '.cljs', '.cljc', '.edn',
+  '.coffee', '.litcoffee', '.iced',
+  '.ts', '.tsx', '.d.ts',
+  '.json', '.yaml', '.yml', '.toml',
+  '.xml', '.html', '.htm', '.css', '.scss', '.sass', '.less',
+  '.sql', '.md', '.markdown', '.txt'
+];
+
 export function createIgnoreFilter(rootDir, customPatterns = [], options = {}) {
   const {
     useGitignore = true,
