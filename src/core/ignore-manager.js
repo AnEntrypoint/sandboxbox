@@ -43,10 +43,29 @@ export const CORE_IGNORE_PATTERNS = [
   '**/*.flac',
   '**/*.aac',
   
-  '**/node_modules.gitbuilddisttargetcoverage.next.nuxt.out.turbo.vercel.netlifyvenvenv.pytest_cache__pycache__*.pyc',
+  '**/node_modules',
+  '**/.git',
+  '**/build',
+  '**/dist',
+  '**/target',
+  '**/coverage',
+  '**/.next',
+  '**/.nuxt',
+  '**/.out',
+  '**/.turbo',
+  '**/.vercel',
+  '**/.netlify',
+  '**/venv',
+  '**/env',
+  '**/.pytest_cache',
+  '**/__pycache__',
+  '**/*.pyc',
   '**/*.pyo',
   '**/*.pyd',
-  '**/.cache.tempcachetemptmp
+  '**/.cache',
+  '**/temp',
+  '**/tmp'
+];
 export function createIgnoreFilter(rootDir, customPatterns = [], options = {}) {
   const {
     useGitignore = true,
