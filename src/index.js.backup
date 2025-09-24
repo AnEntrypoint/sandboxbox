@@ -6,7 +6,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { allTools } from './core/mcp-tools.js';
 const SERVER_CONFIG = {
   name: 'glootie-mcp',
-  version: '3.2.19',
+  version: '3.2.18',
   description: 'Programming tools.'
 };
 
@@ -48,10 +48,10 @@ async function lintGitChanges() {
       changedFiles = [
         ...stagedOutput.trim().split('\n').filter(f => f),
         ...unstagedOutput.trim().split('\n').filter(f => f)
-      ].filter((file, index, self) => self.indexOf(file) === index); 
+      ].filter((file, index, self) => self.indexOf(file) === index); // Remove duplicates
 
     } catch (gitError) {
-      
+      // Not a git repo or git not available
       return '';
     }
 
@@ -59,7 +59,7 @@ async function lintGitChanges() {
       return '';
     }
 
-    
+    // Filter for code files that we can lint
     const codeFiles = changedFiles.filter(file => {
       const ext = file.split('.').pop()?.toLowerCase();
       return ['js', 'jsx', 'ts', 'tsx', 'py', 'go', 'rs', 'c', 'cpp'].includes(ext);
@@ -69,7 +69,7 @@ async function lintGitChanges() {
       return '';
     }
 
-    
+    // Lint each changed file
     const lintResults = [];
     for (const file of codeFiles) {
       try {
@@ -78,7 +78,7 @@ async function lintGitChanges() {
           lintResults.push(result);
         }
       } catch (error) {
-        
+        // Skip files that can't be linted
       }
     }
 
@@ -86,7 +86,7 @@ async function lintGitChanges() {
       return '';
     }
 
-    
+    // Format linting results
     let output = '\n\n=== CHANGED FILES ANALYSIS ===\n';
     lintResults.forEach(result => {
       if (result.hasIssues) {
@@ -99,11 +99,12 @@ async function lintGitChanges() {
     return output + '\n';
 
   } catch (error) {
-    
+    // Silent fail for linting errors
     return '';
   }
 }
 
+// Analyze file information (imports/exports and line counts)
 async function analyzeFileInfo(filePath, content, ext) {
   const lines = content.split('\n');
   const lineCount = lines.length;
@@ -111,21 +112,21 @@ async function analyzeFileInfo(filePath, content, ext) {
   let imports = [];
   let exports = [];
 
-  
+  // Analyze imports/exports based on file type
   if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
-    
+    // JavaScript/TypeScript imports
     const importMatches = content.match(/^import\s+.*?from\s+['"]([^'"]+)['"]/gm);
     if (importMatches) {
       imports = importMatches.map(match => match.replace(/^import\s+.*?from\s+['"]([^'"]+)['"]/, '$1'));
     }
 
-    
+    // JavaScript/TypeScript exports
     const exportMatches = content.match(/^export\s+(?:default\s+)?(?:const|let|var|function|class|async\s+function)\s+(\w+)/gm);
     if (exportMatches) {
       exports = exportMatches.map(match => match.replace(/^export\s+(?:default\s+)?(?:const|let|var|function|class|async\s+function)\s+(\w+)/, '$1'));
     }
   } else if (ext === 'py') {
-    
+    // Python imports
     const importMatches = content.match(/^(?:from\s+(\S+)\s+)?import\s+(.+)/gm);
     if (importMatches) {
       imports = importMatches.map(match => {
@@ -140,11 +141,12 @@ async function analyzeFileInfo(filePath, content, ext) {
 
   return {
     lineCount,
-    imports: imports.slice(0, 5), 
-    exports: exports.slice(0, 5) 
+    imports: imports.slice(0, 5), // Limit to first 5 imports
+    exports: exports.slice(0, 5) // Limit to first 5 exports
   };
 }
 
+// Lint a single file
 async function lintFile(filePath) {
   try {
     const { readFileSync, existsSync } = await import('fs');
@@ -158,7 +160,7 @@ async function lintFile(filePath) {
     const content = readFileSync(filePath, 'utf8');
     const ext = filePath.split('.').pop()?.toLowerCase();
 
-    
+    // Always analyze file info
     const fileInfo = await analyzeFileInfo(filePath, content, ext);
     const fileInfoText = [];
 
@@ -174,12 +176,12 @@ async function lintFile(filePath) {
       fileInfoText.push(`Exports: ${fileInfo.exports.join(', ')}`);
     }
 
-    
+    // Try ast-grep for JavaScript/TypeScript
     if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
       try {
         const { unifiedASTOperation } = await import('./tools/ast-tool.js');
 
-        
+        // Define common linting patterns
         const lintingPatterns = [
           { pattern: 'debugger', severity: 'error', name: 'Debugger statement' },
           { pattern: 'console.log', severity: 'warning', name: 'Console log' },
@@ -199,7 +201,7 @@ async function lintFile(filePath) {
             if (result.success && result.totalMatches > 0) {
               issues.push(`${name}: ${result.totalMatches} found`);
 
-              
+              // Add specific locations for errors
               if (severity === 'error' && result.results.length > 0) {
                 const locations = result.results.slice(0, 2).map(match =>
                   `Line ${match.line}`
@@ -208,11 +210,11 @@ async function lintFile(filePath) {
               }
             }
           } catch (patternError) {
-            
+            // Skip failed patterns
           }
         }
 
-        
+        // Return file info even if no issues found
         if (issues.length > 0) {
           return {
             file: filePath,
@@ -229,7 +231,7 @@ async function lintFile(filePath) {
           };
         }
       } catch (astError) {
-        
+        // ast-grep not available, return file info only
         if (fileInfoText.length > 0) {
           return {
             file: filePath,
@@ -241,12 +243,12 @@ async function lintFile(filePath) {
       }
     }
 
-    
+    // Try ast-grep for Python files
     if (ext === 'py') {
       try {
         const { unifiedASTOperation } = await import('./tools/ast-tool.js');
 
-        
+        // Define Python linting patterns
         const lintingPatterns = [
           { pattern: 'print(', severity: 'warning', name: 'Print statement' },
           { pattern: 'except:', severity: 'error', name: 'Bare except' },
@@ -265,7 +267,7 @@ async function lintFile(filePath) {
             if (result.success && result.totalMatches > 0) {
               issues.push(`${name}: ${result.totalMatches} found`);
 
-              
+              // Add specific locations for errors
               if (severity === 'error' && result.results.length > 0) {
                 const locations = result.results.slice(0, 2).map(match =>
                   `Line ${match.line}`
@@ -274,11 +276,11 @@ async function lintFile(filePath) {
               }
             }
           } catch (patternError) {
-            
+            // Skip failed patterns
           }
         }
 
-        
+        // Also check for syntax errors using Python compiler
         try {
           execSync(`python -m py_compile "${filePath}"`, {
             encoding: 'utf8',
@@ -289,7 +291,7 @@ async function lintFile(filePath) {
           issues.push(`Syntax error: ${pyError.message.replace('Command failed: ', '')}`);
         }
 
-        
+        // Return file info even if no issues found
         if (issues.length > 0) {
           return {
             file: filePath,
@@ -306,7 +308,7 @@ async function lintFile(filePath) {
           };
         }
       } catch (astError) {
-        
+        // ast-grep not available, fall back to basic Python syntax check
         try {
           execSync(`python -m py_compile "${filePath}"`, {
             encoding: 'utf8',
@@ -324,12 +326,12 @@ async function lintFile(filePath) {
       }
     }
 
-    
+    // Try ast-grep for other languages
     if (['go', 'rs', 'c', 'cpp'].includes(ext)) {
       try {
         const { unifiedASTOperation } = await import('./tools/ast-tool.js');
 
-        
+        // Define common linting patterns for compiled languages
         const languageMap = {
           'go': 'go',
           'rs': 'rust',
@@ -357,11 +359,11 @@ async function lintFile(filePath) {
                 issues.push(`${name}: ${result.totalMatches} found`);
               }
             } catch (patternError) {
-              
+              // Skip failed patterns
             }
           }
 
-          
+          // Return file info even if no issues found
           if (issues.length > 0) {
             return {
               file: filePath,
@@ -379,7 +381,7 @@ async function lintFile(filePath) {
           }
         }
       } catch (astError) {
-        
+        // ast-grep not available for this language, return file info only
         if (fileInfoText.length > 0) {
           return {
             file: filePath,
@@ -391,7 +393,7 @@ async function lintFile(filePath) {
       }
     }
 
-    
+    // Return file info even if no other language matched
     if (fileInfoText.length > 0) {
       return {
         file: filePath,
@@ -407,6 +409,7 @@ async function lintFile(filePath) {
   }
 }
 
+// Register call_tool handler
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -415,19 +418,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw new Error(`Unknown tool: ${name}`);
   }
 
-  
+  // Run built-in hooks for this request
   const hookOutput = await runHooksForRequest(name, args);
 
-  
+  // Execute the tool
   try {
     const result = await tool.handler(args);
 
-    
+    // Run git-based linting after tool execution
     const lintingOutput = await lintGitChanges();
 
-    
+    // If the result is already in MCP content format, return it directly
     if (result && result.content) {
-      
+      // Add linting output if there are issues
       if (lintingOutput && result.content && result.content.length > 0) {
         const firstContent = result.content[0];
         if (firstContent.type === "text") {
@@ -442,7 +445,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return result;
     }
 
-    
+    // Otherwise, wrap it in standard format with hook and linting output
     const finalText = hookOutput + (typeof result === 'string' ? result : JSON.stringify(result, null, 2)) + lintingOutput;
     return {
       content: [{ type: "text", text: finalText }]
@@ -455,26 +458,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Start the server
 async function main() {
-  
+  // Start built-in hooks for enhanced functionality
   await startBuiltInHooks();
 
-  
+  // Suppress all stderr output to avoid EPIPE errors with stdio transport
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
   process.stderr.write = function(string, encoding, fd) {
-    
+    // Suppress all stderr output when using stdio transport
     return true;
   };
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  
+  // Suppress console.error to avoid EPIPE errors with stdio transport
 }
 
+// Built-in hooks state - global first call tracking
 let hasAnyToolBeenCalled = false;
 
+// Simple session file tracking
 const SESSION_FLAG_FILE = './.mcp-first-call-flag.json';
 
+// Load first call flag from file
 async function loadFirstCallFlag() {
   try {
     const { readFile } = await import('fs/promises');
@@ -485,10 +492,11 @@ async function loadFirstCallFlag() {
       hasAnyToolBeenCalled = parsed.hasBeenCalled || false;
     }
   } catch (error) {
-    
+    // Silent fail - start with fresh session
   }
 }
 
+// Save first call flag to file
 async function saveFirstCallFlag() {
   try {
     const { writeFile } = await import('fs/promises');
@@ -498,66 +506,68 @@ async function saveFirstCallFlag() {
     };
     await writeFile(SESSION_FLAG_FILE, JSON.stringify(data, null, 2));
   } catch (error) {
-    
+    // Silent fail - continue without persistence
   }
 }
 
+// Start built-in hooks for auto-linting and context management
 async function startBuiltInHooks() {
   try {
-    
+    // Load existing first call flag
     await loadFirstCallFlag();
 
-    
-    
+    // Console output is now suppressed by default
+    // Only enable with ENABLE_CONSOLE_OUTPUT=true environment variable
 
-    
+    // Apply console output suppression globally for all modules
     applyGlobalConsoleSuppression();
   } catch (error) {
     console.log('⚠️  Built-in hooks initialization failed:', error.message);
   }
 }
 
+// Global console suppression to prevent JSON protocol corruption - NOW DEFAULT
 function applyGlobalConsoleSuppression() {
   const originalConsoleLog = console.log;
   const originalConsoleWarn = console.warn;
   const originalConsoleError = console.error;
   const originalConsoleDebug = console.debug;
 
-  
+  // Create a function that checks for explicit opt-out rather than opt-in
   const shouldSuppress = () => process.env.ENABLE_CONSOLE_OUTPUT !== 'true';
 
-  
+  // Override console methods globally
   console.log = (...args) => {
     if (!shouldSuppress()) {
       return originalConsoleLog(...args);
     }
-    
+    // Suppressed by default - only enable with ENABLE_CONSOLE_OUTPUT=true
   };
 
   console.warn = (...args) => {
     if (!shouldSuppress()) {
       return originalConsoleWarn(...args);
     }
-    
+    // Suppressed by default - only enable with ENABLE_CONSOLE_OUTPUT=true
   };
 
   console.error = (...args) => {
     if (!shouldSuppress()) {
       return originalConsoleError(...args);
     }
-    
+    // Suppressed by default - only enable with ENABLE_CONSOLE_OUTPUT=true
   };
 
-  
+  // Keep debug logging available for critical failures
   console.debug = (...args) => {
     if (!shouldSuppress()) {
       return originalConsoleDebug(...args);
     }
-    
+    // Always allow debug output for critical failures
     return originalConsoleDebug(...args);
   };
 
-  
+  // Also store the suppression function globally for tool access
   global.shouldSuppressConsole = shouldSuppress;
 }
 
@@ -572,10 +582,11 @@ searchcode: to find patterns and understand codebase structure
 `;
 }
 
+// Hook runner for request processing
 async function runHooksForRequest(toolName, args) {
   let hookOutput = ``;
 
-  
+  // Add initialization context only on the very first call to any tool
   if (!hasAnyToolBeenCalled) {
     hookOutput += runContextInitialization() + '\n\n';
     hasAnyToolBeenCalled = true;
@@ -585,12 +596,14 @@ async function runHooksForRequest(toolName, args) {
   return hookOutput;
 }
 
-if (import.meta.url === `file:
+// Auto-start when run directly
+if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch(error => {
-    
+    // Suppress console.error to avoid EPIPE errors with stdio transport
     process.exit(1);
   });
 }
 
+// Re-export only essential parts
 export * from './core/mcp-tools.js';
 export { server, runHooksForRequest, startBuiltInHooks, lintFile, lintGitChanges };

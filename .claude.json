@@ -3,7 +3,7 @@
     "glootie": {
       "command": "node",
       "args": [
-        "/config/workspace/mcp-repl/src/index.js"
+        "./src/index.js"
       ],
       "env": {}
     }

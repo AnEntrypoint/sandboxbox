@@ -52,22 +52,22 @@ function validateCommand(command, useMcp) {
 const TESTS = [
   {
     name: 'Component Analysis & Enhancement',
-    prompt: 'Find all React components in this shadcn/ui project and analyze the component structure and patterns. Look specifically at the task-manager component and suggest improvements for better TypeScript typing and performance. This task requires analysis and discovery, so use complexity="advanced" when beginning.',
+    prompt: 'Find all React components in this shadcn/ui project and analyze the component structure and patterns. Look specifically at the task-manager component and suggest improvements for better TypeScript typing and performance.',
     category: 'component-analysis'
   },
   {
     name: 'UI Component Generation',
-    prompt: 'Add a new shadcn/ui component for a modal dialog component. Create it following the existing patterns (similar to button, card, input components). Include proper TypeScript interfaces and make it accessible. Validate it follows shadcn/ui patterns. This is a straightforward creation task with known steps, so use complexity="basic" when beginning.',
+    prompt: 'Add a new shadcn/ui component for a modal dialog component. Create it following the existing patterns (similar to button, card, input components). Include proper TypeScript interfaces and make it accessible. Validate it follows shadcn/ui patterns.',
     category: 'ui-generation'
   },
   {
     name: 'Project Refactoring Task',
-    prompt: 'Perform a comprehensive refactoring: 1) Search for all hardcoded strings in components, 2) Extract common utility functions from multiple components into shared hooks, 3) Add proper error boundaries to the React components, 4) Generate a summary of changes made. This requires discovery, searching, and refactoring, so use complexity="advanced" when beginning.',
+    prompt: 'Perform a comprehensive refactoring: 1) Search for all hardcoded strings in components, 2) Extract common utility functions from multiple components into shared hooks, 3) Add proper error boundaries to the React components, 4) Generate a summary of changes made.',
     category: 'refactoring'
   },
   {
     name: 'Performance Optimization',
-    prompt: 'Analyze the task-manager component for performance issues. Look for unnecessary re-renders, missing memoization, and inefficient state management. Then implement optimizations using React.memo, useCallback, and useMemo where appropriate. Validate the performance improvements. This requires analysis, debugging, and optimization, so use complexity="advanced" when beginning.',
+    prompt: 'Analyze the task-manager component for performance issues. Look for unnecessary re-renders, missing memoization, and inefficient state management. Then implement optimizations using React.memo, useCallback, and useMemo where appropriate. Validate the performance improvements.',
     category: 'optimization'
   }
 ];
@@ -1712,8 +1712,9 @@ CRITICAL: You must examine the actual step files in the results/ directory:
 - evaluate the difference between the work done on each project, the baseline vs the mcp, in their optimized-test directories
 - The step files show tool calls, results, and execution patterns
 - Compare baseline vs MCP tool usage patterns
+- Additional time spent or things run is fine, even if it didnt help us here, if it would help us in more complicated situations
 
-IMPORTANT PERFORMANCE TEST RESULTS:
+Wall clock times:
 ${performanceSummary}
 
 Analysis Requirements:
@@ -1724,10 +1725,10 @@ Focus Areas:
 - What the step outputs reveal about tool reliability and coding skill
 - Which tools actually helped agents accomplish tasks vs which created friction
 - Real-world experience of agents using these tools for development tasks
-- When these tools would actually be worth using vs when they'd get in the way
 - Pay close attention to any chekovs guns that threw off the agents
-- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there's no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.
-- Ignore the cost of the begin step, its instant
+- We're looking for improved intelligent and predictive behaviors and more truth-grounded code.
+- Slower is better if it improved results or testing was more thorough
+- Additional time spent or things run is fine, even if it didnt help us here, if it would help us in more complicated situations
 
 results is in ./results, with all the steps taken by agents
 
@@ -1757,7 +1758,7 @@ CRITICAL: You must examine the actual step files in the results/ directory:
 - results/claude-output-*.json files contain the raw Claude outputs
 - These files show what actually happened during testing
 
-IMPORTANT PERFORMANCE TEST RESULTS:
+WALL CLOCK TIMES:
 ${performanceSummary}
 
 Analysis Requirements:
@@ -1770,9 +1771,9 @@ Focus Areas:
 - Where did agents succeed or fail in accomplishing their assigned tasks?
 - Which tools actually improved the agent experience vs which created new problems?
 - What do the actual step outputs reveal about tool reliability and usability?
-- Additional steps and time is a feature if the output is better, its a bug if the output is worse, first prize is a quicker shorter better output second prize is a slower longer better output, there's no prize for getting a worse output that takes longer, and going faster with a worse output is not acceptable.
+- We prefer more thorough, verified, well thought out processes and signs of intelligent behavior and prediction of iseues.
+- Slower is better if it improved results or testing was more thorough
 
-We have to consider that if we add more tools, it will add potentially more calls, and potentially more instructive documentation which will make the context bigger, smaller contexts improve intelligent behavior and reduce chekovs guns
 Pay close attention to any chekovs guns that threw off the agents
 results is in ./results, with all the steps taken by agents
 

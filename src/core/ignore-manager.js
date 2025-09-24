@@ -1,106 +1,19 @@
 import ignore from 'ignore';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import path from 'path';
-
-// Console output is now suppressed globally in index.js when MCP_MODE is set
-
-/**
- * Common Ignore Patterns Module
- * Provides unified ignore pattern handling for all tools and hooks
- */
-
-// Core default ignore patterns used across all tools
+const ignoreFilterCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; 
 export const CORE_IGNORE_PATTERNS = [
-  // Version control
-  '.git/**',
-  '.svn/**',
-  '.hg/**',
-
-  // Dependencies and packages
-  'node_modules/**',
-  'vendor/**',
-  'bower_components/**',
-
-  // Build outputs
-  'dist/**',
-  'build/**',
-  'out/**',
-  'output/**',
-  'generated/**',
-  '.next/**',
-  '.nuxt/**',
-  '.out/**',
-  '.public/**',
-  '.turbo/**',
-  '.vercel/**',
-  '.netlify/**',
-
-  // Cache and temporary files
-  '.cache/**',
-  '.temp/**',
-  'cache/**',
-  'temp/**',
-  'tmp/**',
-  '*.tmp',
-  '*.temp',
-  '*.log',
-  '*.bak',
-  '*.swp',
-  '*.swo',
-
-  // Environment and config files
-  '.env*',
-  '.env.local',
-  '.env.development.local',
-  '.env.test.local',
-  '.env.production.local',
-
-  // Coverage and testing
-  'coverage/**',
-  '.nyc_output/**',
-  'reports/**',
-  '**/test/**',
-  '**/*.test.*',
+  
+  '.gittest*.test.*',
   '**/*.spec.*',
-
-  // Development tools
-  '.vscode/**',
-  '.idea/**',
-  '.swp/**',
-  '.swo/**',
-  '.DS_Store',
-  'Thumbs.db',
-
-  // Package and config files
-  'package.json',
-  'package-lock.json',
-  'yarn.lock',
-  'pnpm-lock.yaml',
-  'tsconfig.json',
-  'tsconfig.*.json',
-  'jest.config.*',
-  'webpack.config.*',
-  'vite.config.*',
-  'tailwind.config.*',
-
-  // Documentation and notes
-  '**/*.md',
+  
+  '.vscode*.md',
   '**/*.txt',
-  'docs/**',
-  'README*',
-  'LICENSE*',
-  'CHANGELOG*',
-
-  // Data and storage
-  'data/**',
-  'logs/**',
-  'storage/**',
-  'database/**',
-  '**/*.sqlite',
+  'docs*.sqlite',
   '**/*.db',
   '**/*.sql',
-
-  // Binary and media files
+  
   '**/*.png',
   '**/*.jpg',
   '**/*.jpeg',
@@ -113,37 +26,13 @@ export const CORE_IGNORE_PATTERNS = [
   '**/*.gz',
   '**/*.rar',
   '**/*.7z',
-
-  // Generated files and maps
+  
   '**/*.min.*',
   '**/*.map',
   '**/*.bundle.*',
-
-  // Claude-specific directories
-  '.claude/**',
-  '.thoughts/**',
-  'code_search_index/**',
-  '.claude-cache/**',
-  'results/**',
-  'optimized-test*/**',
-  'debug-*/**',
-
-  // Monorepo patterns
-  'packages/**',
-  'apps/**',
-
-  // Language-specific
-  'target/**',        // Rust/Java
-  '__pycache__/**',   // Python
-  '*.pyc',           // Python
-  '*.pyo',           // Python
-  '*.pyd',           // Python
-  '.pytest_cache/**', // Python
-  'venv/**',         // Python
-  'env/**',          // Python
-
-  // Large file types
-  '**/*.mp4',
+  
+  '.claude**',
+  'debug-**.mp4',
   '**/*.avi',
   '**/*.mov',
   '**/*.wmv',
@@ -153,49 +42,47 @@ export const CORE_IGNORE_PATTERNS = [
   '**/*.wav',
   '**/*.flac',
   '**/*.aac',
-];
-
-// Extension-based ignore patterns for source code filtering
-export const SOURCE_CODE_EXTENSIONS = [
-  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
-  '.py', '.go', '.rs', '.c', '.cpp', '.h', '.hpp',
-  '.java', '.kt', '.scala', '.swift', '.objc', '.m',
-  '.rb', '.php', '.pl', '.pm', '.lua',
-  '.sh', '.bash', '.zsh', '.fish',
-  '.html', '.htm', '.css', '.scss', '.sass', '.less',
-  '.json', '.yaml', '.yml', '.toml', '.xml', 'csv',
-  '.sql', '.graphql', '.gql',
-  '.dockerfile', 'docker-compose.yml', 'docker-compose.yaml'
-];
-
-/**
- * Creates a unified ignore filter with recursive .gitignore support
- */
+  
+  '**/node_modules.gitbuilddisttargetcoverage.next.nuxt.out.turbo.vercel.netlifyvenvenv.pytest_cache__pycache__*.pyc',
+  '**/*.pyo',
+  '**/*.pyd',
+  '**/.cache.tempcachetemptmp
 export function createIgnoreFilter(rootDir, customPatterns = [], options = {}) {
   const {
     useGitignore = true,
     useDefaults = true,
-    caseSensitive = false
+    caseSensitive = false,
+    useCache = true
   } = options;
-
+  
+  const cacheKey = JSON.stringify({
+    rootDir: path.resolve(rootDir),
+    customPatterns: customPatterns.sort(),
+    useGitignore,
+    useDefaults,
+    caseSensitive
+  });
+  
+  if (useCache) {
+    const cached = ignoreFilterCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return cached.filter;
+    }
+  }
   const ig = ignore({ caseSensitive });
-
-  // Add core patterns
+  
   if (useDefaults) {
     ig.add(CORE_IGNORE_PATTERNS);
   }
-
-  // Add custom patterns
+  
   if (customPatterns.length > 0) {
     ig.add(customPatterns);
   }
-
-  // Add .gitignore files recursively
+  
   if (useGitignore) {
     addGitignoreFiles(ig, rootDir);
   }
-
-  return {
+  const filter = {
     ig,
     rootDir,
     ignores: (filePath) => {
@@ -205,17 +92,29 @@ export function createIgnoreFilter(rootDir, customPatterns = [], options = {}) {
     add: (patterns) => ig.add(patterns),
     createSubFilter: (subDir) => createIgnoreFilter(subDir, customPatterns, options)
   };
+  
+  if (useCache) {
+    ignoreFilterCache.set(cacheKey, {
+      filter,
+      timestamp: Date.now()
+    });
+  }
+  return filter;
 }
-
-/**
- * Recursively adds all .gitignore files in the directory tree
- */
 function addGitignoreFiles(ig, rootDir) {
-  const scanGitignoreFiles = (dir) => {
+  const scannedDirs = new Set();
+  const MAX_DEPTH = 10;
+  const MAX_DIRS = 1000;
+  const scanGitignoreFiles = (dir, depth = 0) => {
+    
+    if (depth > MAX_DEPTH) return;
+    if (scannedDirs.size > MAX_DIRS) return;
+    const dirKey = path.resolve(dir);
+    if (scannedDirs.has(dirKey)) return;
+    scannedDirs.add(dirKey);
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
-
-      // Check for .gitignore in current directory
+      
       const gitignorePath = path.join(dir, '.gitignore');
       if (existsSync(gitignorePath)) {
         try {
@@ -224,57 +123,54 @@ function addGitignoreFiles(ig, rootDir) {
             .split('\n')
             .filter(line => line.trim() && !line.startsWith('#'))
             .map(line => line.trim());
-
           if (patterns.length > 0) {
             ig.add(patterns);
           }
         } catch (error) {
-          // Silently handle .gitignore read errors
+          
           console.warn(`Warning: Could not read .gitignore at ${gitignorePath}: ${error.message}`);
         }
       }
-
-      // Recursively scan subdirectories
+      
       for (const entry of entries) {
         if (entry.isDirectory()) {
           const fullPath = path.join(dir, entry.name);
-          // Skip .git directory and other ignored directories
-          if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-            scanGitignoreFiles(fullPath);
+          
+          if (entry.name.startsWith('.') ||
+              entry.name === 'node_modules' ||
+              entry.name === 'dist' ||
+              entry.name === 'build' ||
+              entry.name === 'target' ||
+              entry.name === 'vendor' ||
+              entry.name === 'coverage' ||
+              entry.name === '.git') {
+            continue;
           }
+          scanGitignoreFiles(fullPath, depth + 1);
         }
       }
     } catch (error) {
-      // Silently handle directory access errors
-      console.warn(`Warning: Could not scan directory ${dir}: ${error.message}`);
+      
+      if (error.code !== 'ENOENT') {
+        console.warn(`Warning: Could not scan directory ${dir}: ${error.message}`);
+      }
     }
   };
-
   scanGitignoreFiles(rootDir);
 }
-
-/**
- * Creates a file filter function for specific extensions
- */
 export function createExtensionFilter(extensions = SOURCE_CODE_EXTENSIONS) {
   return (filePath) => {
     const ext = path.extname(filePath).toLowerCase();
     return extensions.includes(ext);
   };
 }
-
-/**
- * Combines ignore filter with extension filter
- */
 export function createFileFilter(rootDir, customPatterns = [], options = {}) {
   const {
     extensions = SOURCE_CODE_EXTENSIONS,
     ...ignoreOptions
   } = options;
-
   const ignoreFilter = createIgnoreFilter(rootDir, customPatterns, ignoreOptions);
   const extensionFilter = createExtensionFilter(extensions);
-
   return {
     ...ignoreFilter,
     shouldProcess: (filePath) => {
@@ -283,31 +179,18 @@ export function createFileFilter(rootDir, customPatterns = [], options = {}) {
     filterFiles: (files) => files.filter(file => ignoreFilter.shouldProcess(file))
   };
 }
-
-/**
- * Legacy compatibility function
- */
 export function getDefaultIgnorePatterns() {
   return CORE_IGNORE_PATTERNS;
 }
-
-/**
- * Legacy compatibility function
- */
 export function shouldIgnoreFile(filePath, ignorePatterns = null) {
   const patterns = ignorePatterns || CORE_IGNORE_PATTERNS;
   const ignoreFilter = createIgnoreFilter(path.dirname(filePath), patterns);
   return ignoreFilter.ignores(filePath);
 }
-
-/**
- * Loads custom ignore patterns from various sources
- */
 export function loadCustomIgnorePatterns(workingDirectory) {
   const patterns = [];
-
   try {
-    // Check for .searchignore file
+    
     const searchignorePath = path.join(workingDirectory, '.searchignore');
     if (existsSync(searchignorePath)) {
       const content = readFileSync(searchignorePath, 'utf8');
@@ -317,8 +200,7 @@ export function loadCustomIgnorePatterns(workingDirectory) {
         .map(line => line.trim())
       );
     }
-
-    // Check for .search-defaults.json
+    
     const searchDefaultsPath = path.join(workingDirectory, '.search-defaults.json');
     if (existsSync(searchDefaultsPath)) {
       const customDefaults = JSON.parse(readFileSync(searchDefaultsPath, 'utf8'));
@@ -329,10 +211,17 @@ export function loadCustomIgnorePatterns(workingDirectory) {
   } catch (error) {
     console.warn(`Warning: Could not load custom ignore patterns: ${error.message}`);
   }
-
   return patterns;
 }
-
+export function clearIgnoreCache() {
+  ignoreFilterCache.clear();
+}
+export function getCacheStats() {
+  return {
+    size: ignoreFilterCache.size,
+    entries: Array.from(ignoreFilterCache.entries())
+  };
+}
 export default {
   CORE_IGNORE_PATTERNS,
   SOURCE_CODE_EXTENSIONS,

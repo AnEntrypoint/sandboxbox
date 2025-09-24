@@ -1,278 +1,123 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
+import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { createMCPResponse } from '../core/mcp-pagination.js';
 import { workingDirectoryContext, createToolContext } from '../core/working-directory-context.js';
-import { createIgnoreFilter, loadCustomIgnorePatterns } from '../core/ignore-manager.js';
+import { createIgnoreFilter } from '../core/ignore-manager.js';
 import { suppressConsoleOutput } from '../core/console-suppression.js';
+import { parse } from '@ast-grep/napi';
 
-// Console output is now suppressed globally in index.js when MCP_MODE is set
-
-// ast-grep disabled due to fs context issues
-const astGrepModule = null;
-
-/**
- * Generate context summary for tool output
- */
-function getContextSummary(context) {
-  if (!context || !context.sessionData) {
-    return '';
-  }
-
-  const lines = [];
-  lines.push(`Working directory: ${context.workingDirectory}`);
-  lines.push(`Tool: ${context.toolName}`);
-  lines.push(`Session: ${context.sessionData.totalToolCalls} tool calls`);
-
-  if (context.previousUsage) {
-    lines.push(`Used ${context.previousUsage.count} times before`);
-  }
-
-  if (context.relevantFiles.length > 0) {
-    lines.push(`${context.relevantFiles.length} relevant files available`);
-  }
-
-  if (context.insights.length > 0) {
-    lines.push(`${context.insights.length} insights from previous tasks`);
-  }
-
-  lines.push(''); // Add separator
-
-  return lines.join('\n') + '\n';
-}
-// Stub functions for context-store functionality (hooks system removed)
-function addContextAnalysis(analysis, path) {
-  // Stub implementation - context analysis handled by built-in hooks
-  return true;
-}
-
-function getContextAnalysis(path) {
-  // Stub implementation - context analysis handled by built-in hooks
-  return null;
-}
-
-function addContextPattern(pattern, type) {
-  // Stub implementation - context patterns handled by built-in hooks
-  return true;
-}
-import { executeProcess } from './executor-tool.js';
-
-// Fix for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-class UnifiedASTHelper {
+class ASTHelper {
   constructor(language = 'javascript') {
     this.language = language;
-    this.astGrep = null; // Force null to use only regex fallback
-    this.registeredLanguages = new Set();
-    // ast-grep disabled to avoid fs context issues
   }
 
   detectLanguageFromExtension(filePath) {
     const ext = path.extname(filePath).toLowerCase();
     const extensionMap = {
       '.js': 'javascript',
-      '.jsx': 'jsx',
+      '.jsx': 'javascript',
       '.ts': 'typescript',
-      '.tsx': 'tsx',
+      '.tsx': 'typescript',
+      '.mjs': 'javascript',
+      '.py': 'python',
       '.go': 'go',
       '.rs': 'rust',
-      '.py': 'python',
       '.c': 'c',
       '.cpp': 'cpp',
       '.cc': 'cpp',
-      '.cxx': 'cpp',
-      '.html': 'html',
-      '.css': 'css'
+      '.cxx': 'cpp'
     };
     return extensionMap[ext] || 'javascript';
   }
 
   setLanguage(language) {
-    if (language !== 'javascript' && language !== 'typescript' &&
-        language !== 'jsx' && language !== 'tsx' &&
-        language !== 'html' && language !== 'css' &&
-        !this.registeredLanguages.has(language)) {
-      throw new Error(`Language '${language}' is not available. Install @ast-grep/lang-${language} to add support.`);
-    }
     this.language = language;
   }
 
-  async initializeASTGrep() {
-    // ast-grep disabled due to fs context issues
-    this.astGrep = null;
-    return;
-  }
-
-  async registerAdditionalLanguages() {
-    const languagePackages = [
-      { name: 'go', package: '@ast-grep/lang-go', key: 'Go' },
-      { name: 'rust', package: '@ast-grep/lang-rust', key: 'Rust' },
-      { name: 'python', package: '@ast-grep/lang-python', key: 'Python' },
-      { name: 'c', package: '@ast-grep/lang-c', key: 'C' },
-      { name: 'cpp', package: '@ast-grep/lang-cpp', key: 'Cpp' }
-    ];
-
-    for (const { name, package: packageName, key } of languagePackages) {
-      try {
-        const langModule = await import(packageName);
-        this.registerDynamicLanguage({ [key]: langModule.default });
-        this.registeredLanguages.add(name);
-      } catch (error) {
-        this.availableLanguages = this.availableLanguages || new Set();
-        this.availableLanguages.delete(name);
-      }
-    }
-  }
-
-  async parseCode(code) {
-    if (!this.astGrep) {
-      throw new Error('ast-grep not available');
-    }
-
+  parseCode(code) {
     try {
-      const { parse, Lang } = this.astGrep;
-      let lang = Lang.JavaScript;
-
-      const languageMap = {
-        'javascript': Lang.JavaScript,
-        'typescript': Lang.TypeScript,
-        'jsx': Lang.JSX || Lang.JavaScript,
-        'tsx': Lang.TSX || Lang.TypeScript,
-        'html': Lang.Html,
-        'css': Lang.Css,
-        'go': 'Go',
-        'rust': 'Rust',
-        'python': 'Python',
-        'c': 'C',
-        'cpp': 'Cpp'
-      };
-
-      if (languageMap[this.language]) {
-        if (this.language !== 'javascript' && this.language !== 'typescript' &&
-            this.language !== 'jsx' && this.language !== 'tsx' &&
-            this.language !== 'html' && this.language !== 'css' &&
-            !this.registeredLanguages.has(this.language)) {
-          throw new Error(`Language '${this.language}' is not available. Install @ast-grep/lang-${this.language} to add support.`);
-        }
-        lang = languageMap[this.language];
-      } else {
-        console.warn(`Unknown language: ${this.language}, defaulting to JavaScript`);
-      }
-
-      return parse(lang, code);
+      return parse(this.language, code);
     } catch (error) {
-      throw new Error(`Failed to parse ${this.language} code: ${error.message}`);
+      return null;
     }
   }
 
-  
-  async searchPattern(code, pattern) {
-    // Use regex fallback to avoid ast-grep dependency issues
-    const regex = new RegExp(this.escapeRegex(pattern), 'g');
-    const matches = [];
-    let match;
-    while ((match = regex.exec(code)) !== null) {
-      matches.push({
-        text: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
-        line: this.getLineFromPosition(code, match.index),
-        column: this.getColumnFromPosition(code, match.index)
+  searchPattern(code, pattern) {
+    try {
+      const root = this.parseCode(code);
+      if (!root) return [];
+
+      const rootNode = root.root();
+      const matches = rootNode.findAll(pattern);
+
+      return matches.map(match => ({
+        text: match.text(),
+        start: match.range().start.index,
+        end: match.range().end.index,
+        line: match.range().start.line,
+        column: match.range().start.column
+      }));
+    } catch (error) {
+      return [];
+    }
+  }
+
+  replacePattern(code, pattern, replacement) {
+    try {
+      const root = this.parseCode(code);
+      if (!root) return code;
+
+      const rootNode = root.root();
+      const matches = rootNode.findAll(pattern);
+
+      let modifiedCode = code;
+      let offset = 0;
+
+      matches.forEach(match => {
+        const range = match.range();
+        const before = modifiedCode.substring(0, range.start.index + offset);
+        const after = modifiedCode.substring(range.end.index + offset);
+        modifiedCode = before + replacement + after;
+        offset += replacement.length - (range.end.index - range.start.index);
       });
-    }
-    return matches;
-  }
 
-  async replacePattern(code, pattern, replacement) {
-    // Use regex fallback to avoid ast-grep dependency issues
-    const regex = new RegExp(this.escapeRegex(pattern), 'g');
-    return code.replace(regex, replacement);
+      return modifiedCode;
+    } catch (error) {
+      return code;
+    }
   }
 
   searchPatternSync(code, pattern) {
-    if (!this.astGrep) {
-      const regex = new RegExp(this.escapeRegex(pattern), 'g');
-      const matches = [];
-      let match;
-      while ((match = regex.exec(code)) !== null) {
-        matches.push({
-          text: match[0],
-          start: match.index,
-          end: match.index + match[0].length
-        });
-      }
-      return matches;
-    }
-
-    // Fallback to async version
     return this.searchPattern(code, pattern);
   }
-
-  escapeRegex(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  getLineFromPosition(code, position) {
-    const before = code.substring(0, position);
-    return before.split('\n').length - 1;
-  }
-
-  getColumnFromPosition(code, position) {
-    const before = code.substring(0, position);
-    const lastNewline = before.lastIndexOf('\n');
-    return lastNewline === -1 ? position : position - lastNewline - 1;
-  }
 }
 
-// Helper class for sync operations (needed for internal use)
-class ASTGrepHelper {
-  constructor(language = 'javascript') {
-    this.language = language;
-  }
-
-  searchPatternSync(code, pattern) {
-    const regex = new RegExp(this.escapeRegex(pattern), 'g');
-    const matches = [];
-    let match;
-    while ((match = regex.exec(code)) !== null) {
-      matches.push({
-        text: match[0],
-        start: match.index,
-        end: match.index + match[0].length
-      });
-    }
-    return matches;
-  }
-
-  escapeRegex(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-}
-
-export async function unifiedASTOperation(operation, options = {}) {
+async function unifiedASTOperation(operation, options = {}) {
   const {
     path: targetPathParam = '.',
     pattern,
     replacement,
-    code,
     language = 'javascript',
-    analysisType = 'basic',
-    rules = [],
-    yamlConfig,
     recursive = true,
     maxResults = 100,
-    backup = true,
     workingDirectory = process.cwd()
   } = options;
 
-  const helper = new UnifiedASTHelper(language);
-  const targetPath = targetPathParam.startsWith('.') ? (workingDirectory || __dirname) + '/' + targetPathParam : targetPathParam;
+  const helper = new ASTHelper(language);
 
-  // Validate path exists
+  let targetPath;
+  if (path.isAbsolute(targetPathParam)) {
+    targetPath = targetPathParam;
+  } else {
+    const basePath = workingDirectory || process.cwd();
+    targetPath = path.resolve(basePath, targetPathParam);
+  }
+
   if (!existsSync(targetPath)) {
     throw new Error(`Path not found: ${targetPath}`);
   }
@@ -280,15 +125,12 @@ export async function unifiedASTOperation(operation, options = {}) {
   switch (operation) {
     case 'search':
       return await performSearch(helper, targetPath, pattern, recursive, maxResults);
-
     case 'replace':
-      return await performReplace(helper, targetPath, pattern, replacement, recursive, backup, true);
-
+      return await performReplace(helper, targetPath, pattern, replacement, recursive, true);
     default:
       throw new Error(`Unknown operation: ${operation}`);
   }
 }
-
 
 async function performSearch(helper, targetPath, pattern, recursive, maxResults) {
   const results = [];
@@ -296,7 +138,7 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
   const processFile = async (file) => {
     try {
       const stat = statSync(file);
-      if (stat.size > 150 * 1024) { // 150KB limit
+      if (stat.size > 150 * 1024) {
         return [{ file, error: 'File too large for search (>150KB)' }];
       }
       const content = readFileSync(file, 'utf8');
@@ -337,24 +179,17 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
   };
 }
 
-async function performReplace(helper, targetPath, pattern, replacement, recursive, backup, autoLint = true) {
+async function performReplace(helper, targetPath, pattern, replacement, recursive, autoLint = true) {
   const results = [];
 
   const processFile = async (file) => {
     try {
       const content = readFileSync(file, 'utf8');
-
-      if (backup) {
-        const backupPath = file + '.backup';
-        writeFileSync(backupPath, content);
-      }
-
       helper.setLanguage(helper.detectLanguageFromExtension(file));
       const newContent = await helper.replacePattern(content, pattern, replacement);
 
       if (newContent !== content) {
         writeFileSync(file, newContent);
-
         return {
           file,
           status: 'modified',
@@ -390,7 +225,6 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
   };
 }
 
-
 async function findFiles(dir, options = {}) {
   const {
     recursive = true,
@@ -400,104 +234,109 @@ async function findFiles(dir, options = {}) {
   } = options;
 
   const results = [];
+  const customPatterns = [...ignorePatterns];
+  const ignoreFilter = createIgnoreFilter(dir, customPatterns, {
+    useGitignore,
+    useDefaults: true,
+    caseSensitive: false
+  });
 
-  try {
-    // Create unified ignore filter
-    const customPatterns = [...ignorePatterns];
-    const ignoreFilter = createIgnoreFilter(dir, customPatterns, {
-      useGitignore,
-      useDefaults: true,
-      caseSensitive: false
+  const scan = async (currentDir) => {
+    const entries = readdirSync(currentDir, { withFileTypes: true });
+
+    const filePromises = entries.map(async (entry) => {
+      const fullPath = path.join(currentDir, entry.name);
+
+      if (ignoreFilter.ignores(fullPath)) {
+        return null;
+      }
+
+      if (entry.isDirectory() && recursive) {
+        return scan(fullPath);
+      } else if (entry.isFile()) {
+        if (extensions.some(ext => fullPath.endsWith(ext))) {
+          results.push(fullPath);
+        }
+      }
+      return null;
     });
 
-    const scan = async (currentDir) => {
-      const entries = readdirSync(currentDir, { withFileTypes: true });
+    await Promise.all(filePromises);
+  };
 
-      // Process files in parallel for better performance
-      const filePromises = entries.map(async (entry) => {
-        const fullPath = path.join(currentDir, entry.name);
-
-        if (ignoreFilter.ignores(fullPath)) {
-          return null;
-        }
-
-        if (entry.isDirectory() && recursive) {
-          return scan(fullPath);
-        } else if (entry.isFile()) {
-          if (extensions.some(ext => fullPath.endsWith(ext))) {
-            results.push(fullPath);
-          }
-        }
-        return null;
-      });
-
-      await Promise.all(filePromises);
-    };
-
-    await scan(dir);
-    return results;
-  } catch (error) {
-    console.warn('Error using common ignore filter, falling back to basic filtering:', error);
-
-    // Fallback to basic filtering
-    const ig = ignore();
-    const defaultIgnore = [
-      '**/node_modules/**', '**/.git/**', '**/.next/**', '**/.nuxt/**',
-      '**/.vuepress/**', '**/.docusaurus/**', '**/dist/**', '**/build/**',
-      '**/out/**', '**/coverage/**', '**/.nyc_output/**', '**/.cache/**',
-      '**/.parcel-cache/**', '**/.turbo/**', '**/.nx/**', '**/.swc/**',
-      '**/bower_components/**', '**/jspm_packages/**', '**/.pnp/**',
-      '**/__tests__/**', '**/__mocks__/**', '**/__snapshots__/**',
-      '**/.jest/**', '**/.mocha/**', '**/.cypress/**', '**/.playwright/**',
-      '**/*.min.js', '**/*.bundle.js', '**/*.chunk.js', '**/package-lock.json',
-      '**/yarn.lock', '**/pnpm-lock.yaml', '**/.npmrc', '**/.yarnrc',
-      '**/*.log', '**/tmp/**', '**/temp/**', '**/.tmp/**', '**/.DS_Store',
-      '**/Thumbs.db'
-    ];
-    ig.add(defaultIgnore);
-    ig.add(ignorePatterns);
-
-    const scan = async (currentDir) => {
-      const entries = readdirSync(currentDir, { withFileTypes: true });
-
-      // Process files in parallel for better performance
-      const filePromises = entries.map(async (entry) => {
-        const fullPath = path.join(currentDir, entry.name);
-        const relativePath = path.relative(dir, fullPath);
-
-        if (ig.ignores(relativePath) || ig.ignores(entry.name)) {
-          return null;
-        }
-
-        if (entry.isDirectory() && recursive) {
-          return scan(fullPath);
-        } else if (entry.isFile()) {
-          if (extensions.some(ext => fullPath.endsWith(ext))) {
-            results.push(fullPath);
-          }
-        }
-        return null;
-      });
-
-      await Promise.all(filePromises);
-    };
-
-    await scan(dir);
-    return results;
-  }
+  await scan(dir);
+  return results;
 }
 
+function generateASTInsights(results, operation, pattern, workingDirectory, result = null) {
+  const insights = [];
 
+  if (operation === 'search') {
+    insights.push(`AST search found ${results.length} matches for pattern: "${pattern}"`);
 
+    const uniqueFiles = new Set(results.map(r => r.file));
+    if (uniqueFiles.size > 1) {
+      insights.push(`Pattern found in ${uniqueFiles.size} different files`);
+    }
 
-// Create the unified AST tool
+    if (pattern.includes('$') || pattern.includes('has')) {
+      insights.push('Complex pattern search - results show structural code relationships');
+    }
+
+    const fileTypes = new Set(results.map(r => r.file.split('.').pop()));
+    if (fileTypes.size > 1) {
+      insights.push(`Pattern spans ${fileTypes.size} file types: ${Array.from(fileTypes).join(', ')}`);
+    }
+
+  } else if (operation === 'replace') {
+    if (result && result.modifiedFiles > 0) {
+      insights.push(`Pattern replacement completed: ${result.modifiedFiles} files modified`);
+      insights.push(`Replaced "${pattern}" with "${result.replacement}"`);
+
+      if (result.modifiedFiles > 5) {
+        insights.push('Large-scale change - consider testing and verification');
+      }
+    } else {
+      insights.push(`No changes made - pattern "${pattern}" not found`);
+    }
+  }
+
+  if (pattern.includes('console.')) {
+    insights.push('Console operation detected - consider removing for production');
+  }
+
+  if (pattern.includes('debugger')) {
+    insights.push('Debugger statement found - should be removed for production');
+  }
+
+  if (pattern.includes('var ')) {
+    insights.push('Var declaration found - consider using const/let');
+  }
+
+  if (pattern.includes('TODO') || pattern.includes('FIXME')) {
+    insights.push('Task comment found - track for resolution');
+  }
+
+  if (results.length === 0) {
+    insights.push('No matches found - pattern may be too specific or not present');
+  } else if (results.length > 50) {
+    insights.push('Many matches found - consider more specific pattern or review scope');
+  }
+
+  if (operation === 'replace' && result && result.modifiedFiles > 0) {
+    insights.push('Verification recommended - run tests to ensure changes work correctly');
+  }
+
+  return insights;
+}
+
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: 'Direct ast-grep access. Patterns use $VAR syntax: "console.log($$$)" finds all console.log calls. Relational: "$FUNC has $CALL" matches functions containing calls. Transform: "var $X" → "let $X" converts declarations. This allows advanced find and replace operations to happen across across entire folders. Careful for side-effects, useful for finding many cases of something and manipulating them.',
+  description: 'Pattern-based code search and replace tool using ast-grep for proper AST analysis. Supports JavaScript, TypeScript, Python, Go, Rust, C, C++.',
   examples: [
-    'ast_tool(operation="search", pattern="console.log($$$)")',
-    'ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME")',
-    'ast_tool(operation="search", pattern="$FUNC has debugger")'
+    'operation="search", pattern="console.log($$$)"',
+    'operation="replace", pattern="var $NAME", replacement="let $NAME"',
+    'operation="search", pattern="$FUNC has debugger"'
   ],
   inputSchema: {
     type: 'object',
@@ -513,11 +352,11 @@ export const UNIFIED_AST_TOOL = {
       },
       pattern: {
         type: 'string',
-        description: 'ast-grep pattern. Use $VARIABLE wildcards. Examples: "console.log($$$)", "var $NAME", "$FUNC has $CALL"'
+        description: 'AST pattern to search for using ast-grep syntax'
       },
       replacement: {
         type: 'string',
-        description: 'Transformation pattern. Uses fix/transformation/rewriter for safe code rewriting. Can reference captured $VARIABLEs'
+        description: 'Replacement text for AST patterns'
       },
       language: {
         type: 'string',
@@ -541,28 +380,25 @@ export const UNIFIED_AST_TOOL = {
     required: ['operation']
   },
   handler: async (args) => {
-    // Apply console output suppression for MCP mode
     const consoleRestore = suppressConsoleOutput();
     const workingDirectory = args.path || process.cwd();
     const query = args.pattern || args.operation || '';
 
     try {
-      // Get context for this AST operation
       const context = await workingDirectoryContext.getToolContext(workingDirectory, 'ast_tool', query);
 
-      // Use pagination for search operations with cursor/pageSize
       if (args.operation === 'search' && (args.cursor || args.pageSize !== 50)) {
         const result = await unifiedASTOperation(args.operation, args);
         const results = Array.isArray(result) ? result : (result.results || []);
 
-        // Create context data from AST search
+        const insights = generateASTInsights(results, args.operation, args.pattern, workingDirectory);
+
         const toolContext = createToolContext('ast_tool', workingDirectory, query, {
           filesAccessed: results.map(r => r.file),
           patterns: [args.pattern],
-          insights: [`AST search found ${results.length} matches`]
+          insights: insights
         });
 
-        // Update working directory context
         await workingDirectoryContext.updateContext(workingDirectory, 'ast_tool', toolContext);
 
         return createMCPResponse(results, {
@@ -588,25 +424,18 @@ export const UNIFIED_AST_TOOL = {
         finalResult = result;
       }
 
-      // Create context data from AST operation
+      const insights = generateASTInsights(result.results || [], args.operation, args.pattern, workingDirectory, result);
+
       const toolContext = createToolContext('ast_tool', workingDirectory, query, {
         filesAccessed: result.filesAccessed || result.modifiedFiles || [],
         patterns: [args.pattern],
-        insights: [`AST ${args.operation} completed successfully`]
+        insights: insights
       });
 
-      // Update working directory context
       await workingDirectoryContext.updateContext(workingDirectory, 'ast_tool', toolContext);
-
-      // Add context summary to result
-      if (finalResult.content && finalResult.content[0] && finalResult.content[0].type === 'text') {
-        const contextSummary = getContextSummary(context);
-        finalResult.content[0].text = contextSummary + finalResult.content[0].text;
-      }
 
       return finalResult;
     } catch (error) {
-      // Update context even for errors
       const errorContext = createToolContext('ast_tool', workingDirectory, query, {
         error: error.message
       });
@@ -618,12 +447,10 @@ export const UNIFIED_AST_TOOL = {
         operation: args.operation
       };
     } finally {
-      // Always restore console output
       consoleRestore.restore();
     }
   }
 };
-
 
 function formatSearchResult(result, args) {
   if (!result.success) {
@@ -673,14 +500,10 @@ function formatReplaceResult(result, args) {
   response += `Replacement: "${args.replacement}"\n`;
   response += `Files modified: ${result.modifiedFiles}/${result.totalFiles}\n`;
 
-  if (args.backup) {
-    response += `\nBackup files created`;
-  }
-
   return {
     content: [{ type: "text", text: response.trim() }]
   };
 }
 
-
+export { unifiedASTOperation };
 export default UNIFIED_AST_TOOL;
