@@ -530,6 +530,84 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS) {
   return codeChunks.length;
 }
 
+// Extract function signatures for similarity detection
+function extractFunctionSignature(content) {
+  // Match function declarations
+  const functionRegex = /(?:function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)|(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>|class\s+([a-zA-Z_$][a-zA-Z0-9_$]*)|([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)\s*{)/g;
+
+  const matches = [];
+  let match;
+
+  while ((match = functionRegex.exec(content)) !== null) {
+    // Find which group matched
+    const name = match[1] || match[2] || match[3] || match[4];
+    if (name) {
+      const signature = match[0];
+      matches.push({
+        name,
+        signature: signature.trim(),
+        start: match.index,
+        end: match.index + signature.length
+      });
+    }
+  }
+
+  return matches;
+}
+
+// Find similar functions in the codebase
+export async function findSimilarFunctions(targetFunction, topK = 3) {
+  if (!isInitialized) {
+    await initializeVectorSystem();
+  }
+
+  if (codeChunks.length === 0) {
+    return [];
+  }
+
+  // Extract signature from target function
+  const targetSignature = extractFunctionSignature(targetFunction)[0];
+  if (!targetSignature) {
+    return [];
+  }
+
+  const queryEmbedding = await getEmbedding(targetFunction);
+  const functionResults = [];
+
+  // Find all function chunks
+  const functionChunks = codeChunks.filter(chunk => {
+    const signatures = extractFunctionSignature(chunk.content);
+    return signatures.length > 0;
+  });
+
+  for (const chunk of functionChunks) {
+    const signatures = extractFunctionSignature(chunk.content);
+
+    for (const sig of signatures) {
+      if (sig.name !== targetSignature.name) { // Don't match the same function name
+        const chunkEmbedding = await getEmbedding(chunk.content);
+        const similarity = calculateCosineSimilarity(queryEmbedding.data, chunkEmbedding.data);
+
+        if (similarity > 0.6) { // Threshold for similarity
+          functionResults.push({
+            file: chunk.file,
+            functionName: sig.name,
+            signature: sig.signature,
+            content: chunk.content,
+            startLine: chunk.startLine,
+            endLine: chunk.endLine,
+            similarity: similarity
+          });
+        }
+      }
+    }
+  }
+
+  return functionResults
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, topK);
+}
+
 export async function queryVectorIndex(query, topK = 8) {
   if (!isInitialized) {
     await initializeVectorSystem();
@@ -689,7 +767,7 @@ function formatSearchResults(results, query, path) {
     return `No results found for "${query}" in ${path}`;
   }
 
-  return `Found ${results.length} results for "${query}" in ${path}:\n\n${results.map(r => `${r.file}:${r.startLine}-${r.endLine}\n${r.content.substring(0, 200)}...\nScore: ${r.score.toFixed(3)}`).join('\n\n')}`;
+  return `${results.length} results for "${query}" in ${path}:\n\n${results.map(r => `${r.file}:${r.startLine}-${r.endLine}\n${r.content.substring(0, 200)}${r.content.length > 200 ? '...' : ''}\nSimilarity: ${r.score.toFixed(3)}`).join('\n\n')}`;
 }
 
 function createTimeoutToolHandler(handler, toolName = 'Unknown Tool', timeoutMs = 30000) {
@@ -724,20 +802,20 @@ function getContextSummary(context) {
   }
 
   const lines = [];
-  lines.push(`📁 Context: ${context.workingDirectory}`);
-  lines.push(`🔧 Tool: ${context.toolName}`);
-  lines.push(`📊 Session: ${context.sessionData.totalToolCalls} tool calls`);
+  lines.push(`Working directory: ${context.workingDirectory}`);
+  lines.push(`Tool: ${context.toolName}`);
+  lines.push(`Session: ${context.sessionData.totalToolCalls} tool calls`);
 
   if (context.previousUsage) {
-    lines.push(`📈 Used ${context.previousUsage.count} times before`);
+    lines.push(`Used ${context.previousUsage.count} times before`);
   }
 
   if (context.relevantFiles.length > 0) {
-    lines.push(`📄 ${context.relevantFiles.length} relevant files available`);
+    lines.push(`${context.relevantFiles.length} relevant files available`);
   }
 
   if (context.insights.length > 0) {
-    lines.push(`💡 ${context.insights.length} insights from previous tasks`);
+    lines.push(`${context.insights.length} insights from previous tasks`);
   }
 
   lines.push(''); // Add separator

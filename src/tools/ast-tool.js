@@ -22,20 +22,20 @@ function getContextSummary(context) {
   }
 
   const lines = [];
-  lines.push(`📁 Context: ${context.workingDirectory}`);
-  lines.push(`🔧 Tool: ${context.toolName}`);
-  lines.push(`📊 Session: ${context.sessionData.totalToolCalls} tool calls`);
+  lines.push(`Working directory: ${context.workingDirectory}`);
+  lines.push(`Tool: ${context.toolName}`);
+  lines.push(`Session: ${context.sessionData.totalToolCalls} tool calls`);
 
   if (context.previousUsage) {
-    lines.push(`📈 Used ${context.previousUsage.count} times before`);
+    lines.push(`Used ${context.previousUsage.count} times before`);
   }
 
   if (context.relevantFiles.length > 0) {
-    lines.push(`📄 ${context.relevantFiles.length} relevant files available`);
+    lines.push(`${context.relevantFiles.length} relevant files available`);
   }
 
   if (context.insights.length > 0) {
-    lines.push(`💡 ${context.insights.length} insights from previous tasks`);
+    lines.push(`${context.insights.length} insights from previous tasks`);
   }
 
   lines.push(''); // Add separator
@@ -355,22 +355,10 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
       if (newContent !== content) {
         writeFileSync(file, newContent);
 
-        // Built-in auto-linting for modified files
-        let lintResult = null;
-        if (autoLint) {
-          try {
-            lintResult = await performAutoLinting(file, newContent);
-          } catch (lintError) {
-            // Linting errors shouldn't fail the operation
-            console.warn(`Auto-linting failed for ${file}: ${lintError.message}`);
-          }
-        }
-
         return {
           file,
           status: 'modified',
-          changes: true,
-          linting: autoLint ? lintResult : null
+          changes: true
         };
       } else {
         return { file, status: 'unchanged', changes: false };
@@ -391,15 +379,6 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
     results.push(result);
   }
 
-  const lintingResults = results.filter(r => r.linting).map(r => r.linting);
-  const overallLinting = lintingResults.length > 0 ? {
-    triggered: true,
-    filesLinted: lintingResults.length,
-    totalErrors: lintingResults.reduce((sum, l) => sum + (l.errors || 0), 0),
-    totalWarnings: lintingResults.reduce((sum, l) => sum + (l.warnings || 0), 0),
-    toolsUsed: [...new Set(lintingResults.map(l => l.tool))].join(', ')
-  } : null;
-
   return {
     success: true,
     results,
@@ -407,8 +386,7 @@ async function performReplace(helper, targetPath, pattern, replacement, recursiv
     totalFiles: results.length,
     pattern,
     replacement,
-    path: targetPath,
-    linting: autoLint ? overallLinting : null
+    path: targetPath
   };
 }
 
@@ -509,145 +487,6 @@ async function findFiles(dir, options = {}) {
   }
 }
 
-// Built-in auto-linting functionality
-async function performAutoLinting(filePath, content) {
-  const ext = path.extname(filePath).toLowerCase();
-  const fileDir = path.dirname(filePath);
-
-  // Try ESLint first for JavaScript/TypeScript files
-  if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
-    try {
-      // Check if ESLint is available in the project
-      const eslintConfigPath = path.join(fileDir, 'eslint.config.js');
-      const eslintrcPath = path.join(fileDir, '.eslintrc');
-      const packageJsonPath = path.join(fileDir, 'package.json');
-
-      let hasEslintConfig = false;
-      if (existsSync(eslintConfigPath) || existsSync(eslintrcPath)) {
-        hasEslintConfig = true;
-      } else if (existsSync(packageJsonPath)) {
-        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-        hasEslintConfig = !!(packageJson.eslintConfig || packageJson.devDependencies?.eslint);
-      }
-
-      if (hasEslintConfig) {
-        const result = await executeProcess('npx', ['eslint', '--stdin', '--format', 'json'], {
-          cwd: fileDir,
-          input: content,
-          timeout: 10000
-        });
-
-        if (result.success) {
-          try {
-            const eslintOutput = JSON.parse(result.stdout);
-            if (eslintOutput.length > 0 && eslintOutput[0].messages.length > 0) {
-              const errors = eslintOutput[0].messages.filter(msg => msg.severity === 2);
-              const warnings = eslintOutput[0].messages.filter(msg => msg.severity === 1);
-
-              return {
-                tool: 'eslint',
-                success: true,
-                errors: errors.length,
-                warnings: warnings.length,
-                summary: `ESLint: ${errors.length} errors, ${warnings.length} warnings`,
-                details: errors.slice(0, 3).map(err => `${err.line}:${err.column} - ${err.message}`).join('\n')
-              };
-            }
-          } catch (parseError) {
-            // Invalid JSON output, treat as no issues
-          }
-        }
-      }
-    } catch (eslintError) {
-      // ESLint not available or failed, continue to ast-grep
-    }
-  }
-
-  // Fall back to ast-grep linting
-  try {
-    const helper = new UnifiedASTHelper();
-    helper.setLanguage(helper.detectLanguageFromExtension(filePath));
-
-    // Common linting patterns based on file type
-    const lintingPatterns = getLintingPatterns(helper.language);
-
-    const issues = [];
-    for (const { name, pattern, severity } of lintingPatterns) {
-      try {
-        const matches = await helper.searchPattern(content, pattern);
-        if (matches.length > 0) {
-          issues.push({
-            name,
-            severity,
-            count: matches.length,
-            sample: matches[0]
-          });
-        }
-      } catch (patternError) {
-        // Skip patterns that fail to parse
-      }
-    }
-
-    if (issues.length > 0) {
-      const errors = issues.filter(i => i.severity === 'error');
-      const warnings = issues.filter(i => i.severity === 'warning');
-
-      return {
-        tool: 'ast-grep',
-        success: true,
-        errors: errors.length,
-        warnings: warnings.length,
-        summary: `AST Grep: ${errors.length} errors, ${warnings.length} warnings`,
-        details: issues.slice(0, 3).map(issue => `${issue.name}: ${issue.count} occurrences`).join('\n')
-      };
-    }
-
-    return {
-      tool: 'ast-grep',
-      success: true,
-      errors: 0,
-      warnings: 0,
-      summary: 'No linting issues found',
-      details: ''
-    };
-  } catch (astError) {
-    return {
-      tool: 'none',
-      success: false,
-      error: astError.message,
-      summary: 'Linting not available',
-      details: ''
-    };
-  }
-}
-
-function getLintingPatterns(language) {
-  const commonPatterns = [
-    { name: 'Debugger statements', pattern: 'debugger', severity: 'error' },
-    { name: 'Console logs', pattern: 'console.log', severity: 'warning' },
-    { name: 'Empty blocks', pattern: '{\n}', severity: 'warning' },
-    { name: 'Var declarations', pattern: 'var $', severity: 'warning' }
-  ];
-
-  const languageSpecific = {
-    javascript: [
-      ...commonPatterns,
-      { name: 'Undeclared variables', pattern: '$IDENT =', severity: 'error' }
-    ],
-    typescript: [
-      ...commonPatterns,
-      { name: 'Any types', pattern: ': any', severity: 'warning' },
-      { name: 'Non-null assertions', pattern: '!', severity: 'warning' }
-    ],
-    python: [
-      { name: 'Print statements', pattern: 'print(', severity: 'warning' },
-      { name: 'Bare except', pattern: 'except:', severity: 'error' },
-      { name: 'Global variables', pattern: 'global ', severity: 'warning' }
-    ]
-  };
-
-  return languageSpecific[language] || commonPatterns;
-}
 
 
 
@@ -789,79 +628,57 @@ export const UNIFIED_AST_TOOL = {
 function formatSearchResult(result, args) {
   if (!result.success) {
     return {
-      content: [{ type: "text", text: `❌ Search failed: ${result.error}\n\nCheck pattern syntax and ensure files exist in search path.` }],
+      content: [{ type: "text", text: `Search failed: ${result.error}` }],
       isError: true
     };
   }
 
   if (result.totalMatches === 0) {
     return {
-      content: [{ type: "text", text: `❌ No matches found for pattern: "${args.pattern}"\n\nTry simplifying pattern or check actual code structure.` }]
+      content: [{ type: "text", text: `No matches found for pattern: "${args.pattern}"` }]
     };
   }
 
-  let output = `🔍 Found ${result.totalMatches} matches for pattern: "${args.pattern}"\n\n`;
+  let output = `${result.totalMatches} matches for "${args.pattern}":\n\n`;
 
-  result.results.slice(0, 10).forEach((match, i) => {
-    output += `${i + 1}. ${match.file}:${match.line}\n`;
-    output += `   ${match.content}\n\n`;
+  result.results.slice(0, 15).forEach((match, i) => {
+    output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
   });
 
-  if (result.totalMatches > 10) {
-    output += `... and ${result.totalMatches - 10} more matches\n`;
+  if (result.totalMatches > 15) {
+    output += `... ${result.totalMatches - 15} more matches\n`;
   }
 
   return {
-    content: [{ type: "text", text: output }]
+    content: [{ type: "text", text: output.trim() }]
   };
 }
 
 function formatReplaceResult(result, args) {
   if (!result.success) {
     return {
-      content: [{ type: "text", text: `❌ Replace failed: ${result.error}\n\nCheck pattern syntax, replacement validity, and file permissions.` }],
+      content: [{ type: "text", text: `Replace failed: ${result.error}` }],
       isError: true
     };
   }
 
   if (result.modifiedFiles === 0) {
     return {
-      content: [{ type: "text", text: `⚠️ No changes made - pattern "${args.pattern}" found no matches to replace\n\nVerify pattern matches actual code structure.` }]
+      content: [{ type: "text", text: `No changes made - pattern "${args.pattern}" found no matches` }]
     };
   }
 
-  let response = `✅ Successfully replaced pattern in ${result.modifiedFiles} of ${result.totalFiles} files\n\n` +
-                `📋 Replacement details:\n` +
-                `• Pattern: "${args.pattern}"\n` +
-                `• Replacement: "${args.replacement}"\n` +
-                `• Files modified: ${result.modifiedFiles}\n` +
-                `• Backups created: ${args.backup ? 'Yes' : 'No'}`;
+  let response = `Replaced pattern in ${result.modifiedFiles} files\n`;
+  response += `Pattern: "${args.pattern}"\n`;
+  response += `Replacement: "${args.replacement}"\n`;
+  response += `Files modified: ${result.modifiedFiles}/${result.totalFiles}\n`;
 
-  // Show linting results if available
-  if (args.autoLint !== false && result.linting) {
-    const linting = result.linting;
-    if (linting.success) {
-      if (linting.errors > 0 || linting.warnings > 0) {
-        response += `\n\n🔍 Auto-linting results (${linting.tool}):\n`;
-        response += `• ${linting.summary}\n`;
-        if (linting.details) {
-          response += `• Issues:\n${linting.details}\n`;
-        }
-        if (linting.errors > 0) {
-          response += `⚠️  ${linting.errors} error(s) found - consider fixing these issues\n`;
-        }
-      } else {
-        response += `\n\n✅ Auto-linting passed (${linting.tool}): ${linting.summary}`;
-      }
-    } else {
-      response += `\n\n⚠️  Auto-linting failed: ${linting.error}`;
-    }
+  if (args.backup) {
+    response += `\nBackup files created`;
   }
 
-  response += `\n\n⚠️ Review changes carefully. Backup files created if enabled.`;
-
   return {
-    content: [{ type: "text", text: response }]
+    content: [{ type: "text", text: response.trim() }]
   };
 }
 
