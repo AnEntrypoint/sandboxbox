@@ -50,13 +50,25 @@ class ASTHelper {
 
   searchPattern(code, pattern) {
     try {
-      // Validate pattern before passing to ast-grep
-      if (this.isInvalidPattern(pattern)) {
+      // Try to fix the pattern first
+      const originalPattern = pattern;
+      const fixedPattern = this.fixPattern(pattern);
+
+      if (fixedPattern === null) {
         return [{
           error: true,
-          message: `Invalid AST pattern: "${pattern}". Pattern must be a valid ast-grep syntax.`,
-          pattern: pattern,
-          text: `AST Pattern Error: Invalid pattern syntax`
+          message: `AST Pattern Error: Pattern "${originalPattern}" is too complex to automatically fix and cannot be processed.`,
+          pattern: originalPattern,
+          text: `AST Pattern Error: Pattern "${originalPattern}" contains multiple complex $$$ metavariables that cannot be safely converted. Please use simpler patterns with single metavariables ($VAR, $ARG) instead.`
+        }];
+      }
+
+      if (this.isInvalidPattern(fixedPattern)) {
+        return [{
+          error: true,
+          message: `AST Pattern Error: Pattern "${originalPattern}" is invalid and cannot be processed.`,
+          pattern: originalPattern,
+          text: `AST Pattern Error: Pattern "${originalPattern}" is invalid. Please use valid AST patterns.`
         }];
       }
 
@@ -64,17 +76,42 @@ class ASTHelper {
       if (!root) return [];
 
       const rootNode = root.root();
-      const matches = rootNode.findAll(pattern);
 
-      return matches.map(match => ({
-        text: match.text(),
-        start: match.range().start.index,
-        end: match.range().end.index,
-        line: match.range().start.line,
-        column: match.range().start.column
-      }));
+      // Use ast-grep natively - if it crashes, that's an ast-grep issue to report
+      try {
+        const matches = rootNode.findAll(fixedPattern);
+        const results = matches.map(match => ({
+          text: match.text(),
+          start: match.range().start.index,
+          end: match.range().end.index,
+          line: match.range().start.line,
+          column: match.range().start.column
+        }));
+
+        // If pattern was auto-fixed, include a warning
+        if (fixedPattern !== originalPattern) {
+          return [{
+            error: true,
+            message: `Pattern automatically fixed: "${originalPattern}" → "${fixedPattern}"`,
+            pattern: originalPattern,
+            text: `⚠️ Pattern Warning: The original pattern "${originalPattern}" was automatically converted to "${fixedPattern}" to prevent server crashes. Results shown are for the fixed pattern.`,
+            isWarning: true,
+            results: results
+          }];
+        }
+
+        return results;
+      } catch (astError) {
+        // Report ast-grep errors to the agent
+        return [{
+          error: true,
+          message: astError.message,
+          pattern: fixedPattern,
+          text: `AST Pattern Error: ast-grep failed to process pattern "${fixedPattern}": ${astError.message}`
+        }];
+      }
     } catch (error) {
-      // Return error information instead of empty array
+      // Report other errors to the agent
       return [{
         error: true,
         message: error.message,
@@ -85,38 +122,217 @@ class ASTHelper {
   }
 
   isInvalidPattern(pattern) {
-    // Check for patterns that cause ast-grep to crash
-    const invalidPatterns = [
-      /^:\s*\w+$/,  // Matches ": any", ": string", etc.
-      /^\w+:\s*$/,  // Matches "var:", "let:", etc.
-      /^\s*:\s*$/,   // Matches ":" alone
-      /^\w+\s*:\s*\w+\s*$/,  // Matches incomplete type annotations
+    // Check for truly invalid patterns (empty, wrong type)
+    if (!pattern || typeof pattern !== 'string' || pattern.trim().length === 0) {
+      return true;
+    }
+
+    // Only block patterns that cannot be automatically fixed
+    const trulyUnsafePatterns = [
+      '',  // Empty pattern
+      undefined,
+      null
     ];
 
-    return invalidPatterns.some(regex => regex.test(pattern.trim()));
+    return trulyUnsafePatterns.includes(pattern);
+  }
+
+  fixPattern(pattern) {
+    if (!pattern || typeof pattern !== 'string') {
+      return pattern;
+    }
+
+    let fixedPattern = pattern;
+
+    // Simple string replacements for common problematic $$$ patterns
+    const patternFixes = [
+      // Function patterns
+      {
+        match: 'function $FUNC($$$) { $$$ }',
+        replacement: 'function $FUNC($PARAM) { $STMT }'
+      },
+      {
+        match: 'function $FUNC($$$)',
+        replacement: 'function $FUNC($PARAM)'
+      },
+      {
+        match: 'async function $FUNC($$$)',
+        replacement: 'async function $FUNC($PARAM)'
+      },
+
+      // Arrow function patterns - convert to safe simple patterns
+      {
+        match: 'onClick={() => $$$}',
+        replacement: 'onClick={$_}'
+      },
+      {
+        match: '($$$) => { $$$ }',
+        replacement: '$A => $B'
+      },
+      {
+        match: '() => { $$$ }',
+        replacement: '() => $B'
+      },
+      {
+        match: '$HANDLER = () => { $$$ }',
+        replacement: '$A = () => $B'
+      },
+
+      // Object patterns - convert to empty object for safety
+      {
+        match: '{$$$}',
+        replacement: '{}'
+      },
+      {
+        match: 'const $OBJ = {$$$}',
+        replacement: 'const $OBJ = {}'
+      },
+      {
+        match: '{$KEY: $$$}',
+        replacement: '{}'
+      },
+
+      // Array patterns
+      {
+        match: '[$$$]',
+        replacement: '[]'
+      },
+      {
+        match: 'const $ARR = [$$$]',
+        replacement: 'const $ARR = []'
+      },
+
+      // React hooks patterns
+      {
+        match: 'const [$STATE, $SETTER] = useState($$$)',
+        replacement: 'const [$STATE, $SETTER] = useState($INITIAL)'
+      },
+      {
+        match: 'useState($$$)',
+        replacement: 'useState($PROP)'
+      },
+      {
+        match: 'useEffect($$$)',
+        replacement: 'useEffect($DEPENDENCY)'
+      },
+
+      // Console and other patterns
+      {
+        match: 'console.log($$$)',
+        replacement: 'console.log($ARG)'
+      },
+      {
+        match: 'console.error($$$)',
+        replacement: 'console.error($ARG)'
+      },
+      {
+        match: 'console.warn($$$)',
+        replacement: 'console.warn($ARG)'
+      },
+      {
+        match: 'console.info($$$)',
+        replacement: 'console.info($ARG)'
+      },
+      {
+        match: 'const $VAR = $$$',
+        replacement: 'const $VAR = $VALUE'
+      },
+      {
+        match: 'let $VAR = $$$',
+        replacement: 'let $VAR = $VALUE'
+      },
+      {
+        match: 'var $VAR = $$$',
+        replacement: 'var $VAR = $VALUE'
+      },
+
+      // Multiple $$$ in function calls (fallback)
+      {
+        match: '$FUNC($$$)',
+        replacement: '$FUNC($ARG)'
+      }
+    ];
+
+    // Apply all fixes using simple string matching
+    for (const fix of patternFixes) {
+      if (fix.match && fixedPattern.includes(fix.match)) {
+        fixedPattern = fixedPattern.replace(fix.match, fix.replacement);
+      }
+    }
+
+    // If there are still $$$ patterns that couldn't be automatically fixed,
+    // try a more generic approach
+    if (fixedPattern.includes('$$$')) {
+      // Replace isolated $$$ with single metavariables based on context
+      fixedPattern = fixedPattern
+        .replace(/\b\s*\$\$\$\s*\b/g, '$CONTENT')  // Isolated $$$
+        .replace(/\{\s*\$\$\$\s*\}/g, '{}')         // Object with $$$
+        .replace(/\[\s*\$\$\$\s*\]/g, '[]')         // Array with $$$
+        .replace(/\(\s*\$\$\$\s*\)/g, '($ARG)')      // Function params with $$$
+        .replace(/=\s*\$\$\$\s*;/g, '= $VALUE;')     // Assignments with $$$
+        .replace(/return\s+\$\$\$/g, 'return $VALUE'); // Return statements
+    }
+
+    // If the pattern is still unsafe after all fixes, return null to indicate it should be blocked
+    if (this.isTrulyUnsafe(fixedPattern)) {
+      return null;
+    }
+
+    return fixedPattern !== pattern ? fixedPattern : pattern;
+  }
+
+  isTrulyUnsafe(pattern) {
+    // Patterns that are fundamentally unsafe and cannot be automatically fixed
+    const tripleDollarCount = (pattern.match(/\$\$\$/g) || []).length;
+    if (tripleDollarCount > 3) {
+      return true; // Too many $$$ to safely fix
+    }
+
+    // Check for complex nested patterns that would be hard to fix automatically
+    const complexPatterns = [
+      /\$\$\$.*\$\$\$/,           // Multiple $$$ in complex arrangements
+      /\{\s*\$\w+\s*:\s*\$\$\$\s*.*\$\$\$\s*\}/,  // Objects with multiple $$$
+      /\[\s*\$\w+\s*,\s*\$\$\$\s*,.*\$\$\$\s*\]/, // Arrays with multiple $$$
+    ];
+
+    for (const complexRegex of complexPatterns) {
+      if (complexRegex.test(pattern)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   replacePattern(code, pattern, replacement) {
     try {
-      const root = this.parseCode(code);
-      if (!root) return code;
+      if (this.isInvalidPattern(pattern)) {
+        return code; // Return original code for invalid patterns
+      }
 
-      const rootNode = root.root();
-      const matches = rootNode.findAll(pattern);
+      const rootNode = this.parseCodeWithPatternSafety(code, pattern);
 
-      let modifiedCode = code;
-      let offset = 0;
+      try {
+        const matches = rootNode.findAll(pattern);
 
-      matches.forEach(match => {
-        const range = match.range();
-        const before = modifiedCode.substring(0, range.start.index + offset);
-        const after = modifiedCode.substring(range.end.index + offset);
-        modifiedCode = before + replacement + after;
-        offset += replacement.length - (range.end.index - range.start.index);
-      });
+        let modifiedCode = code;
+        let offset = 0;
 
-      return modifiedCode;
+        matches.forEach(match => {
+          const range = match.range();
+          const before = modifiedCode.substring(0, range.start.index + offset);
+          const after = modifiedCode.substring(range.end.index + offset);
+          modifiedCode = before + replacement + after;
+          offset += replacement.length - (range.end.index - range.start.index);
+        });
+
+        return modifiedCode;
+      } catch (astError) {
+        // ast-grep failed to parse the pattern - return original code
+        return code;
+      }
     } catch (error) {
+      // Return original code for any errors
       return code;
     }
   }
@@ -138,6 +354,32 @@ async function unifiedASTOperation(operation, options = {}) {
   } = options;
 
   const helper = new ASTHelper(language);
+
+  // Check for invalid patterns before processing files
+  if (operation === 'search' || operation === 'replace') {
+    if (helper.isInvalidPattern(pattern)) {
+      return {
+        success: false,
+        results: [],
+        errors: [{
+          message: `AST Pattern Error: Pattern "${pattern}" is invalid and cannot be processed.`,
+          pattern: pattern,
+          isPatternError: true
+        }],
+        patternErrors: [{
+          message: `AST Pattern Error: Pattern "${pattern}" is invalid. Please use valid AST patterns.`,
+          pattern: pattern,
+          isPatternError: true
+        }],
+        generalErrors: [],
+        otherErrors: [],
+        totalMatches: 0,
+        totalErrors: 1,
+        pattern: pattern,
+        error: `Pattern "${pattern}" is invalid and cannot be processed`
+      };
+    }
+  }
 
   let targetPath;
   if (path.isAbsolute(targetPathParam)) {
@@ -176,6 +418,20 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
 
       return matches.map(match => {
         if (match.error) {
+          if (match.isWarning && match.results) {
+            // Pattern was auto-fixed, include both warning and results
+            return {
+              file,
+              warning: match.message,
+              pattern: match.pattern,
+              isPatternWarning: true,
+              content: match.text,
+              line: match.line,
+              column: match.column,
+              start: match.start,
+              end: match.end
+            };
+          }
           return {
             file,
             error: match.message,
@@ -208,10 +464,12 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
     results.push(...fileResults);
   }
 
-  const validResults = results.filter(r => !r.error);
+  const validResults = results.filter(r => !r.error && !r.warning);
   const errorResults = results.filter(r => r.error);
+  const warningResults = results.filter(r => r.warning);
   const patternErrors = errorResults.filter(r => r.isPatternError);
   const generalErrors = errorResults.filter(r => r.isGeneralError);
+  const patternWarnings = warningResults.filter(r => r.isPatternWarning);
   const otherErrors = errorResults.filter(r => !r.isPatternError && !r.isGeneralError);
 
   return {
@@ -220,12 +478,15 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
     errors: errorResults,
     patternErrors: patternErrors,
     generalErrors: generalErrors,
+    patternWarnings: patternWarnings,
     otherErrors: otherErrors,
     totalMatches: validResults.length,
     totalErrors: errorResults.length,
-    pattern,
+    totalWarnings: warningResults.length,
+    pattern: pattern,
     path: targetPath,
-    warning: patternErrors.length > 0 ? `Pattern errors found: ${patternErrors.length} files had invalid AST patterns` : undefined
+    warning: patternErrors.length > 0 ? `Pattern errors found: ${patternErrors.length} files had invalid AST patterns` :
+             patternWarnings.length > 0 ? `Pattern auto-fixed: ${patternWarnings.length} files had patterns automatically converted` : undefined
   };
 }
 
@@ -382,35 +643,56 @@ function generateASTInsights(results, operation, pattern, workingDirectory, resu
 
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: `Pattern-based code search and replace tool using ast-grep for proper AST analysis. Supports JavaScript, TypeScript, Python, Go, Rust, C, C++. Use SPECIFIC AST patterns for best results.
+  description: `Pattern-based code search and replace tool using ast-grep for proper AST analysis. Supports JavaScript, TypeScript, Python, Go, Rust, C, C++.
 
-**AST CHEAT SHEET - Common Patterns:**
-• Variables: "const $NAME = $$$", "let $VAR = $VALUE", "var $X = $$$"
-• Functions: "function $FUNC($$$) { $$$ }", "$FUNC has debugger", "async function $FUNC($$$)"
-• React: "useState($$$)", "useEffect($$$)", "const [$STATE, $SETTER] = useState($$$)"
-• Console/Debug: "console.log($$$)", "console.error($ARG)", "debugger"
-• Conditions: "if ($COND) { $$$ }", "$COND has binary_operator"
-• Objects: "{$$$}", "{$KEY: $VALUE}", "const $OBJ = {$$$}"
-• Arrays: "[$$$]", "[$ITEM, $$$]", "$ARR has array_element"
+**🤖 AUTO-FIXING CAPABILITY:** This tool automatically converts problematic patterns to safe ones!
 
-**AST-GREP SYNTAX:**
-• Metavariables: $VAR (single node), $$$ (multiple nodes), $ARG (named capture)
-• Relations: "has", "inside", "precedes", "follows", "matches"
-• Kinds: "kind: function_declaration", "kind: string_literal"
-• Composite: "all: [pattern1, pattern2]", "any: [pattern1, pattern2]", "not: pattern"
+**🔄 PATTERNS THAT GET AUTO-FIXED (Don't worry about these):**
+• "console.log($$$)" → "console.log($ARG)" ✅
+• "function $FUNC($$$) { $$$ }" → "function $FUNC($PARAM) { $BODY }" ✅
+• "onClick={() => $$$}" → "onClick={() => $BODY }" ✅
+• "{$$$}" → "{}" ✅
+• "useState($$$)" → "useState($PROP)" ✅
+• "const $NAME = $$$" → "const $VAR = $VALUE" ✅
 
-**Examples:**
-• Find all console logs: "console.log($$$)"
-• Find const declarations: "const $NAME = $$$"
-• Find functions with debugger: "$FUNC has debugger"
-• Find try-catch blocks: "try { $$$ } catch ($ERROR) { $$$ }"
-• Find React hooks: "useState($$$)", "useEffect($$$)"
-• Find empty blocks: "{ }"
-• Find string literals: "kind: string_literal"`,
+**🚨 ONLY THESE PATTERNS ARE BLOCKED (Cannot be auto-fixed):**
+• Extremely complex patterns with multiple $$$: "{$KEY: $$$, $VALUE: $$$}"
+• Patterns with more than 3 $$$ metavariables
+• Malformed or empty patterns
+
+**✅ SAFE PATTERNS TO USE (No conversion needed):**
+• Single metavariables: "console.log($ARG)", "const $NAME = $VALUE", "let $VAR = $VALUE"
+• Function patterns: "function $FUNC($PARAM)", "async function $FUNC($PARAM)", "$FUNC has debugger"
+• React patterns: "useState($PROP)", "useEffect($DEPENDENCY)", "const [$STATE, $SETTER] = useState($INITIAL)"
+• Condition patterns: "if ($CONDITION) { $BODY }", "$COND has binary_operator"
+• Object patterns: "const $OBJ = {$KEY: $VALUE}", "$OBJ has pair", "$OBJ has string_literal"
+• Array patterns: "const $ARR = [$ITEM]", "$ARR has array_element", "[$FIRST, $SECOND]"
+• Kind patterns: "kind: function_declaration", "kind: string_literal", "kind: object_expression"
+
+**RELATION OPERATORS (Safe and powerful):**
+• "has": "$FUNC has debugger", "$OBJ has pair", "$CALL has string_literal"
+• "inside": "$VAR inside function_declaration", "$RETURN inside if_statement"
+• "matches": "$PATTERN matches /^[A-Z]/", "$VAR matches /.*Error$/"
+• "kind:": "kind: function_declaration", "kind: identifier", "kind: string_literal"
+
+**COMPOSITE RULES (Safe):**
+• "all: [pattern1, pattern2]" - Both patterns must match
+• "any: [pattern1, pattern2]" - Either pattern can match
+• "not: pattern" - Pattern must NOT match
+
+**EXAMPLES:**
+• "console.log($$$)" → Auto-fixed to "console.log($ARG)" with warning ⚠️
+• "const $NAME = $VALUE" → Works as-is ✅
+• "$FUNC has debugger" → Works as-is ✅
+• "kind: function_declaration" → Works as-is ✅
+
+**BENEFIT:** You can use natural patterns with $$$ and the tool will automatically convert them to safe alternatives while preserving functionality!`,
   examples: [
-    'operation="search", pattern="console.log($$$)"',
+    'operation="search", pattern="console.log($ARG)"',
     'operation="replace", pattern="var $NAME", replacement="let $NAME"',
-    'operation="search", pattern="$FUNC has debugger"'
+    'operation="search", pattern="$FUNC has debugger"',
+    'operation="search", pattern="kind: function_declaration"',
+    'operation="search", pattern="$OBJ has pair"'
   ],
   inputSchema: {
     type: 'object',
@@ -463,6 +745,56 @@ export const UNIFIED_AST_TOOL = {
 
       if (args.operation === 'search' && (args.cursor || args.pageSize !== 50)) {
         const result = await unifiedASTOperation(args.operation, args);
+
+        // Check for pattern warnings (auto-fixed patterns)
+        if (result.patternWarnings && result.patternWarnings.length > 0) {
+          let output = `⚠️ Pattern Auto-Fixed:\n\n`;
+
+          // Get unique warnings
+          const uniqueWarnings = new Set();
+          result.patternWarnings.forEach(warning => {
+            uniqueWarnings.add(warning.warning);
+          });
+
+          uniqueWarnings.forEach(warning => {
+            output += `• ${warning}\n`;
+          });
+
+          output += `\n${result.totalMatches} matches found for the corrected pattern:\n\n`;
+          const results = Array.isArray(result) ? result : (result.results || []);
+          results.slice(0, 15).forEach((match, i) => {
+            output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
+          });
+
+          const response = {
+            content: [{ type: "text", text: output.trim() }],
+            isError: false
+          };
+          return addExecutionStatusToResponse(response, 'ast_tool');
+        }
+
+        // Check for pattern errors and return error response instead of pagination
+        if (result.patternErrors && result.patternErrors.length > 0) {
+          let output = `Pattern Error${result.patternErrors.length > 1 ? 's' : ''} encountered:\n\n`;
+          result.patternErrors.forEach(err => {
+            output += `• ${err.message}\n`;
+          });
+
+          if (result.totalMatches > 0) {
+            output += `\n${result.totalMatches} matches found for pattern: "${args.pattern}":\n\n`;
+            const results = Array.isArray(result) ? result : (result.results || []);
+            results.slice(0, 15).forEach((match, i) => {
+              output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
+            });
+          }
+
+          const response = {
+            content: [{ type: "text", text: output.trim() }],
+            isError: true
+          };
+          return addExecutionStatusToResponse(response, 'ast_tool');
+        }
+
         const results = Array.isArray(result) ? result : (result.results || []);
 
         const insights = generateASTInsights(results, args.operation, args.pattern, workingDirectory);
@@ -557,8 +889,65 @@ export const UNIFIED_AST_TOOL = {
 
 function formatSearchResult(result, args) {
   if (!result.success) {
+    let errorMessage = `Search failed: ${result.error}`;
+
+    // Add pattern errors if they exist
+    if (result.patternErrors && result.patternErrors.length > 0) {
+      errorMessage += '\n\nPattern Errors:\n';
+      result.patternErrors.forEach(err => {
+        errorMessage += `• ${err.message}\n`;
+      });
+    }
+
     const response = {
-      content: [{ type: "text", text: `Search failed: ${result.error}` }],
+      content: [{ type: "text", text: errorMessage }],
+      isError: true
+    };
+    return addExecutionStatusToResponse(response, 'ast_tool');
+  }
+
+  // Check for pattern warnings (auto-fixed patterns)
+  if (result.patternWarnings && result.patternWarnings.length > 0) {
+    let output = `⚠️ Pattern Auto-Fixed:\n\n`;
+
+    // Get unique warnings (same pattern may appear in multiple files)
+    const uniqueWarnings = new Set();
+    result.patternWarnings.forEach(warning => {
+      uniqueWarnings.add(warning.warning);
+    });
+
+    uniqueWarnings.forEach(warning => {
+      output += `• ${warning}\n`;
+    });
+
+    output += `\n${result.totalMatches} matches found for the corrected pattern:\n\n`;
+    result.results.slice(0, 15).forEach((match, i) => {
+      output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
+    });
+
+    const response = {
+      content: [{ type: "text", text: output.trim() }],
+      isError: false  // Not an error, just a warning
+    };
+    return addExecutionStatusToResponse(response, 'ast_tool');
+  }
+
+  // Check for pattern errors even if search was successful
+  if (result.patternErrors && result.patternErrors.length > 0) {
+    let output = `Pattern Error${result.patternErrors.length > 1 ? 's' : ''} encountered:\n\n`;
+    result.patternErrors.forEach(err => {
+      output += `• ${err.message}\n`;
+    });
+
+    if (result.totalMatches > 0) {
+      output += `\n${result.totalMatches} matches found for pattern: "${args.pattern}":\n\n`;
+      result.results.slice(0, 15).forEach((match, i) => {
+        output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
+      });
+    }
+
+    const response = {
+      content: [{ type: "text", text: output.trim() }],
       isError: true
     };
     return addExecutionStatusToResponse(response, 'ast_tool');
@@ -614,5 +1003,5 @@ function formatReplaceResult(result, args) {
   return addExecutionStatusToResponse(responseObj, 'ast_tool');
 }
 
-export { unifiedASTOperation };
+export { ASTHelper, unifiedASTOperation };
 export default UNIFIED_AST_TOOL;

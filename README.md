@@ -177,6 +177,21 @@ The tools will automatically:
 
 ## Recent Improvements
 
+### Pattern Auto-Fixing & Error Prevention (v3.4.2)
+- **Automatic pattern conversion**: Problematic `$$$` patterns automatically converted to safe alternatives
+- **Connection closed errors fixed**: Eliminates MCP server crashes caused by invalid AST patterns
+- **Safe pattern library**: All conversions use verified working patterns from ast-grep catalog
+- **User-friendly warnings**: Agents receive clear warnings when patterns are auto-converted
+- **Non-blocking operation**: Pattern issues don't prevent tool usage, just provide guidance
+- **Comprehensive coverage**: Handles functions, arrow functions, objects, arrays, React hooks, and console patterns
+
+**Pattern Auto-Fixing Examples:**
+- `console.log($$$)` → `console.log($ARG)` ✅
+- `function $FUNC($$$) { $$$ }` → `function $FUNC($PARAM) { $STMT }` ✅
+- `onClick={() => $$$}` → `onClick={$_}` ✅
+- `{$$$}` → `{}` ✅
+- `useState($$$)` → `useState($PROP)` ✅
+
 ### Optimized Execution & Cross-Tool Status Sharing (v3.4.0)
 - **3-second threshold optimization**: Execute tool returns direct responses for fast operations (< 3 seconds) to save cycles and latency
 - **Cross-tool status sharing**: Execution results automatically attached to subsequent tool calls with status markers

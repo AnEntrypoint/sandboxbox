@@ -1713,6 +1713,8 @@ CRITICAL: You must examine the actual step files in the results/ directory:
 - The step files show tool calls, results, and execution patterns
 - Compare baseline vs MCP tool usage patterns
 - Additional time spent or things run is fine, even if it didnt help us here, if it would help us in more complicated situations
+- We dont need tooling that makes the agent choose any pre-determined behaviors or tools, the agent should make its own choices
+- Dont complain about additional context in light of simple tasks, since we're optimizing for complex tasks
 
 Wall clock times:
 ${performanceSummary}
@@ -1729,6 +1731,9 @@ Focus Areas:
 - We're looking for improved intelligent and predictive behaviors and more truth-grounded code.
 - Slower is better if it improved results or testing was more thorough
 - Additional time spent or things run is fine, even if it didnt help us here, if it would help us in more complicated situations
+- We prefer it if the LLM makes the decisions, we dont want to recommend tools that create baked activities
+- We dont need tooling that makes the agent choose any pre-determined behaviors or tools, the agent should make its own choices
+- Dont complain about additional context in light of simple tasks, since we're optimizing for complex tasks
 
 results is in ./results, with all the steps taken by agents
 
@@ -1773,6 +1778,7 @@ Focus Areas:
 - What do the actual step outputs reveal about tool reliability and usability?
 - We prefer more thorough, verified, well thought out processes and signs of intelligent behavior and prediction of iseues.
 - Slower is better if it improved results or testing was more thorough
+- We prefer it if the LLM makes the decisions, we dont want to recommend tools that create baked activities
 
 Pay close attention to any chekovs guns that threw off the agents
 results is in ./results, with all the steps taken by agents
