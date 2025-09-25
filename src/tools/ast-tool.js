@@ -6,6 +6,7 @@ import { createMCPResponse } from '../core/mcp-pagination.js';
 import { workingDirectoryContext, createToolContext } from '../core/working-directory-context.js';
 import { createIgnoreFilter } from '../core/ignore-manager.js';
 import { suppressConsoleOutput } from '../core/console-suppression.js';
+import { addExecutionStatusToResponse } from '../core/execution-state.js';
 import { parse } from '@ast-grep/napi';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -474,7 +475,7 @@ export const UNIFIED_AST_TOOL = {
 
         await workingDirectoryContext.updateContext(workingDirectory, 'ast_tool', toolContext);
 
-        return createMCPResponse(results, {
+        const response = createMCPResponse(results, {
           cursor: args.cursor,
           pageSize: args.pageSize,
           metadata: {
@@ -484,6 +485,7 @@ export const UNIFIED_AST_TOOL = {
             timestamp: new Date().toISOString()
           }
         });
+        return addExecutionStatusToResponse(response, 'ast_tool');
       }
 
       let result;
@@ -491,10 +493,11 @@ export const UNIFIED_AST_TOOL = {
         result = await unifiedASTOperation(args.operation, args);
       } catch (error) {
         // Handle catastrophic errors gracefully
-        return {
+        const response = {
           content: [{ type: "text", text: `AST Operation Error: ${error.message}\n\nOperation: ${args.operation}\nPattern: ${args.pattern || 'N/A'}\nPath: ${args.path || 'N/A'}` }],
           isError: true
         };
+        return addExecutionStatusToResponse(response, 'ast_tool');
       }
 
       let finalResult;
@@ -526,24 +529,26 @@ export const UNIFIED_AST_TOOL = {
           `Pattern Error: ${err.message} in file ${err.file}`
         ).join('\n');
 
-        return {
+        const response = {
           content: [{ type: "text", text: patternErrorOutput + '\n\n' + errorMessages }],
           isError: true
         };
+        return addExecutionStatusToResponse(response, 'ast_tool');
       }
 
-      return finalResult;
+      return addExecutionStatusToResponse(finalResult, 'ast_tool');
     } catch (error) {
       const errorContext = createToolContext('ast_tool', workingDirectory, query, {
         error: error.message
       });
       await workingDirectoryContext.updateContext(workingDirectory, 'ast_tool', errorContext);
 
-      return {
+      const response = {
         success: false,
         error: error.message,
         operation: args.operation
       };
+      return addExecutionStatusToResponse(response, 'ast_tool');
     } finally {
       consoleRestore.restore();
     }
@@ -552,16 +557,18 @@ export const UNIFIED_AST_TOOL = {
 
 function formatSearchResult(result, args) {
   if (!result.success) {
-    return {
+    const response = {
       content: [{ type: "text", text: `Search failed: ${result.error}` }],
       isError: true
     };
+    return addExecutionStatusToResponse(response, 'ast_tool');
   }
 
   if (result.totalMatches === 0) {
-    return {
+    const response = {
       content: [{ type: "text", text: `No matches found for pattern: "${args.pattern}"` }]
     };
+    return addExecutionStatusToResponse(response, 'ast_tool');
   }
 
   let output = `${result.totalMatches} matches for "${args.pattern}":\n\n`;
@@ -574,23 +581,26 @@ function formatSearchResult(result, args) {
     output += `... ${result.totalMatches - 15} more matches\n`;
   }
 
-  return {
+  const response = {
     content: [{ type: "text", text: output.trim() }]
   };
+  return addExecutionStatusToResponse(response, 'ast_tool');
 }
 
 function formatReplaceResult(result, args) {
   if (!result.success) {
-    return {
+    const response = {
       content: [{ type: "text", text: `Replace failed: ${result.error}` }],
       isError: true
     };
+    return addExecutionStatusToResponse(response, 'ast_tool');
   }
 
   if (result.modifiedFiles === 0) {
-    return {
+    const response = {
       content: [{ type: "text", text: `No changes made - pattern "${args.pattern}" found no matches` }]
     };
+    return addExecutionStatusToResponse(response, 'ast_tool');
   }
 
   let response = `Replaced pattern in ${result.modifiedFiles} files\n`;
@@ -598,9 +608,10 @@ function formatReplaceResult(result, args) {
   response += `Replacement: "${args.replacement}"\n`;
   response += `Files modified: ${result.modifiedFiles}/${result.totalFiles}\n`;
 
-  return {
+  const responseObj = {
     content: [{ type: "text", text: response.trim() }]
   };
+  return addExecutionStatusToResponse(responseObj, 'ast_tool');
 }
 
 export { unifiedASTOperation };

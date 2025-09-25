@@ -26,6 +26,7 @@ function pathRelative(from, to) {
   return path.relative(from, to);
 }
 import { workingDirectoryContext, createToolContext, getContextSummary } from '../core/working-directory-context.js';
+import { addExecutionStatusToResponse } from '../core/execution-state.js';
 function cacheSearchResult(query, results, path) {
   
   return true;
@@ -957,10 +958,11 @@ export const searchTools = [
         
         if (!existsSync(effectiveWorkingDirectory)) {
           console.warn(`Working directory does not exist: ${effectiveWorkingDirectory}`);
-          return {
+          const response = {
             content: [{ type: "text", text: "Working directory does not exist" }],
             isError: true
           };
+          return addExecutionStatusToResponse(response, 'searchcode');
         }
         
         const fullPath = isAbsolute(searchPathParam)
@@ -968,18 +970,20 @@ export const searchTools = [
           : pathResolve(effectiveWorkingDirectory, searchPathParam);
         if (!existsSync(fullPath)) {
           console.warn(`Search path does not exist: ${fullPath}`);
-          return {
+          const response = {
             content: [{ type: "text", text: "Search path does not exist" }],
             isError: true
           };
+          return addExecutionStatusToResponse(response, 'searchcode');
         }
         
         const cachedResults = getSearchResult(query, fullPath);
         if (cachedResults) {
           console.error(`Using cached results for query: "${query}"`);
-          return {
+          const response = {
             content: [{ type: "text", text: JSON.stringify(cachedResults, null, 2) }]
           };
+          return addExecutionStatusToResponse(response, 'searchcode');
         }
         
         console.error(`Searching for: "${query}" in ${fullPath}`);
@@ -1138,19 +1142,21 @@ export const searchTools = [
         
         await workingDirectoryContext.updateContext(effectiveWorkingDirectory, 'searchcode', toolContext);
         
-        return {
+        const response = {
           content: [{ type: "text", text: JSON.stringify(formattedResults, null, 2) }]
         };
+        return addExecutionStatusToResponse(response, 'searchcode');
       } catch (error) {
         
         const errorContext = createToolContext('searchcode', workingDirectory || process.cwd(), query, {
           error: error.message
         });
         await workingDirectoryContext.updateContext(workingDirectory || process.cwd(), 'searchcode', errorContext);
-      return {
+        const response = {
           content: [{ type: "text", text: `Error: ${error.message}` }],
           isError: true
         };
+        return addExecutionStatusToResponse(response, 'searchcode');
       } finally {
         
         consoleRestore.restore();

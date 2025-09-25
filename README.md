@@ -1,15 +1,15 @@
-Complete MCP (Model Context Protocol) server for advanced development tools with async execution and vector embeddings.
+Complete MCP (Model Context Protocol) server for advanced development tools with optimized execution and vector embeddings.
 
 The aim of the current version is to provide similar turn around times and more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
 ## Features
 
-### 🚀 Async Execution & Job Management
-- **Async execute tool**: Multi-language code execution now supports async operations with job tracking
-- **Job management**: Complete job lifecycle management with status monitoring
+### 🚀 Optimized Execution & Cross-Tool Status Sharing
+- **Optimized execute tool**: Multi-language code execution with 3-second threshold for direct responses
+- **Cross-tool status sharing**: Execution results automatically shared across tool calls
 - **Vector embeddings**: Semantic search powered by AI embeddings (no fallbacks)
-- **30-minute timeouts**: Automatic job cleanup and termination
-- **Real-time progress**: Monitor job status and retrieve results via MCP pagination
+- **Performance optimized**: Fast operations return direct responses to save cycles and latency
+- **Smart execution tracking**: Automatic status detection and sharing between tools
 
 ### Multi-Language Support
 **Supported Languages**: JavaScript, TypeScript, Go, Rust, Python, C, C++
@@ -177,13 +177,18 @@ The tools will automatically:
 
 ## Recent Improvements
 
-### Async Execution & Vector Embeddings (v3.3.0)
-- **Async execute tool**: Multi-language code execution now supports async operations with job tracking
-- **Vector embeddings**: Semantic search powered by AI embeddings with no fallbacks to text search
-- **Job management**: Complete job lifecycle system with status monitoring, progress tracking, and automatic cleanup
-- **MCP pagination**: Real-time progress monitoring with paginated result viewing
-- **30-minute timeouts**: Automatic job termination for resource management
-- **Transformers.js optimization**: Improved model loading with timeout handling and lightweight models
+### Optimized Execution & Cross-Tool Status Sharing (v3.4.0)
+- **3-second threshold optimization**: Execute tool returns direct responses for fast operations (< 3 seconds) to save cycles and latency
+- **Cross-tool status sharing**: Execution results automatically attached to subsequent tool calls with status markers
+- **Simplified architecture**: Removed async job management complexity for cleaner, more predictable behavior
+- **Performance-focused**: Smart execution tracking with automatic time-based optimization
+- **Enhanced agent experience**: Clear status indicators help agents identify and track execution results across tools
+
+### Vector Embedding Optimization (v3.3.0)
+- **Pure vector search**: Removed all fallback mechanisms - vector embeddings are mandatory and must work
+- **Lightweight models**: Switched to Xenova/all-MiniLM-L6-v2 for better performance
+- **Improved error handling**: Better timeout handling and diagnostics for embedding system
+- **No fallbacks**: Search requires vector embeddings to be available or errors appropriately
 
 ### Built-in Hooks Integration (v3.2.15)
 - **Eliminated separate hook startup** - Auto-linting now works automatically within tools
@@ -271,22 +276,22 @@ Coordinate multiple tools in single operations for efficiency across different l
 Search for code patterns across your multi-language codebase with semantic vector embeddings.
 
 #### execute
-Multi-language code execution with built-in async job management and progress tracking.
+Multi-language code execution with 3-second threshold optimization and cross-tool status sharing.
 
 **Key Features:**
-- **Async execution**: Long-running operations execute asynchronously with job tracking
-- **Progress monitoring**: Real-time progress updates with ETA calculations
-- **Job persistence**: Jobs are saved and can be monitored across sessions
+- **3-second threshold**: Fast operations (< 3 seconds) return direct responses to save cycles and latency
+- **Cross-tool status sharing**: Execution results automatically shared with subsequent tool calls
+- **Smart optimization**: Time-based execution tracking for optimal performance
 - **Multi-language support**: JavaScript, TypeScript, Go, Rust, Python, C, C++, Bash
-- **Automatic cleanup**: Jobs automatically terminate after 30 minutes
+- **Status indicators**: Clear markers help agents track execution across tools
 
 **Usage:**
 ```javascript
-// Execute code asynchronously
-execute(code="console.log('Hello world')", runtime="nodejs", async=true)
+// Execute code (automatically optimized based on execution time)
+execute(code="console.log('Hello world')", runtime="nodejs")
 
-// Monitor job progress (built into execute response)
-// Job management is handled automatically within the execute tool
+// Fast executions (< 3 seconds) return direct responses
+// Status automatically shared with subsequent tool calls
 ```
 
 #### sequentialthinking
