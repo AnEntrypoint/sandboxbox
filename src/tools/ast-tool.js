@@ -49,6 +49,16 @@ class ASTHelper {
 
   searchPattern(code, pattern) {
     try {
+      // Validate pattern before passing to ast-grep
+      if (this.isInvalidPattern(pattern)) {
+        return [{
+          error: true,
+          message: `Invalid AST pattern: "${pattern}". Pattern must be a valid ast-grep syntax.`,
+          pattern: pattern,
+          text: `AST Pattern Error: Invalid pattern syntax`
+        }];
+      }
+
       const root = this.parseCode(code);
       if (!root) return [];
 
@@ -63,8 +73,26 @@ class ASTHelper {
         column: match.range().start.column
       }));
     } catch (error) {
-      return [];
+      // Return error information instead of empty array
+      return [{
+        error: true,
+        message: error.message,
+        pattern: pattern,
+        text: `AST Pattern Error: ${error.message}`
+      }];
     }
+  }
+
+  isInvalidPattern(pattern) {
+    // Check for patterns that cause ast-grep to crash
+    const invalidPatterns = [
+      /^:\s*\w+$/,  // Matches ": any", ": string", etc.
+      /^\w+:\s*$/,  // Matches "var:", "let:", etc.
+      /^\s*:\s*$/,   // Matches ":" alone
+      /^\w+\s*:\s*\w+\s*$/,  // Matches incomplete type annotations
+    ];
+
+    return invalidPatterns.some(regex => regex.test(pattern.trim()));
   }
 
   replacePattern(code, pattern, replacement) {
@@ -145,16 +173,26 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
       helper.setLanguage(helper.detectLanguageFromExtension(file));
       const matches = await helper.searchPattern(content, pattern);
 
-      return matches.map(match => ({
-        file,
-        content: match.text,
-        line: match.line,
-        column: match.column,
-        start: match.start,
-        end: match.end
-      }));
+      return matches.map(match => {
+        if (match.error) {
+          return {
+            file,
+            error: match.message,
+            pattern: match.pattern,
+            isPatternError: true
+          };
+        }
+        return {
+          file,
+          content: match.text,
+          line: match.line,
+          column: match.column,
+          start: match.start,
+          end: match.end
+        };
+      });
     } catch (error) {
-      return [{ file, error: error.message }];
+      return [{ file, error: error.message, isGeneralError: true }];
     }
   };
 
@@ -169,13 +207,24 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
     results.push(...fileResults);
   }
 
+  const validResults = results.filter(r => !r.error);
+  const errorResults = results.filter(r => r.error);
+  const patternErrors = errorResults.filter(r => r.isPatternError);
+  const generalErrors = errorResults.filter(r => r.isGeneralError);
+  const otherErrors = errorResults.filter(r => !r.isPatternError && !r.isGeneralError);
+
   return {
-    success: true,
-    results: results.filter(r => !r.error),
-    errors: results.filter(r => r.error),
-    totalMatches: results.filter(r => !r.error).length,
+    success: patternErrors.length === 0 && generalErrors.length === 0,
+    results: validResults,
+    errors: errorResults,
+    patternErrors: patternErrors,
+    generalErrors: generalErrors,
+    otherErrors: otherErrors,
+    totalMatches: validResults.length,
+    totalErrors: errorResults.length,
     pattern,
-    path: targetPath
+    path: targetPath,
+    warning: patternErrors.length > 0 ? `Pattern errors found: ${patternErrors.length} files had invalid AST patterns` : undefined
   };
 }
 
@@ -332,7 +381,31 @@ function generateASTInsights(results, operation, pattern, workingDirectory, resu
 
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: 'Pattern-based code search and replace tool using ast-grep for proper AST analysis. Supports JavaScript, TypeScript, Python, Go, Rust, C, C++.',
+  description: `Pattern-based code search and replace tool using ast-grep for proper AST analysis. Supports JavaScript, TypeScript, Python, Go, Rust, C, C++. Use SPECIFIC AST patterns for best results.
+
+**AST CHEAT SHEET - Common Patterns:**
+• Variables: "const $NAME = $$$", "let $VAR = $VALUE", "var $X = $$$"
+• Functions: "function $FUNC($$$) { $$$ }", "$FUNC has debugger", "async function $FUNC($$$)"
+• React: "useState($$$)", "useEffect($$$)", "const [$STATE, $SETTER] = useState($$$)"
+• Console/Debug: "console.log($$$)", "console.error($ARG)", "debugger"
+• Conditions: "if ($COND) { $$$ }", "$COND has binary_operator"
+• Objects: "{$$$}", "{$KEY: $VALUE}", "const $OBJ = {$$$}"
+• Arrays: "[$$$]", "[$ITEM, $$$]", "$ARR has array_element"
+
+**AST-GREP SYNTAX:**
+• Metavariables: $VAR (single node), $$$ (multiple nodes), $ARG (named capture)
+• Relations: "has", "inside", "precedes", "follows", "matches"
+• Kinds: "kind: function_declaration", "kind: string_literal"
+• Composite: "all: [pattern1, pattern2]", "any: [pattern1, pattern2]", "not: pattern"
+
+**Examples:**
+• Find all console logs: "console.log($$$)"
+• Find const declarations: "const $NAME = $$$"
+• Find functions with debugger: "$FUNC has debugger"
+• Find try-catch blocks: "try { $$$ } catch ($ERROR) { $$$ }"
+• Find React hooks: "useState($$$)", "useEffect($$$)"
+• Find empty blocks: "{ }"
+• Find string literals: "kind: string_literal"`,
   examples: [
     'operation="search", pattern="console.log($$$)"',
     'operation="replace", pattern="var $NAME", replacement="let $NAME"',
@@ -413,7 +486,16 @@ export const UNIFIED_AST_TOOL = {
         });
       }
 
-      const result = await unifiedASTOperation(args.operation, args);
+      let result;
+      try {
+        result = await unifiedASTOperation(args.operation, args);
+      } catch (error) {
+        // Handle catastrophic errors gracefully
+        return {
+          content: [{ type: "text", text: `AST Operation Error: ${error.message}\n\nOperation: ${args.operation}\nPattern: ${args.pattern || 'N/A'}\nPath: ${args.path || 'N/A'}` }],
+          isError: true
+        };
+      }
 
       let finalResult;
       if (args.operation === 'search') {
@@ -433,6 +515,22 @@ export const UNIFIED_AST_TOOL = {
       });
 
       await workingDirectoryContext.updateContext(workingDirectory, 'ast_tool', toolContext);
+
+      // Check for pattern errors and include them in the response
+      if (result.patternErrors && result.patternErrors.length > 0) {
+        const patternErrorOutput = finalResult.content && finalResult.content[0] && finalResult.content[0].type === 'text'
+          ? finalResult.content[0].text
+          : '';
+
+        const errorMessages = result.patternErrors.map(err =>
+          `Pattern Error: ${err.message} in file ${err.file}`
+        ).join('\n');
+
+        return {
+          content: [{ type: "text", text: patternErrorOutput + '\n\n' + errorMessages }],
+          isError: true
+        };
+      }
 
       return finalResult;
     } catch (error) {

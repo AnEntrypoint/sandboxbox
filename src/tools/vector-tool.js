@@ -22,6 +22,9 @@ function pathExtname(p) {
 function pathBasename(p) {
   return path.basename(p);
 }
+function pathRelative(from, to) {
+  return path.relative(from, to);
+}
 import { workingDirectoryContext, createToolContext, getContextSummary } from '../core/working-directory-context.js';
 function cacheSearchResult(query, results, path) {
   
@@ -45,7 +48,7 @@ const platform = {
   isWindows: os.platform() === 'win32'
 };
 const INDEX_DIR = './code_search_index';
-const DEFAULT_MODEL = 'Xenova/bge-small-en-v1.5'; 
+const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
 const DEFAULT_DIM = 384; 
 const DEFAULT_EXTS = [
   
@@ -155,10 +158,33 @@ class LRUCache {
 const embeddingLRUCache = new LRUCache(MAX_CACHE_SIZE);
 async function initializeEmbeddingProvider() {
   try {
-    const { pipeline } = await import('@xenova/transformers');
-    embeddingExtractor = await pipeline('feature-extraction', DEFAULT_MODEL);
+    console.log('Initializing transformers.js embedding provider...');
+    const { pipeline, env } = await import('@xenova/transformers');
+
+    // Configure transformers.js environment for better performance
+    env.localModelPath = './.cache';
+    env.allowLocalModels = true;
+    env.remoteModelPath = null;
+    env.forceDownload = false;
+
+    console.log(`Loading model: ${DEFAULT_MODEL}`);
+
+    // Create pipeline with timeout and error handling
+    const pipelinePromise = pipeline('feature-extraction', DEFAULT_MODEL, {
+      quantized: true,
+      device: 'cpu'
+    });
+
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Model loading timeout after 60 seconds')), 60000);
+    });
+
+    embeddingExtractor = await Promise.race([pipelinePromise, timeoutPromise]);
+    console.log('Embedding provider initialized successfully');
     return true;
   } catch (error) {
+    console.error('Embedding provider initialization failed:', error);
     throw new Error(`Transformers.js initialization failed: ${error.message}`);
   }
 }
@@ -211,60 +237,41 @@ function getLanguagePatterns(language) {
   };
   return patterns[language] || /^[a-zA-Z_]\w*\s*[({]/;
 }
-async function findCodeFiles(dir, depth = 0, maxDepth = 5) {
+async function findCodeFiles(dir) {
   const files = [];
   const allowedExtensions = ['js', 'jsx', 'ts', 'tsx', 'go', 'rs', 'py', 'c', 'cpp', 'cc', 'cxx', 'h', 'hpp'];
-  const MAX_FILES = 1000;
-
-  if (depth > maxDepth) {
-    console.warn(`Max depth ${maxDepth} exceeded at ${dir}`);
-    return files;
-  }
-
-  if (files.length >= MAX_FILES) {
-    console.warn(`Max files ${MAX_FILES} exceeded at ${dir}`);
-    return files;
-  }
 
   try {
+    // Use the proper sand ignore manager instead of hardcoded patterns
+    const customPatterns = loadCustomIgnorePatterns(dir);
+    const ignoreFilter = createIgnoreFilter(dir, customPatterns, {
+      useGitignore: true,
+      useDefaults: true,
+      caseSensitive: false
+    });
+
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = pathJoin(dir, entry.name);
-      if (entry.isDirectory()) {
 
-        if (entry.name.startsWith('.') ||
-            entry.name === 'node_modules' ||
-            entry.name === 'dist' ||
-            entry.name === 'build' ||
-            entry.name === 'target' ||
-            entry.name === 'vendor' ||
-            entry.name === 'coverage' ||
-            entry.name === '.git' ||
-            entry.name === '.next' ||
-            entry.name === '.nuxt' ||
-            entry.name === '.out' ||
-            entry.name === '.turbo' ||
-            entry.name === '.vercel' ||
-            entry.name === '.netlify' ||
-            entry.name === 'venv' ||
-            entry.name === 'env' ||
-            entry.name === '.pytest_cache' ||
-            entry.name === '__pycache__') {
+      if (entry.isDirectory()) {
+        // Check if directory should be ignored using the proper ignore filter
+        if (ignoreFilter.ignores(fullPath)) {
           continue;
         }
 
-        const subFiles = await findCodeFiles(fullPath, depth + 1, maxDepth);
-        files.push(...subFiles.slice(0, MAX_FILES - files.length));
+        const subFiles = await findCodeFiles(fullPath);
+        files.push(...subFiles);
       } else if (entry.isFile()) {
+        // Check if file should be ignored using the proper ignore filter
+        if (ignoreFilter.ignores(fullPath)) {
+          continue;
+        }
+
         const ext = pathExtname(entry.name).slice(1).toLowerCase();
         if (allowedExtensions.includes(ext) && shouldIndexFile(fullPath, allowedExtensions)) {
           files.push(fullPath);
         }
-      }
-
-      if (files.length >= MAX_FILES) {
-        console.warn(`Max files ${MAX_FILES} reached at ${dir}`);
-        break;
       }
     }
   } catch (error) {
@@ -430,20 +437,36 @@ async function getLastModifiedTime(folders) {
   return lastModified;
 }
 async function getEmbedding(text) {
+  if (!embeddingExtractor) {
+    throw new Error('Embedding extractor not initialized');
+  }
+
   const cacheKey = text;
   const cached = embeddingLRUCache.get(cacheKey);
   if (cached) {
     return cached;
   }
-  
-  const embedding = await embeddingExtractor(text, {
-    pooling: 'cls', 
-    normalize: true,
-    truncation: true,
-    max_length: 512 
-  });
-  embeddingLRUCache.set(cacheKey, embedding);
-  return embedding;
+
+  try {
+    // Add timeout to prevent hanging during embedding generation
+    const embeddingPromise = embeddingExtractor(text, {
+      pooling: 'cls',
+      normalize: true,
+      truncation: true,
+      max_length: 512
+    });
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Embedding generation timeout after 30 seconds')), 30000);
+    });
+
+    const embedding = await Promise.race([embeddingPromise, timeoutPromise]);
+    embeddingLRUCache.set(cacheKey, embedding);
+    return embedding;
+  } catch (error) {
+    console.error('Embedding generation failed:', error);
+    throw new Error(`Failed to generate embedding: ${error.message}`);
+  }
 }
 function calculateCosineSimilarity(vecA, vecB) {
   if (vecA.length !== vecB.length) return 0;
@@ -878,7 +901,8 @@ export {
   embeddingLRUCache,
   codeChunks,
   isInitialized,
-  embeddingExtractor
+  embeddingExtractor,
+  findCodeFiles
 };
 function createToolResponse(content, isError = false) {
   return {
@@ -904,7 +928,7 @@ function formatSearchResults(results, query, path) {
 export const searchTools = [
   {
     name: "searchcode",
-    description: "semantic code search optimized for refactoring tasks.",
+    description: "Semantic code search optimized for refactoring tasks. Use SPECIFIC, TARGETED queries for best results. Examples: 'TaskManager component' (not 'React component'), 'handleAddTask function' (not 'function'), 'useState hooks' (not 'state'), 'validation logic', 'error handling', 'API calls'. Avoid broad terms like 'component', 'function', 'const' - use specific names and patterns. Automatically expands to include relevant patterns.",
     inputSchema: {
       type: "object",
       properties: {
@@ -960,28 +984,98 @@ export const searchTools = [
         
         console.error(`Searching for: "${query}" in ${fullPath}`);
         let results = [];
+
         try {
+          // Try to use the vector embedding system first for true semantic search
+          console.error(`Attempting semantic vector search for: "${query}"`);
+          try {
+            // Initialize vector system if needed
+            if (!isInitialized) {
+              console.error(`Initializing vector system for semantic search...`);
+              await initializeVectorSystem();
+            }
 
-          const files = await findCodeFiles(fullPath);
-          if (files.length === 0) {
-            console.error(`No code files found in: ${fullPath}`);
-            results = [];
-          } else {
-            console.error(`Found ${files.length} files to search in: ${fullPath}`);
+            // Perform semantic search with the optimized query
+            let semanticQuery = query;
 
-            const searchQuery = query.toLowerCase();
-            const maxFilesToSearch = Math.min(50, files.length);
-            const filesToSearch = files.slice(0, maxFilesToSearch);
+            // Optimize query for semantic search
+            if (query.toLowerCase().includes('react') && query.toLowerCase().includes('component')) {
+              const componentMatches = query.match(/\b([A-Z][a-zA-Z0-9]*)\b/g);
+              if (componentMatches && componentMatches.length > 0) {
+                semanticQuery = componentMatches.join(' ');
+                console.error(`Optimized semantic query to: "${semanticQuery}"`);
+              }
+            }
 
-            for (const filePath of filesToSearch) {
-              try {
-                const content = await fs.readFile(filePath, 'utf8');
-                const lines = content.split('\n');
-                const maxLines = Math.min(1000, lines.length);
+            const semanticResults = await queryVectorIndex(semanticQuery, Math.min(topK, 15));
 
-                for (let i = 0; i < maxLines; i++) {
-                  const line = lines[i];
-                  if (line.toLowerCase().includes(searchQuery)) {
+            if (semanticResults && semanticResults.length > 0) {
+              console.error(`Semantic search found ${semanticResults.length} results`);
+              results = semanticResults.map(r => ({
+                file: r.file,
+                startLine: r.startLine,
+                endLine: r.endLine,
+                content: r.content,
+                score: r.score || 0.8,
+                type: 'semantic'
+              }));
+            } else {
+              console.error(`Semantic search returned no results, falling back to text search`);
+              throw new Error('Fallback to text search');
+            }
+          } catch (semanticError) {
+            console.error(`Semantic search failed, using text search: ${semanticError.message}`);
+
+            // Fallback to text search
+            const files = await findCodeFiles(fullPath);
+            if (files.length === 0) {
+              console.error(`No code files found in: ${fullPath}`);
+              results = [];
+            } else {
+              console.error(`Found ${files.length} files to search in: ${fullPath}`);
+
+              // Optimize query to handle broad terms better
+              let searchQuery = query.toLowerCase();
+
+              // If query contains broad terms, try to extract more specific patterns
+              if (searchQuery.includes('react') && searchQuery.includes('component')) {
+                // Extract potential component names from the query - look for capitalized words
+                const componentMatches = query.match(/\b([A-Z][a-zA-Z0-9]*)\b/g);
+                if (componentMatches && componentMatches.length > 0) {
+                  // Use the first component name found, or join multiple
+                  searchQuery = componentMatches.join(' ').toLowerCase();
+                  console.error(`Optimized broad React query to: "${searchQuery}"`);
+                } else {
+                  // Fallback: remove broad terms but keep descriptive words
+                  searchQuery = searchQuery.replace(/\b(react|component|function|const|var|let)\b/g, '').trim();
+                  if (searchQuery) {
+                    console.error(`Filtered React broad terms, optimized to: "${searchQuery}"`);
+                  }
+                }
+              }
+
+              // Handle overly broad queries by focusing on unique terms
+              const broadTerms = ['function', 'const', 'component', 'react', 'var', 'let'];
+              const queryTerms = searchQuery.split(' ').filter(term =>
+                term.length > 2 && !broadTerms.includes(term)
+              );
+
+              if (queryTerms.length > 0 && queryTerms.length < searchQuery.split(' ').length) {
+                searchQuery = queryTerms.join(' ');
+                console.error(`Filtered broad terms, optimized query to: "${searchQuery}"`);
+              }
+              const maxFilesToSearch = Math.min(50, files.length);
+              const filesToSearch = files.slice(0, maxFilesToSearch);
+
+              for (const filePath of filesToSearch) {
+                try {
+                  const content = await fs.readFile(filePath, 'utf8');
+                  const lines = content.split('\n');
+                  const maxLines = Math.min(1000, lines.length);
+
+                  for (let i = 0; i < maxLines; i++) {
+                    const line = lines[i];
+                    if (line.toLowerCase().includes(searchQuery)) {
 
                     const startLine = Math.max(0, i - 2);
                     const endLine = Math.min(lines.length - 1, i + 2);
@@ -1009,6 +1103,7 @@ export const searchTools = [
             }
             console.error(`Found ${results.length} real results for query: "${query}"`);
           }
+        }
         } catch (error) {
           console.error(`Error during search:`, error.message);
 

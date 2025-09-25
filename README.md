@@ -1,8 +1,15 @@
-Complete MCP (Model Context Protocol) server for advanced development tools with full feature set restored.
+Complete MCP (Model Context Protocol) server for advanced development tools with async execution and vector embeddings.
 
 The aim of the current version is to provide similar turn around times and more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
 ## Features
+
+### 🚀 Async Execution & Job Management
+- **Async execute tool**: Multi-language code execution now supports async operations with job tracking
+- **Job management**: Complete job lifecycle management with status monitoring
+- **Vector embeddings**: Semantic search powered by AI embeddings (no fallbacks)
+- **30-minute timeouts**: Automatic job cleanup and termination
+- **Real-time progress**: Monitor job status and retrieve results via MCP pagination
 
 ### Multi-Language Support
 **Supported Languages**: JavaScript, TypeScript, Go, Rust, Python, C, C++
@@ -27,8 +34,11 @@ The aim of the current version is to provide similar turn around times and more 
   - **Bash** - Run bash commands securely
 
 #### Analysis Tools
-- **searchcode** - Semantic code search with AI-powered discovery across all supported languages
+- **searchcode** - Semantic code search with AI-powered vector embeddings across all supported languages
 - **ast_tool** - Unified AST operations combining code analysis, pattern search, safe replacement, and linting
+
+#### Execution Tools
+- **execute** - Multi-language code execution with built-in async job management and progress tracking
 
 #### Utility Tools
 - **error_handling** - Enhanced error recovery and reporting
@@ -169,6 +179,14 @@ The tools will automatically:
 
 ## Recent Improvements
 
+### Async Execution & Vector Embeddings (v3.3.0)
+- **Async execute tool**: Multi-language code execution now supports async operations with job tracking
+- **Vector embeddings**: Semantic search powered by AI embeddings with no fallbacks to text search
+- **Job management**: Complete job lifecycle system with status monitoring, progress tracking, and automatic cleanup
+- **MCP pagination**: Real-time progress monitoring with paginated result viewing
+- **30-minute timeouts**: Automatic job termination for resource management
+- **Transformers.js optimization**: Improved model loading with timeout handling and lightweight models
+
 ### Built-in Hooks Integration (v3.2.15)
 - **Eliminated separate hook startup** - Auto-linting now works automatically within tools
 - **Zero configuration** - No separate processes or setup required for hooks
@@ -252,7 +270,26 @@ Coordinate multiple tools in single operations for efficiency across different l
 ### Analysis Tools
 
 #### searchcode
-Search for code patterns across your multi-language codebase with semantic understanding.
+Search for code patterns across your multi-language codebase with semantic vector embeddings.
+
+#### execute
+Multi-language code execution with built-in async job management and progress tracking.
+
+**Key Features:**
+- **Async execution**: Long-running operations execute asynchronously with job tracking
+- **Progress monitoring**: Real-time progress updates with ETA calculations
+- **Job persistence**: Jobs are saved and can be monitored across sessions
+- **Multi-language support**: JavaScript, TypeScript, Go, Rust, Python, C, C++, Bash
+- **Automatic cleanup**: Jobs automatically terminate after 30 minutes
+
+**Usage:**
+```javascript
+// Execute code asynchronously
+execute(code="console.log('Hello world')", runtime="nodejs", async=true)
+
+// Monitor job progress (built into execute response)
+// Job management is handled automatically within the execute tool
+```
 
 #### sequentialthinking
 Structure complex thoughts systematically for better analysis.
