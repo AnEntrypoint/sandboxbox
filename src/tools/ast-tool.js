@@ -8,6 +8,7 @@ import { createIgnoreFilter } from '../core/ignore-manager.js';
 import { suppressConsoleOutput } from '../core/console-suppression.js';
 import { addExecutionStatusToResponse } from '../core/execution-state.js';
 import { parse } from '@ast-grep/napi';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,15 +42,52 @@ class ASTHelper {
   }
 
   parseCode(code) {
+    return this.safeASTOperation(() => {
+      try {
+        return parse(this.language, code);
+      } catch (error) {
+        return null;
+      }
+    }, {
+      code,
+      language: this.language,
+      operation: 'parseCode'
+    });
+  }
+
+  safeASTOperation(operation, context = {}) {
     try {
-      return parse(this.language, code);
+      return operation();
     } catch (error) {
-      return null;
+      // Handle synchronous errors gracefully
+      console.error(`AST Operation Error (${context.operation}):`, error.message);
+      return this.createErrorResponse(error, context);
     }
   }
 
+  createErrorResponse(error, context = {}) {
+    const errorInfo = {
+      error: true,
+      message: error.message,
+      operation: context.operation,
+      text: `AST Operation Error: ${context.operation} failed - ${error.message}`,
+      timestamp: new Date().toISOString()
+    };
+
+    if (context.pattern) {
+      errorInfo.pattern = context.pattern;
+      errorInfo.text += ` (Pattern: ${context.pattern})`;
+    }
+
+    if (context.operation === 'searchPattern') {
+      return [errorInfo];
+    }
+
+    return errorInfo;
+  }
+
   searchPattern(code, pattern) {
-    try {
+    return this.safeASTOperation(() => {
       // Try to fix the pattern first
       const originalPattern = pattern;
       const fixedPattern = this.fixPattern(pattern);
@@ -77,7 +115,7 @@ class ASTHelper {
 
       const rootNode = root.root();
 
-      // Use ast-grep natively - if it crashes, that's an ast-grep issue to report
+      // Use ast-grep natively with additional safety
       try {
         const matches = rootNode.findAll(fixedPattern);
         const results = matches.map(match => ({
@@ -110,15 +148,11 @@ class ASTHelper {
           text: `AST Pattern Error: ast-grep failed to process pattern "${fixedPattern}": ${astError.message}`
         }];
       }
-    } catch (error) {
-      // Report other errors to the agent
-      return [{
-        error: true,
-        message: error.message,
-        pattern: pattern,
-        text: `AST Pattern Error: ${error.message}`
-      }];
-    }
+    }, {
+      code,
+      pattern,
+      operation: 'searchPattern'
+    });
   }
 
   isInvalidPattern(pattern) {
@@ -343,63 +377,99 @@ class ASTHelper {
 }
 
 async function unifiedASTOperation(operation, options = {}) {
-  const {
-    path: targetPathParam = '.',
-    pattern,
-    replacement,
-    language = 'javascript',
-    recursive = true,
-    maxResults = 100,
-    workingDirectory = process.cwd()
-  } = options;
+  // Extract options first to avoid destructuring scope issues
+  const targetPathParam = options.path || '.';
+  const patternParam = options.pattern;
+  const replacementParam = options.replacement;
+  const language = options.language || 'javascript';
+  const recursive = options.recursive !== false;
+  const maxResults = options.maxResults || 100;
+  const workingDirectory = options.workingDirectory || process.cwd();
 
-  const helper = new ASTHelper(language);
+  return safeASTOperationWrapper(async () => {
 
-  // Check for invalid patterns before processing files
-  if (operation === 'search' || operation === 'replace') {
-    if (helper.isInvalidPattern(pattern)) {
-      return {
-        success: false,
-        results: [],
-        errors: [{
-          message: `AST Pattern Error: Pattern "${pattern}" is invalid and cannot be processed.`,
-          pattern: pattern,
-          isPatternError: true
-        }],
-        patternErrors: [{
-          message: `AST Pattern Error: Pattern "${pattern}" is invalid. Please use valid AST patterns.`,
-          pattern: pattern,
-          isPatternError: true
-        }],
-        generalErrors: [],
-        otherErrors: [],
-        totalMatches: 0,
-        totalErrors: 1,
-        pattern: pattern,
-        error: `Pattern "${pattern}" is invalid and cannot be processed`
-      };
+    const helper = new ASTHelper(language);
+
+    // Check for invalid patterns before processing files
+    if (operation === 'search' || operation === 'replace') {
+      if (helper.isInvalidPattern(patternParam)) {
+        return {
+          success: false,
+          results: [],
+          errors: [{
+            message: `AST Pattern Error: Pattern "${patternParam}" is invalid and cannot be processed.`,
+            pattern: patternParam,
+            isPatternError: true
+          }],
+          patternErrors: [{
+            message: `AST Pattern Error: Pattern "${patternParam}" is invalid. Please use valid AST patterns.`,
+            pattern: patternParam,
+            isPatternError: true
+          }],
+          generalErrors: [],
+          otherErrors: [],
+          totalMatches: 0,
+          totalErrors: 1,
+          pattern: patternParam,
+          error: `Pattern "${patternParam}" is invalid and cannot be processed`
+        };
+      }
     }
-  }
 
-  let targetPath;
-  if (path.isAbsolute(targetPathParam)) {
-    targetPath = targetPathParam;
-  } else {
-    const basePath = workingDirectory || process.cwd();
-    targetPath = path.resolve(basePath, targetPathParam);
-  }
+    let targetPath;
+    if (path.isAbsolute(targetPathParam)) {
+      targetPath = targetPathParam;
+    } else {
+      const basePath = workingDirectory || process.cwd();
+      targetPath = path.resolve(basePath, targetPathParam);
+    }
 
-  if (!existsSync(targetPath)) {
-    throw new Error(`Path not found: ${targetPath}`);
-  }
+    if (!existsSync(targetPath)) {
+      throw new Error(`Path not found: ${targetPath}`);
+    }
 
-  switch (operation) {
-    case 'search':
-      return await performSearch(helper, targetPath, pattern, recursive, maxResults);
-    case 'replace':
-      return await performReplace(helper, targetPath, pattern, replacement, recursive, true);
-    default:
-      throw new Error(`Unknown operation: ${operation}`);
+    switch (operation) {
+      case 'search':
+        return await performSearch(helper, targetPath, patternParam, recursive, maxResults);
+      case 'replace':
+        return await performReplace(helper, targetPath, patternParam, replacementParam, recursive, true);
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
+    }
+  }, {
+    operation,
+    pattern: patternParam,
+    workingDirectory
+  });
+}
+
+async function safeASTOperationWrapper(operation, context = {}) {
+  try {
+    return await operation();
+  } catch (error) {
+    console.error(`AST Operation Wrapper Error (${context.operation || 'unknown'}):`, error.message);
+
+    // Return a graceful error response instead of crashing
+    return {
+      success: false,
+      results: [],
+      errors: [{
+        message: `AST Operation Error: ${context.operation || 'unknown'} failed - ${error.message}`,
+        operation: context.operation || 'unknown',
+        isWrapperError: true
+      }],
+      patternErrors: [],
+      generalErrors: [{
+        message: error.message,
+        operation: context.operation || 'unknown'
+      }],
+      otherErrors: [],
+      totalMatches: 0,
+      totalErrors: 1,
+      pattern: context.pattern || undefined,
+      error: `AST operation failed: ${error.message}`,
+      isGracefulError: true
+    };
   }
 }
 
