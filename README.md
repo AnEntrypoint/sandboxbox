@@ -80,7 +80,7 @@ For full multi-language support, install the following CLI tools:
 ### Claude Code
 ```bash
 # Add the local server (replace /path/to with your actual path)
-claude mcp add -s user glootie "node /path/to/mcp-glootie/src/index.js"
+claude mcp add -s user glootie "npx mcp-glootie"
 ```
 
 ### Cursor
@@ -94,7 +94,6 @@ Add to your Cursor `mcpServers.json` configuration:
       "env": {},
       "disabled": false,
       "autoApprove": [
-        "begin",
         "execute",
         "searchcode",
         "ast_tool"
@@ -115,7 +114,6 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
       "env": {},
       "type": "local",
       "tools": [
-        "begin",
         "execute",
         "searchcode",
         "ast_tool"
