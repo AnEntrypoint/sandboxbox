@@ -2,6 +2,17 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 
 The aim of the current version is to provide similar turn around times and more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
+## Version
+
+**Current Version:** v3.4.13
+
+### Recent Changes (v3.4.13)
+- **Enhanced Tool Descriptions**: Added prescriptive warnings and examples to prevent common usage mistakes
+- **Improved MCP Stability**: Fixed searchPathParam error and redundant validation issues
+- **Organized Directory Structure**: Moved all tooling folders under `glootie/` for cleaner workspace
+- **Git Initialization Fix**: Corrected git config order in test runner (git init → git config)
+- **Better Error Messages**: Clear validation feedback for working directory and pattern parameters
+
 ## Features
 
 ### 🚀 Optimized Execution & Cross-Tool Status Sharing
