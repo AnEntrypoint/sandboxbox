@@ -3,10 +3,8 @@ import fs from 'fs/promises';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import os from 'os';
-import ignore from 'ignore';
 import { createIgnoreFilter, loadCustomIgnorePatterns } from '../core/ignore-manager.js';
 import { suppressConsoleOutput } from '../core/console-suppression.js';
-import { createMCPResponse, withPagination } from '../core/mcp-pagination.js';
 function isAbsolute(p) {
   return p.startsWith('/');
 }
@@ -27,7 +25,6 @@ function pathRelative(from, to) {
 }
 import { workingDirectoryContext, createToolContext, getContextSummary } from '../core/working-directory-context.js';
 import { addExecutionStatusToResponse } from '../core/execution-state.js';
-import { ToolError, ToolErrorHandler } from '../core/error-handling.js';
 import { withConnectionManagement, getGlobalConnectionManager } from '../core/connection-manager.js';
 import { withCrossToolAwareness, addToolMetadata } from '../core/cross-tool-context.js';
 function cacheSearchResult(query, results, path) {
@@ -71,10 +68,10 @@ const MAX_CACHE_SIZE = 1500;
 const INDEX_FILE = 'code_index.json';
 const VECTOR_INDEX_FILE = 'vector_index.json';
 const platformConfig = {
-  memoryLimit: platform.isARM64 ? 1024 * 1024 * 1024 : 512 * 1024 * 1024,
-  batchSize: platform.isARM64 ? 64 : 32,
-  maxConcurrency: platform.isARM64 ? 6 : 3,
-  timeout: platform.isARM64 ? 45000 : 25000
+  memoryLimit: 1024 * 1024 * 1024,
+  batchSize: 64,
+  maxConcurrency: 6,
+  timeout: 45000
 };
 let codeChunks = [];
 let embeddingExtractor = null;
@@ -679,89 +676,89 @@ export async function findSimilarFunctions(targetFunction, topK = 3) {
 function preprocessQuery(query) {
   let processedQuery = query.toLowerCase();
 
-  // Enhanced code-specific intent recognition and expansion
+  // Enhanced code-specific intent recognition and expansion - TECHNICAL IMPLEMENTATION FOCUSED
   const intentPatterns = {
-    // Component and UI patterns
-    'react': 'react component hook useeffect usestate props children jsx',
-    'component': 'component class function interface props state lifecycle',
-    'hook': 'hook useeffect usestate usecontext custom hook side effects',
-    'usestate': 'usestate state management setstate initial state update',
-    'useeffect': 'useeffect side effects cleanup dependency array mount unmount',
-    'props': 'props properties children component interface destructuring',
+    // Component and UI patterns - TECHNICAL FOCUS
+    'react': 'React.Component FunctionComponent JSX.Element useState useEffect useCallback useMemo useRef props children',
+    'component': 'interface Props<T = unknown> React.FC const function export return JSX.Element',
+    'hook': 'useState useEffect useCallback useMemo useRef customHook<T> useLayout useId useReducer',
+    'usestate': 'useState<T>(initial: T | () => T) const [state, setState] = useState',
+    'useeffect': 'useEffect(() => { return cleanup }, [dependencies]) sideEffect dependencyArray',
+    'props': 'interface Props extends React.PropsWithChildren<T> optional?: required: readonly',
 
-    // Function and logic patterns
-    'function': 'function declaration expression arrow async await parameters return',
-    'method': 'method class object prototype this call bind apply',
-    'utility': 'utility helper function shared common reusable logic',
-    'helper': 'helper function utility method shared logic',
+    // Function and logic patterns - TECHNICAL FOCUS
+    'function': 'function name<T>(params: Type): ReturnType export const arrow = async => return',
+    'method': 'public private protected static method<T>(params): Type this.bind.apply.call',
+    'utility': 'export const util = <T>(input: T): Result => utility helper shared reusable',
+    'helper': 'function helper<T>(input: T): Output type Helper = (input: T) => Result',
 
-    // Data and state patterns
-    'state': 'state management data store variable object array',
-    'data': 'data structure object array map set json',
-    'store': 'store state management context redux zustand',
-    'context': 'context provider consumer usecontext global state',
+    // Data and state patterns - TECHNICAL FOCUS
+    'state': 'useState<T> dispatch reducer action selector createSlice configureStore Provider',
+    'data': 'Array<T> Map<K,V> Set<T> Record<K,V> interface type object json parse stringify',
+    'store': 'configureStore({ reducer: {} }) createSlice({ name, initialState, reducers })',
+    'context': 'createContext<ContextType>() useContext(Context) Context.Provider value={}',
 
-    // Architecture patterns
-    'api': 'api endpoint route handler request response http rest',
-    'endpoint': 'endpoint route handler http request response',
-    'service': 'service layer business logic data access',
-    'controller': 'controller route handler request response business logic',
-    'middleware': 'middleware authentication authorization logging error handling',
+    // Architecture patterns - TECHNICAL FOCUS
+    'api': 'fetch(url, options) axios.get/post/put/delete request response headers status',
+    'endpoint': 'GET /api/users POST /api/data route handler controller service',
+    'service': 'class UserService { constructor(repo: UserRepo) async findAll(): Promise<User[]> }',
+    'controller': '@Controller() @Get("/users") async findAll(): Promise<User[]> { }',
+    'middleware': 'app.use(cors()) app.use(express.json()) authenticate(req, res, next)',
 
-    // Error and validation patterns
-    'error': 'error handling exception catch throw try validation',
-    'validation': 'validation check verify input form data schema',
-    'boundary': 'error boundary component error handling fallback ui',
-    'exception': 'exception handling throw catch error recovery',
+    // Error and validation patterns - TECHNICAL FOCUS
+    'error': 'try catch finally throw new Error(message) Promise.catch async error boundary',
+    'validation': 'zod.object({}).parse() type guard instanceof isRequired constraint',
+    'boundary': 'ErrorBoundary getDerivedStateFromError componentDidCatch fallback UI Component',
+    'exception': 'Exception Error TypeError ReferenceError SyntaxError catch throw finally',
 
-    // Performance and optimization patterns
-    'performance': 'performance optimization memoization caching efficient fast',
-    'optimization': 'optimization performance improve efficient fast algorithm',
-    'cache': 'cache memoization storage retrieval performance optimization',
-    'memo': 'memo memoization optimization performance react component',
+    // Performance and optimization patterns - TECHNICAL FOCUS
+    'performance': 'memo useMemo useCallback React.memo memoization cache key optimization',
+    'optimization': 'debounce throttle virtualization lazy loading suspense fallback useMemoKey',
+    'cache': 'cacheKey storage localStorage sessionStorage WeakMap memoization strategy React.cache',
+    'memo': 'memo<T>(Component: React.FC<T>) useMemo<T>(callback, deps) useCallback',
 
-    // Code quality patterns
-    'hardcoded': 'hardcoded string literal magic number constant value configuration',
-    'magic': 'magic number hardcoded constant literal value configuration',
-    'duplicate': 'duplicate code repeated logic copy paste refactor extract',
-    'refactor': 'refactor improve code quality structure maintainability',
+    // Code quality patterns - TECHNICAL FOCUS
+    'hardcoded': 'process.env.NODE_ENV const CONFIG = {} enum Values string literal magic number',
+    'magic': 'MAGIC_NUMBER const TIMEOUT = 5000 enum Status type StatusCode DRY principle',
+    'duplicate': 'DRY extract helper function abstract to utility reuse compose pattern',
+    'refactor': 'extract method inline variable rename signature change type improve maintainability',
 
-    // Testing patterns
-    'test': 'test unit integration spec mock spy expect assert',
-    'spec': 'spec test specification validation unit integration',
-    'mock': 'mock spy stub test double simulation',
+    // Testing patterns - TECHNICAL FOCUS
+    'test': 'describe() it() expect() jest.fn() vi.fn() mockReturnValue mockResolvedValue',
+    'spec': 'specification test suite beforeEach afterEach cleanup mock spy assertion expect',
+    'mock': 'jest.mock() vi.mock() mockImplementation mockImplementationOnce spyOn',
 
-    // Configuration and patterns
-    'config': 'configuration settings options parameters environment',
-    'setting': 'setting configuration option parameter value',
-    'pattern': 'pattern design structure architecture organization',
+    // Configuration and patterns - TECHNICAL FOCUS
+    'config': 'process.env config.env vite.config.ts tailwind.config.ts tsconfig.json package.json',
+    'setting': 'const settings = { key: value } type Settings = {} interface Config',
+    'pattern': 'design pattern singleton factory observer strategy decorator adapter composite',
 
-    // Language specific patterns
-    'typescript': 'typescript type interface enum generic union intersection',
-    'javascript': 'javascript es6+ async await promise destructuring modules',
-    'python': 'python class method decorator generator comprehension',
-    'go': 'go struct interface method channel goroutine defer',
-    'rust': 'rust struct trait enum lifetime ownership borrowing',
+    // Language specific patterns - TECHNICAL FOCUS
+    'typescript': 'interface type enum generic <T> extends implements readonly ? : utility types',
+    'javascript': 'async await => ...rest optional chaining ?. nullish coalescing ?? Promise',
+    'python': '@property def __init__ self class method decorator generator yield async def',
+    'go': 'func (r *Receiver) method() error struct interface channel make <- go defer',
+    'rust': 'fn main() -> Result<(), Error> struct impl trait lifetime mut let match',
 
-    // File and module patterns
-    'import': 'import require module package dependency',
-    'export': 'export default named module function class',
-    'module': 'module package import export dependency',
+    // File and module patterns - TECHNICAL FOCUS
+    'import': 'import type { } from import * as import default export { named } require',
+    'export': 'export default export const export type export interface export function module.exports',
+    'module': 'module.exports __esModule namespace package.json main index.ts barrel export',
 
-    // Async patterns
-    'async': 'async await promise then callback resolve reject',
-    'promise': 'promise async await then resolve reject catch',
-    'await': 'await async promise then resolve reject catch',
+    // Async patterns - TECHNICAL FOCUS
+    'async': 'async function await Promise.all Promise.race Promise.resolve() Promise.reject()',
+    'promise': 'new Promise((resolve, reject) =>) .then() .catch() .finally() async/await',
+    'await': 'await result try { await asyncOperation() } catch (error) { handle() }',
 
-    // Database patterns
-    'database': 'database sql query model schema table',
-    'query': 'query sql database search filter select',
-    'model': 'model data schema structure database',
+    // Database patterns - TECHNICAL FOCUS
+    'database': 'SELECT INSERT UPDATE DELETE WHERE JOIN GROUP BY ORDER BY LIMIT',
+    'query': 'SELECT * FROM table WHERE condition = value ORDER BY column DESC LIMIT 10',
+    'model': 'interface User { id: number; email: string; createdAt: Date; } type UserModel',
 
-    // Security patterns
-    'security': 'security validation input sanitization authentication',
-    'validation': 'validation input sanitization verification check',
-    'sanitization': 'sanitization input security validation cleaning'
+    // Security patterns - TECHNICAL FOCUS
+    'security': 'sanitize(input) escapeHtml(xss) validation csrfToken authenticate authorize',
+    'validation': 'zod.parse(input) typeof value === "string" instance validation schema',
+    'sanitization': 'DOMPurify.sanitize(input) escape(input) encodeURI decodeURI encodeURIComponent'
   };
 
   // Apply single-word patterns
@@ -771,23 +768,34 @@ function preprocessQuery(query) {
     }
   }
 
-  // Enhanced multi-word intent patterns
+  // Enhanced multi-word intent patterns - TECHNICAL IMPLEMENTATION FOCUSED
   const multiWordIntents = {
-    'react components': 'react component hook useeffect usestate props jsx children',
-    'utility functions': 'utility helper function shared common reusable logic',
-    'error handling': 'error handling exception catch throw try validation recovery',
-    'state management': 'state management data store variable context redux zustand',
-    'performance optimization': 'performance optimization memoization caching efficient algorithm',
-    'input validation': 'input validation sanitization verification security check form',
-    'code organization': 'code organization structure architecture modules patterns design',
-    'api endpoints': 'api endpoint route handler request response http rest',
-    'data structures': 'data structure object array map set list dictionary',
-    'error boundaries': 'error boundary component error handling fallback ui react',
-    'async operations': 'async await promise then callback resolve reject handling',
-    'testing strategies': 'test unit integration spec mock spy expect assert validation',
-    'configuration management': 'configuration settings options parameters environment config',
-    'security measures': 'security validation input sanitization authentication authorization',
-    'memory management': 'memory optimization caching cleanup garbage collection performance'
+    'react components': 'React.Component FunctionComponent interface props children ReactNode useState useEffect useCallback useMemo useRef',
+    'utility functions': 'function export const return parameter type interface generic utility helper',
+    'error handling': 'try catch throw Error TypeError finally Promise.catch async error boundary',
+    'state management': 'useState useState dispatch reducer action selector createSlice configureStore',
+    'performance optimization': 'memo useMemo useCallback React.memo memoization cache optimization useMemoKey',
+    'input validation': 'zod schema validate type guard interface constraint required optional',
+    'code organization': 'export import module namespace type interface class struct function',
+    'api endpoints': 'fetch axios request response get post put delete endpoint url http',
+    'data structures': 'Array<T> Map<K,V> Set<T> Record<K,V> interface type object array map set',
+    'error boundaries': 'ErrorBoundary getDerivedStateFromError componentDidCatch fallback error',
+    'async operations': 'async await Promise.all Promise.race Promise.resolve Promise.reject then catch',
+    'testing strategies': 'describe it expect jest.fn vi.fn mock spyOn beforeEach afterEach',
+    'configuration management': 'config.env process.env Config interface type const enum',
+    'security measures': 'xss csrf sanitization validation escape encode decode authentication authorization',
+    'memory management': 'cleanup useEffect return dispose WeakMap WeakRef finalize garbage collection',
+    // Technical library patterns
+    'tanstack table': 'useTable ColumnDef ColumnAccessor sorting filtering pagination flexRender',
+    'tanstack router': 'createRouter Route Link useNavigate useSearch createFileRoute',
+    'tanstack query': 'useQuery useMutation useQueryClient QueryClient staleTime refetch',
+    'recharts visualization': 'BarChart LineChart PieChart XAxis YAxis Tooltip Legend ResponsiveContainer dataKey',
+    'shadcn components': 'Button Input Card Dialog Select Table DataTable Command Badge',
+    'radix ui': 'Root Trigger Content Item Label Value Separator Checkbox RadioGroup',
+    'tailwind css': 'className flex gap px py rounded border shadow hover focus disabled',
+    'typescript types': 'interface type enum generic union intersection Record Partial Required Omit Pick',
+    'react hooks': 'useState useEffect useCallback useMemo useRef useLayout useId useReducer',
+    'form handling': 'handleSubmit register control watch formState react-hook-form zod resolver'
   };
 
   // Apply multi-word patterns
