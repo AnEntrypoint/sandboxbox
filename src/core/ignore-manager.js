@@ -211,13 +211,14 @@ export function createFileFilter(rootDir, customPatterns = [], options = {}) {
   } = options;
   const ignoreFilter = createIgnoreFilter(rootDir, customPatterns, ignoreOptions);
   const extensionFilter = createExtensionFilter(extensions);
-  return {
+  const fileFilter = {
     ...ignoreFilter,
     shouldProcess: (filePath) => {
       return !ignoreFilter.ignores(filePath) && extensionFilter(filePath);
     },
-    filterFiles: (files) => files.filter(file => ignoreFilter.shouldProcess(file))
+    filterFiles: (files) => files.filter(file => fileFilter.shouldProcess(file))
   };
+  return fileFilter;
 }
 export function getDefaultIgnorePatterns() {
   return CORE_IGNORE_PATTERNS;

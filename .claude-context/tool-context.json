@@ -1,82 +1,15 @@
 {
   "version": "1.0",
-  "workingDirectory": ".",
+  "workingDirectory": "/config/workspace/mcp-repl",
   "data": {
     "toolUsage": {
-      "execute": {
-        "count": 102,
-        "lastUsed": 1758786856993,
-        "files": [
-          "src/index.js",
-          "src/core/mcp-tools.js",
-          "src/index.js",
-          "src/core/mcp-tools.js",
-          "src/index.js",
-          "src/core/mcp-tools.js"
-        ]
-      },
       "searchcode": {
-        "count": 48,
-        "lastUsed": 1758786856862,
-        "files": [
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-optimization-baseline.json",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-ui-generation-baseline.json",
-          "results/claude-steps-component-analysis-baseline.json",
-          "results/claude-steps-component-analysis-baseline.json",
-          "results/claude-steps-component-analysis-mcp.json",
-          "results/claude-steps-ui-generation-baseline.json",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-optimization-baseline.json",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-ui-generation-baseline.json",
-          "results/claude-steps-component-analysis-baseline.json",
-          "results/claude-steps-component-analysis-baseline.json",
-          "results/claude-steps-component-analysis-mcp.json",
-          "results/claude-steps-ui-generation-baseline.json",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/ast-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-ui-generation-baseline.json",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-optimization-baseline.json",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-ui-generation-baseline.json",
-          "results/claude-steps-component-analysis-baseline.json",
-          "results/claude-steps-component-analysis-baseline.json",
-          "results/claude-steps-component-analysis-mcp.json",
-          "results/claude-steps-ui-generation-baseline.json",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/ast-tool.js",
-          "src/tools/vector-tool.js",
-          "src/tools/vector-search-async.js",
-          "src/tools/vector-tool.js",
-          "results/claude-steps-ui-generation-baseline.json",
-          "src/tools/vector-tool.js"
-        ]
-      },
-      "ast_tool": {
-        "count": 92,
-        "lastUsed": 1758787969176,
+        "count": 11,
+        "lastUsed": 1758867095696,
         "files": [
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
+          "/config/workspace/mcp-repl/temp-shadcn-admin-check/eslint.config.js",
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
@@ -87,261 +20,111 @@
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
           "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-          "/config/workspace/mcp-repl/test-error-handling.js",
-          "/config/workspace/mcp-repl/test-error-handling.js",
-          "/config/workspace/mcp-repl/test-error-handling.js",
-          "/config/workspace/mcp-repl/test-error-handling.js",
-          "/config/workspace/mcp-repl/test-patterns.js",
-          "/config/workspace/mcp-repl/test-patterns.js",
-          "/config/workspace/mcp-repl/test-patterns.js",
-          "/config/workspace/mcp-repl/test-patterns.js",
-          "/config/workspace/mcp-repl/test-patterns.js"
+          "/config/workspace/mcp-repl/src/tools/vector-tool.js"
         ]
-      },
-      "async_search": {
-        "count": 1,
-        "lastUsed": 1758781840530,
-        "files": []
       }
     },
     "insights": [
-      "Complex pattern search - results show structural code relationships",
-      "Console operation detected - consider removing for production",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 13 matches for pattern: \"function $FUNC($ARGS) { $BODY }\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "AST search found 512 matches for pattern: \"const $NAME = $VALUE\"",
-      "Pattern found in 17 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Pattern spans 2 file types: tsx, js",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 0 matches for pattern: \"onClick={() => $$$}\"",
-      "Complex pattern search - results show structural code relationships",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 0 matches for pattern: \"{$$$}\"",
-      "Complex pattern search - results show structural code relationships",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 0 matches for pattern: \"\"",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 66 matches for pattern: \"console.log($$$)\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Console operation detected - consider removing for production",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 13 matches for pattern: \"function $FUNC($ARGS) { $BODY }\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "AST search found 517 matches for pattern: \"const $NAME = $VALUE\"",
-      "Pattern found in 18 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Pattern spans 2 file types: tsx, js",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 0 matches for pattern: \"onClick={() => $$$}\"",
-      "Complex pattern search - results show structural code relationships",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 0 matches for pattern: \"{$$$}\"",
-      "Complex pattern search - results show structural code relationships",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 0 matches for pattern: \"\"",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 61 matches for pattern: \"console.log($ARG)\"",
-      "Pattern found in 5 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Console operation detected - consider removing for production",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 13 matches for pattern: \"function $FUNC($ARG) { $BODY }\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "AST search found 517 matches for pattern: \"const $NAME = $VALUE\"",
-      "Pattern found in 18 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Pattern spans 2 file types: tsx, js",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 0 matches for pattern: \"onClick={() => $$$}\"",
-      "Complex pattern search - results show structural code relationships",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 0 matches for pattern: \"{$$$}\"",
-      "Complex pattern search - results show structural code relationships",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 0 matches for pattern: \"\"",
-      "No matches found - pattern may be too specific or not present",
-      "AST search found 61 matches for pattern: \"console.log($ARG)\"",
-      "Pattern found in 5 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Console operation detected - consider removing for production",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 13 matches for pattern: \"function $FUNC($ARG) { $BODY }\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "AST search found 517 matches for pattern: \"const $NAME = $VALUE\"",
-      "Pattern found in 18 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Pattern spans 2 file types: tsx, js",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 61 matches for pattern: \"console.log($ARG)\"",
-      "Pattern found in 5 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Console operation detected - consider removing for production",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 13 matches for pattern: \"function $FUNC($ARG) { $BODY }\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "AST search found 519 matches for pattern: \"const $NAME = $VALUE\"",
-      "Pattern found in 18 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Pattern spans 2 file types: tsx, js",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 61 matches for pattern: \"console.log($ARG)\"",
-      "Pattern found in 5 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Console operation detected - consider removing for production",
-      "Many matches found - consider more specific pattern or review scope",
-      "AST search found 13 matches for pattern: \"function $FUNC($ARG) { $BODY }\"",
-      "Pattern found in 6 different files",
-      "Complex pattern search - results show structural code relationships",
-      "AST search found 519 matches for pattern: \"const $NAME = $VALUE\"",
-      "Pattern found in 18 different files",
-      "Complex pattern search - results show structural code relationships",
-      "Pattern spans 2 file types: tsx, js",
-      "Many matches found - consider more specific pattern or review scope"
+      "Found 0 results for query: \"@tanstack/react-table components and table usage\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"recharts visualization components and charts\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"TanStack Router routes and navigation components\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"@tanstack/react-table components and table usage\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"@tanstack/react-table components and table usage\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 3 results for query: \"tanstack\"",
+      "Results span 2 different files",
+      "High relevance results (avg score: 0.80)",
+      "3 high-quality matches (score > 0.6)",
+      "Best match: /config/workspace/mcp-repl/src/tools/vector-tool.js (score: 0.8)",
+      "Found 0 results for query: \"react table components\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 1 results for query: \"react-table\"",
+      "High relevance results (avg score: 0.80)",
+      "1 high-quality matches (score > 0.6)",
+      "Best match: /config/workspace/mcp-repl/src/tools/vector-tool.js (score: 0.8)",
+      "Found 0 results for query: \"recharts components\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 0 results for query: \"router navigation\"",
+      "Low relevance results (avg score: NaN) - consider refining query",
+      "No results found - try broader search terms or different keywords",
+      "Found 10 results for query: \"component\"",
+      "High relevance results (avg score: 0.80)",
+      "10 high-quality matches (score > 0.6)",
+      "Best match: /config/workspace/mcp-repl/src/tools/vector-tool.js (score: 0.8)"
     ]
   },
   "metadata": {
-    "totalToolCalls": 243,
+    "totalToolCalls": 11,
     "commonPatterns": [
       {
-        "pattern": "context-aware",
-        "count": 2,
-        "lastUsed": 1758646418619
+        "pattern": "@tanstack/react-table components and table usage",
+        "count": 3,
+        "lastUsed": 1758866693027
       },
       {
-        "pattern": "file-based",
-        "count": 2,
-        "lastUsed": 1758646418619
-      },
-      {
-        "pattern": "semantic search",
-        "count": 2,
-        "lastUsed": 1758646418621
-      },
-      {
-        "pattern": "code analysis",
-        "count": 2,
-        "lastUsed": 1758646418621
-      },
-      {
-        "pattern": "AST operations",
-        "count": 2,
-        "lastUsed": 1758646418622
-      },
-      {
-        "pattern": "code transformation",
-        "count": 2,
-        "lastUsed": 1758646418622
-      },
-      {
-        "pattern": "context testing",
+        "pattern": "recharts visualization components and charts",
         "count": 1,
-        "lastUsed": 1758646755678
+        "lastUsed": 1758866274046
       },
       {
-        "pattern": "summary generation",
+        "pattern": "TanStack Router routes and navigation components",
         "count": 1,
-        "lastUsed": 1758646755678
+        "lastUsed": 1758866304565
       },
       {
-        "pattern": "working directory context management patterns",
+        "pattern": "tanstack",
         "count": 1,
-        "lastUsed": 1758646832538
+        "lastUsed": 1758866842261
       },
       {
-        "pattern": "context inheritance session tool calls",
+        "pattern": "react table components",
         "count": 1,
-        "lastUsed": 1758646970760
+        "lastUsed": 1758866887232
+      },
+      {
+        "pattern": "react-table",
+        "count": 1,
+        "lastUsed": 1758866948220
+      },
+      {
+        "pattern": "recharts components",
+        "count": 1,
+        "lastUsed": 1758866996959
+      },
+      {
+        "pattern": "router navigation",
+        "count": 1,
+        "lastUsed": 1758867034251
+      },
+      {
+        "pattern": "component",
+        "count": 1,
+        "lastUsed": 1758867095696
       }
     ],
     "preferredFiles": [
       {
         "path": "/config/workspace/mcp-repl/src/tools/vector-tool.js",
-        "count": 1925,
-        "lastUsed": 1758787969177
+        "count": 13,
+        "lastUsed": 1758867095696
       },
       {
-        "path": "/config/workspace/mcp-repl/src/tools/ast-tool.js",
-        "count": 757,
-        "lastUsed": 1758787969176
-      },
-      {
-        "path": "/config/workspace/mcp-repl/src/index.js",
-        "count": 703,
-        "lastUsed": 1758787969176
-      },
-      {
-        "path": "/config/workspace/mcp-repl/src/tools/executor-tool.js",
-        "count": 663,
-        "lastUsed": 1758787969177
-      },
-      {
-        "path": "/config/workspace/mcp-repl/test-ast-error-reporting.js",
-        "count": 408,
-        "lastUsed": 1758787969177
-      },
-      {
-        "path": "/config/workspace/mcp-repl/src/core/working-directory-context.js",
-        "count": 330,
-        "lastUsed": 1758787969176
-      },
-      {
-        "path": "/config/workspace/mcp-repl/src/core/utilities.js",
-        "count": 311,
-        "lastUsed": 1758787969176
-      },
-      {
-        "path": "/config/workspace/mcp-repl/src/core/ignore-manager.js",
-        "count": 311,
-        "lastUsed": 1758787969176
-      },
-      {
-        "path": "/config/workspace/mcp-repl/test-init-context.js",
-        "count": 200,
-        "lastUsed": 1758732613557
-      },
-      {
-        "path": "/config/workspace/mcp-repl/src/core/console-suppression.js",
-        "count": 139,
-        "lastUsed": 1758787969176
+        "path": "/config/workspace/mcp-repl/temp-shadcn-admin-check/eslint.config.js",
+        "count": 1,
+        "lastUsed": 1758866842261
       }
     ],
-    "lastModified": 1758787969178
+    "lastModified": 1758867095696
   }
 }

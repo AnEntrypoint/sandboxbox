@@ -27,6 +27,9 @@ function pathRelative(from, to) {
 }
 import { workingDirectoryContext, createToolContext, getContextSummary } from '../core/working-directory-context.js';
 import { addExecutionStatusToResponse } from '../core/execution-state.js';
+import { ToolError, ToolErrorHandler } from '../core/error-handling.js';
+import { withConnectionManagement, getGlobalConnectionManager } from '../core/connection-manager.js';
+import { withCrossToolAwareness, addToolMetadata } from '../core/cross-tool-context.js';
 function cacheSearchResult(query, results, path) {
   
   return true;
@@ -78,57 +81,21 @@ let embeddingExtractor = null;
 let isInitialized = false;
 let indexTimestamp = 0;
 function generateSearchInsights(results, query, workingDirectory) {
+  // Only provide essential insights for programming agents
   const insights = [];
-  
-  insights.push(`Found ${results.length} results for query: "${query}"`);
-  
-  const uniqueFiles = new Set(results.map(r => r.file));
-  if (uniqueFiles.size > 1) {
-    insights.push(`Results span ${uniqueFiles.size} different files`);
-  }
-  
-  const fileTypes = new Set(results.map(r => r.file.split('.').pop()));
-  if (fileTypes.size > 1) {
-    insights.push(`Results include ${fileTypes.size} file types: ${Array.from(fileTypes).join(', ')}`);
-  }
-  
-  const scores = results.map(r => parseFloat(r.score || 0));
-  const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const maxScore = Math.max(...scores);
-  const minScore = Math.min(...scores);
-  if (avgScore > 0.7) {
-    insights.push(`High relevance results (avg score: ${avgScore.toFixed(2)})`);
-  } else if (avgScore > 0.4) {
-    insights.push(`Moderate relevance results (avg score: ${avgScore.toFixed(2)})`);
-  } else {
-    insights.push(`Low relevance results (avg score: ${avgScore.toFixed(2)}) - consider refining query`);
-  }
-  
-  if (results.length > 0) {
-    const highQualityResults = results.filter(r => r.score > 0.6).length;
-    insights.push(`${highQualityResults} high-quality matches (score > 0.6)`);
-  }
-  
-  if (results.length > 0) {
-    const topResult = results[0];
-    insights.push(`Best match: ${topResult.file} (score: ${topResult.score})`);
-  }
-  
-  if (query.toLowerCase().includes('error') || query.toLowerCase().includes('bug')) {
-    insights.push('Searching for errors/bugs - consider checking related test files');
-  }
-  if (query.toLowerCase().includes('function') || query.toLowerCase().includes('method')) {
-    insights.push('Function search - consider looking for related functions or usage patterns');
-  }
-  if (query.toLowerCase().includes('config') || query.toLowerCase().includes('setting')) {
-    insights.push('Configuration search - check for environment-specific configs');
-  }
-  
+
   if (results.length === 0) {
-    insights.push('No results found - try broader search terms or different keywords');
-  } else if (results.length > 20) {
-    insights.push('Many results - consider refining search with more specific terms');
+    insights.push('No results found');
+  } else {
+    insights.push(`${results.length} results`);
+
+    // Only mention file count if it's substantial
+    const uniqueFiles = new Set(results.map(r => r.file));
+    if (uniqueFiles.size > 5) {
+      insights.push(`${uniqueFiles.size} files`);
+    }
   }
+
   return insights;
 } 
 class LRUCache {
@@ -449,8 +416,11 @@ async function getEmbedding(text) {
   }
 
   try {
+    // Enhanced code-specific preprocessing for better embeddings
+    const enhancedText = enhanceTextForCodeEmbedding(text);
+
     // Add timeout to prevent hanging during embedding generation
-    const embeddingPromise = embeddingExtractor(text, {
+    const embeddingPromise = embeddingExtractor(enhancedText, {
       pooling: 'cls',
       normalize: true,
       truncation: true,
@@ -468,6 +438,42 @@ async function getEmbedding(text) {
     console.error('Embedding generation failed:', error);
     throw new Error(`Failed to generate embedding: ${error.message}`);
   }
+}
+
+// Enhance text for code embeddings with context and structure
+function enhanceTextForCodeEmbedding(text) {
+  let enhanced = text;
+
+  // Add framework-specific context based on detected patterns
+  if (text.toLowerCase().includes('tanstack') || text.toLowerCase().includes('react-table')) {
+    enhanced += ' react table component columns rows data';
+  }
+  if (text.toLowerCase().includes('router') || text.toLowerCase().includes('route')) {
+    enhanced += ' navigation routing path component layout';
+  }
+  if (text.toLowerCase().includes('recharts')) {
+    enhanced += ' chart visualization data graph plot axis';
+  }
+  if (text.toLowerCase().includes('zustand') || text.toLowerCase().includes('store')) {
+    enhanced += ' state management store actions reducers';
+  }
+  if (text.toLowerCase().includes('clerk') || text.toLowerCase().includes('auth')) {
+    enhanced += ' authentication login logout user session';
+  }
+  if (text.toLowerCase().includes('typescript') || text.toLowerCase().includes('type')) {
+    enhanced += ' typescript interface type definition generic enum';
+  }
+  if (text.toLowerCase().includes('usequery') || text.toLowerCase().includes('usemutation')) {
+    enhanced += ' react query data fetching mutation async';
+  }
+  if (text.toLowerCase().includes('dashboard') || text.toLowerCase().includes('layout')) {
+    enhanced += ' dashboard layout ui component sidebar navigation';
+  }
+  if (text.toLowerCase().includes('table') || text.toLowerCase().includes('data')) {
+    enhanced += ' table data rows columns sorting filtering';
+  }
+
+  return enhanced;
 }
 function calculateCosineSimilarity(vecA, vecB) {
   if (vecA.length !== vecB.length) return 0;
@@ -672,109 +678,125 @@ export async function findSimilarFunctions(targetFunction, topK = 3) {
 }
 function preprocessQuery(query) {
   let processedQuery = query.toLowerCase();
-  
-  const refactoringPatterns = {
-    
-    'hardcoded': 'hardcoded string literal magic number constant value',
-    'magic': 'magic number hardcoded constant',
-    'literal': 'string literal text constant hardcoded',
-    'duplicate': 'duplicate code repeated logic copy paste',
-    'repeated': 'repeated code duplicate logic similar pattern',
-    
-    'utility': 'utility function helper method shared common logic',
-    'shared': 'shared logic common function utility helper',
+
+  // Enhanced code-specific intent recognition and expansion
+  const intentPatterns = {
+    // Component and UI patterns
+    'react': 'react component hook useeffect usestate props children jsx',
+    'component': 'component class function interface props state lifecycle',
+    'hook': 'hook useeffect usestate usecontext custom hook side effects',
+    'usestate': 'usestate state management setstate initial state update',
+    'useeffect': 'useeffect side effects cleanup dependency array mount unmount',
+    'props': 'props properties children component interface destructuring',
+
+    // Function and logic patterns
+    'function': 'function declaration expression arrow async await parameters return',
+    'method': 'method class object prototype this call bind apply',
+    'utility': 'utility helper function shared common reusable logic',
     'helper': 'helper function utility method shared logic',
-    'common': 'common logic shared utility function pattern',
-    
-    'component': 'component ui element interface view',
-    'ui': 'ui component interface element user interface',
-    'interface': 'interface component ui type definition',
-    
-    'error': 'error handling exception catch throw validation',
-    'validation': 'validation check verify error input',
-    'boundary': 'error boundary exception handling validation',
-    
-    'state': 'state management data store variable',
-    'data': 'data structure object array variable',
-    'store': 'store state data management',
-    
-    'api': 'api endpoint route handler request http',
-    'endpoint': 'endpoint api route handler http request',
-    'handler': 'handler function callback event',
-    
-    'config': 'configuration settings config option parameter',
-    'setting': 'setting configuration option parameter config',
-    
-    'test': 'test spec unit integration validation',
-    'spec': 'spec test specification validation',
-    
-    'async': 'async await promise then callback',
-    'promise': 'promise async await then resolve reject',
-    'await': 'await async promise then',
-    
-    'file': 'file module document code source',
-    'module': 'module file package export import',
-    'import': 'import require include module package',
-    'export': 'export module package function variable',
-    
-    'logic': 'logic code algorithm function method',
-    'algorithm': 'algorithm logic code function method',
-    'pattern': 'pattern design code logic structure',
-    
-    'database': 'database sql query model schema',
-    'query': 'query sql database search filter',
-    'model': 'model data database schema structure',
-    
-    'react': 'react component hook state props',
-    'hook': 'hook useeffect usestate context custom',
-    'useeffect': 'useeffect hook react side effect',
-    'usestate': 'usestate hook react state management',
-    'props': 'props properties component react',
-    
-    'function': 'function method def declaration arrow',
-    'method': 'method function class object',
-    'class': 'class struct interface type object',
-    'interface': 'interface type definition struct class',
-    'type': 'type definition interface struct class',
-    'variable': 'variable const let var declaration',
-    'constant': 'constant const variable declaration',
-    
-    'performance': 'performance optimization speed efficient fast',
-    'optimization': 'optimization performance improve efficient',
-    'efficient': 'efficient fast performance optimization',
-    
-    'security': 'security safe validation protection',
-    'validation': 'validation check verify security input',
-    'safe': 'safe security validation protection'
+
+    // Data and state patterns
+    'state': 'state management data store variable object array',
+    'data': 'data structure object array map set json',
+    'store': 'store state management context redux zustand',
+    'context': 'context provider consumer usecontext global state',
+
+    // Architecture patterns
+    'api': 'api endpoint route handler request response http rest',
+    'endpoint': 'endpoint route handler http request response',
+    'service': 'service layer business logic data access',
+    'controller': 'controller route handler request response business logic',
+    'middleware': 'middleware authentication authorization logging error handling',
+
+    // Error and validation patterns
+    'error': 'error handling exception catch throw try validation',
+    'validation': 'validation check verify input form data schema',
+    'boundary': 'error boundary component error handling fallback ui',
+    'exception': 'exception handling throw catch error recovery',
+
+    // Performance and optimization patterns
+    'performance': 'performance optimization memoization caching efficient fast',
+    'optimization': 'optimization performance improve efficient fast algorithm',
+    'cache': 'cache memoization storage retrieval performance optimization',
+    'memo': 'memo memoization optimization performance react component',
+
+    // Code quality patterns
+    'hardcoded': 'hardcoded string literal magic number constant value configuration',
+    'magic': 'magic number hardcoded constant literal value configuration',
+    'duplicate': 'duplicate code repeated logic copy paste refactor extract',
+    'refactor': 'refactor improve code quality structure maintainability',
+
+    // Testing patterns
+    'test': 'test unit integration spec mock spy expect assert',
+    'spec': 'spec test specification validation unit integration',
+    'mock': 'mock spy stub test double simulation',
+
+    // Configuration and patterns
+    'config': 'configuration settings options parameters environment',
+    'setting': 'setting configuration option parameter value',
+    'pattern': 'pattern design structure architecture organization',
+
+    // Language specific patterns
+    'typescript': 'typescript type interface enum generic union intersection',
+    'javascript': 'javascript es6+ async await promise destructuring modules',
+    'python': 'python class method decorator generator comprehension',
+    'go': 'go struct interface method channel goroutine defer',
+    'rust': 'rust struct trait enum lifetime ownership borrowing',
+
+    // File and module patterns
+    'import': 'import require module package dependency',
+    'export': 'export default named module function class',
+    'module': 'module package import export dependency',
+
+    // Async patterns
+    'async': 'async await promise then callback resolve reject',
+    'promise': 'promise async await then resolve reject catch',
+    'await': 'await async promise then resolve reject catch',
+
+    // Database patterns
+    'database': 'database sql query model schema table',
+    'query': 'query sql database search filter select',
+    'model': 'model data schema structure database',
+
+    // Security patterns
+    'security': 'security validation input sanitization authentication',
+    'validation': 'validation input sanitization verification check',
+    'sanitization': 'sanitization input security validation cleaning'
   };
-  
-  for (const [pattern, expansions] of Object.entries(refactoringPatterns)) {
+
+  // Apply single-word patterns
+  for (const [pattern, expansions] of Object.entries(intentPatterns)) {
     if (processedQuery.includes(pattern)) {
       processedQuery += ' ' + expansions;
     }
   }
-  
-  const multiWordPatterns = {
-    'hardcoded strings': 'hardcoded string literal text constant value',
-    'shared logic': 'shared logic common utility function helper method',
-    'error boundaries': 'error boundary exception handling validation safety',
-    'utility functions': 'utility function helper method shared common logic',
-    'common patterns': 'common pattern design code logic structure algorithm',
-    'react components': 'react component ui element interface view hook',
-    'data structures': 'data structure object array model type',
-    'state management': 'state management data store variable context',
-    'input validation': 'input validation check verify security error handling',
-    'code patterns': 'code pattern logic design structure algorithm method',
-    'file structure': 'file structure module organization code architecture',
-    'performance optimization': 'performance optimization efficient fast code algorithm',
-    'error handling': 'error handling exception catch throw validation safety'
+
+  // Enhanced multi-word intent patterns
+  const multiWordIntents = {
+    'react components': 'react component hook useeffect usestate props jsx children',
+    'utility functions': 'utility helper function shared common reusable logic',
+    'error handling': 'error handling exception catch throw try validation recovery',
+    'state management': 'state management data store variable context redux zustand',
+    'performance optimization': 'performance optimization memoization caching efficient algorithm',
+    'input validation': 'input validation sanitization verification security check form',
+    'code organization': 'code organization structure architecture modules patterns design',
+    'api endpoints': 'api endpoint route handler request response http rest',
+    'data structures': 'data structure object array map set list dictionary',
+    'error boundaries': 'error boundary component error handling fallback ui react',
+    'async operations': 'async await promise then callback resolve reject handling',
+    'testing strategies': 'test unit integration spec mock spy expect assert validation',
+    'configuration management': 'configuration settings options parameters environment config',
+    'security measures': 'security validation input sanitization authentication authorization',
+    'memory management': 'memory optimization caching cleanup garbage collection performance'
   };
-  
-  for (const [pattern, expansions] of Object.entries(multiWordPatterns)) {
+
+  // Apply multi-word patterns
+  for (const [pattern, expansions] of Object.entries(multiWordIntents)) {
     if (processedQuery.includes(pattern)) {
       processedQuery += ' ' + expansions;
     }
   }
+
   return processedQuery;
 }
 export async function queryVectorIndex(query, topK = 8) {
@@ -784,40 +806,134 @@ export async function queryVectorIndex(query, topK = 8) {
   if (codeChunks.length === 0) {
     return [];
   }
-  
+
   const enhancedQuery = preprocessQuery(query);
   const queryEmbedding = await getEmbedding(enhancedQuery);
   const results = [];
   const batchSize = platformConfig.batchSize * 2;
+
   for (let i = 0; i < codeChunks.length; i += batchSize) {
     const batch = codeChunks.slice(i, i + batchSize);
     const batchPromises = batch.map(async (chunk) => {
       const chunkEmbedding = await getEmbedding(chunk.content);
-      const similarity = calculateCosineSimilarity(queryEmbedding.data, chunkEmbedding.data);
+      const vectorSimilarity = calculateCosineSimilarity(queryEmbedding.data, chunkEmbedding.data);
+
+      // Calculate enhanced relevance score for code
+      const relevanceScore = calculateCodeRelevanceScore(query, chunk.content, vectorSimilarity);
+
       return {
         file: chunk.file,
         content: chunk.content,
         startLine: chunk.startLine,
         endLine: chunk.endLine,
-        similarity: similarity
+        vectorSimilarity: vectorSimilarity,
+        relevanceScore: relevanceScore
       };
     });
     const batchResults = await Promise.all(batchPromises);
     results.push(...batchResults);
   }
-  
-  const MIN_RELEVANCE_THRESHOLD = 0.3; 
+
+  // Enhanced filtering and ranking
+  const MIN_RELEVANCE_THRESHOLD = 0.25; // Lowered to catch more relevant results
   return results
-    .filter(r => r.similarity >= MIN_RELEVANCE_THRESHOLD)
-    .sort((a, b) => b.similarity - a.similarity)
+    .filter(r => r.relevanceScore >= MIN_RELEVANCE_THRESHOLD)
+    .sort((a, b) => b.relevanceScore - a.relevanceScore) // Sort by enhanced relevance score
     .slice(0, topK)
     .map(r => ({
       file: r.file,
       content: r.content,
       startLine: r.startLine,
       endLine: r.endLine,
-      score: r.similarity
+      score: r.relevanceScore,
+      vectorScore: r.vectorSimilarity
     }));
+}
+
+// Calculate enhanced relevance score for code searches
+function calculateCodeRelevanceScore(query, codeContent, vectorSimilarity) {
+  let relevanceScore = vectorSimilarity;
+  const queryLower = query.toLowerCase();
+  const codeLower = codeContent.toLowerCase();
+
+  // Boost score for exact keyword matches
+  const queryKeywords = extractKeywords(queryLower);
+  const codeKeywords = extractKeywords(codeLower);
+
+  // Calculate keyword overlap
+  const keywordOverlap = queryKeywords.filter(keyword =>
+    codeKeywords.includes(keyword) || codeLower.includes(keyword)
+  ).length;
+
+  if (keywordOverlap > 0) {
+    relevanceScore += Math.min(0.3, keywordOverlap * 0.1); // Boost up to 0.3 for keyword matches
+  }
+
+  // Framework-specific boosts
+  if (queryLower.includes('tanstack') && codeLower.includes('tanstack')) {
+    relevanceScore += 0.2;
+  }
+  if (queryLower.includes('react') && codeLower.includes('react')) {
+    relevanceScore += 0.15;
+  }
+  if (queryLower.includes('recharts') && codeLower.includes('recharts')) {
+    relevanceScore += 0.2;
+  }
+  if (queryLower.includes('zustand') && codeLower.includes('zustand')) {
+    relevanceScore += 0.2;
+  }
+  if (queryLower.includes('clerk') && codeLower.includes('clerk')) {
+    relevanceScore += 0.2;
+  }
+  if (queryLower.includes('typescript') && (codeLower.includes('typescript') || codeLower.includes('type') || codeLower.includes('interface'))) {
+    relevanceScore += 0.15;
+  }
+
+  // Component-specific boosts
+  if (queryLower.includes('component') && codeLower.includes('component')) {
+    relevanceScore += 0.15;
+  }
+  if (queryLower.includes('table') && codeLower.includes('table')) {
+    relevanceScore += 0.15;
+  }
+  if (queryLower.includes('router') && codeLower.includes('router')) {
+    relevanceScore += 0.15;
+  }
+  if (queryLower.includes('auth') && (codeLower.includes('auth') || codeLower.includes('login') || codeLower.includes('signin'))) {
+    relevanceScore += 0.15;
+  }
+  if (queryLower.includes('dashboard') && codeLower.includes('dashboard')) {
+    relevanceScore += 0.15;
+  }
+
+  // React Query specific boosts
+  if ((queryLower.includes('usequery') || queryLower.includes('usemutation')) &&
+      (codeLower.includes('usequery') || codeLower.includes('usemutation') || codeLower.includes('queryclient'))) {
+    relevanceScore += 0.25;
+  }
+
+  // Layout and navigation boosts
+  if (queryLower.includes('layout') && codeLower.includes('layout')) {
+    relevanceScore += 0.15;
+  }
+  if (queryLower.includes('navigation') && codeLower.includes('nav')) {
+    relevanceScore += 0.15;
+  }
+
+  // Normalize score to [0, 1] range
+  return Math.min(1.0, relevanceScore);
+}
+
+// Extract meaningful keywords from text
+function extractKeywords(text) {
+  // Remove common stop words and extract meaningful terms
+  const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'a', 'an']);
+
+  return text
+    .replace(/[^\w\s]/g, ' ') // Remove punctuation
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !stopWords.has(word))
+    .map(word => word.toLowerCase());
 }
 export async function searchCode(params, workingDirectory, folderPaths = ['.'], extensions = DEFAULT_EXTS, topK = 6) {
   try {
@@ -825,8 +941,8 @@ export async function searchCode(params, workingDirectory, folderPaths = ['.'], 
     let query;
     if (typeof params === 'object' && params !== null) {
       query = params.query;
-      workingDirectory = params.workingDirectory || workingDirectory;
-      folderPaths = params.path || folderPaths;
+      workingDirectory = params.workingDirectory;
+      folderPaths = ['.']; // Always search from working directory root
       extensions = params.extensions || extensions;
       topK = params.topK || topK;
     } else {
@@ -835,12 +951,11 @@ export async function searchCode(params, workingDirectory, folderPaths = ['.'], 
     console.error(`searchCode called with query: "${query}", workingDir: "${workingDirectory}", folders: ${Array.isArray(folderPaths) ? folderPaths.join(', ') : folderPaths}`);
     
     if (!workingDirectory || typeof workingDirectory !== 'string') {
-      workingDirectory = process.cwd();
+      throw new Error('Working directory is required and must be a valid path string');
     }
     
     if (!existsSync(workingDirectory)) {
-      console.warn(`Working directory does not exist: ${workingDirectory}, using current directory`);
-      workingDirectory = process.cwd();
+      throw new Error(`Working directory does not exist: ${workingDirectory}`);
     }
     console.error(`Effective working directory: ${workingDirectory}`);
     
@@ -866,13 +981,33 @@ export async function searchCode(params, workingDirectory, folderPaths = ['.'], 
       return [];
     }
     console.error(`Absolute folders: ${absFolders.join(', ')}`);
-    console.error("Starting index sync...");
-    const results = await syncVectorIndex(absFolders, extensions);
-    console.error(`Indexed ${results} chunks from ${absFolders.length} directories`);
+
+    // Check if sync is needed, but don't block search for it
+    const lastModified = await getLastModifiedTime(absFolders);
+    const needsSync = lastModified > indexTimestamp || codeChunks.length === 0;
+
+    if (needsSync) {
+      console.error("Index sync needed, starting background sync...");
+      // Start sync in background but don't wait for it
+      syncVectorIndex(absFolders, extensions).catch(error => {
+        console.error("Background sync failed:", error.message);
+      });
+
+      // If we have no chunks at all, wait a bit for initial sync
+      if (codeChunks.length === 0) {
+        console.error("Waiting for initial sync (up to 10 seconds)...");
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        if (codeChunks.length === 0) {
+          console.error("Initial sync timed out, proceeding with empty index");
+        }
+      }
+    } else {
+      console.error(`Index is up to date with ${codeChunks.length} chunks`);
+    }
+
     console.error("Starting vector query...");
     const searchResults = await queryVectorIndex(query, topK);
-    console.error(`Found ${searchResults.length} results for query: "${query}"`);
-    return searchResults;
+        return searchResults;
   } catch (error) {
     console.error(`Search failed for query "${query}":`, error);
     throw new Error(`Search failed: ${error.message}`);
@@ -905,21 +1040,7 @@ export {
   embeddingExtractor,
   findCodeFiles
 };
-function createToolResponse(content, isError = false) {
-  return {
-    content: [{ type: "text", text: content }],
-    isError
-  };
-}
-function createErrorResponse(message) {
-  return createToolResponse(`Error: ${message}`, true);
-}
-function validateRequiredParams(params, requiredParams) {
-  const missingParams = requiredParams.filter(param => !params[param]);
-  if (missingParams.length > 0) {
-    throw new Error(`Missing required parameters: ${missingParams.join(', ')}`);
-  }
-}
+import { createToolResponse, createErrorResponse, validateRequiredParams } from '../core/utilities.js';
 function formatSearchResults(results, query, path) {
   if (results.length === 0) {
     return `No results found for "${query}" in ${path}`;
@@ -929,45 +1050,36 @@ function formatSearchResults(results, query, path) {
 export const searchTools = [
   {
     name: "searchcode",
-    description: "Semantic code search optimized for refactoring tasks. Use SPECIFIC, TARGETED queries for best results. Examples: 'TaskManager component' (not 'React component'), 'handleAddTask function' (not 'function'), 'useState hooks' (not 'state'), 'validation logic', 'error handling', 'API calls'. Avoid broad terms like 'component', 'function', 'const' - use specific names and patterns. Automatically expands to include relevant patterns.",
+    description: `Vector code search for finding similar code patterns and components.`,
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Search query optimized for refactoring. Use concise terms: 'hardcoded', 'utility', 'component', 'error', 'validation'. Automatically expands to include relevant patterns." },
-        path: { type: "string", description: "Directory to search in (default: current directory). MUST be absolute path like '/Users/username/project/src' not relative like './src'" },
-        workingDirectory: { type: "string", description: "Optional: Absolute path to working directory base path. If not provided, defaults to current directory. Use full paths like '/Users/username/project' not relative paths like './project'." },
+        query: { type: "string", description: "Search query for code patterns" },
+                workingDirectory: { type: "string", description: "Working directory path" },
         cursor: { type: "string", description: "Pagination cursor from previous search results" },
         pageSize: { type: "number", description: "Number of results per page (default: 6)" },
         topK: { type: "number", description: "Maximum total results to consider (default: 10, take a few more than you need)" }
       },
-      required: ["query"]
+      required: ["query", "workingDirectory"]
     },
-    handler: async ({ query, path = ".", workingDirectory, cursor, pageSize = 6, topK = 10 }) => {
-      
+    handler: withCrossToolAwareness(withConnectionManagement(async ({ query, workingDirectory, cursor, pageSize = 6, topK = 10 }) => {
+
       const consoleRestore = suppressConsoleOutput();
       try {
-        
+
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
           throw new Error('Query parameter is required and must be a non-empty string');
         }
-        const effectiveWorkingDirectory = workingDirectory || process.cwd();
-        const searchPathParam = path || '.';
-        
-        const context = await workingDirectoryContext.getToolContext(effectiveWorkingDirectory, 'searchcode', query);
-        console.error(`Search request: query="${query}", path="${searchPathParam}", workingDir="${effectiveWorkingDirectory}"`);
-        
-        if (!existsSync(effectiveWorkingDirectory)) {
-          console.warn(`Working directory does not exist: ${effectiveWorkingDirectory}`);
-          const response = {
-            content: [{ type: "text", text: "Working directory does not exist" }],
-            isError: true
-          };
-          return addExecutionStatusToResponse(response, 'searchcode');
+
+        if (!workingDirectory) {
+          throw new Error('Working directory parameter is required');
         }
-        
-        const fullPath = isAbsolute(searchPathParam)
-          ? searchPathParam
-          : pathResolve(effectiveWorkingDirectory, searchPathParam);
+        const effectiveWorkingDirectory = workingDirectory;
+
+        const context = await workingDirectoryContext.getToolContext(effectiveWorkingDirectory, 'searchcode', query);
+        console.error(`Search request: query="${query}", workingDir="${effectiveWorkingDirectory}"`);
+
+        const fullPath = effectiveWorkingDirectory;
         if (!existsSync(fullPath)) {
           console.warn(`Search path does not exist: ${fullPath}`);
           const response = {
@@ -976,7 +1088,7 @@ export const searchTools = [
           };
           return addExecutionStatusToResponse(response, 'searchcode');
         }
-        
+
         const cachedResults = getSearchResult(query, fullPath);
         if (cachedResults) {
           console.error(`Using cached results for query: "${query}"`);
@@ -985,7 +1097,7 @@ export const searchTools = [
           };
           return addExecutionStatusToResponse(response, 'searchcode');
         }
-        
+
         console.error(`Searching for: "${query}" in ${fullPath}`);
         let results = [];
 
@@ -1105,15 +1217,14 @@ export const searchTools = [
                 console.error(`Error reading file ${filePath}:`, error.message);
               }
             }
-            console.error(`Found ${results.length} real results for query: "${query}"`);
-          }
+                      }
         }
         } catch (error) {
           console.error(`Error during search:`, error.message);
 
           results = [];
         }
-        
+
         const formattedResults = results.map(r => ({
           file: r.file,
           line: `${r.startLine}-${r.endLine}`,
@@ -1122,32 +1233,31 @@ export const searchTools = [
           type: r.type || 'code'
         }));
         cacheSearchResult(query, formattedResults, fullPath);
-        
+
         addContextPattern(query, 'search');
-        
+
         for (let i = 0; i < results.length; i++) {
           for (let j = i + 1; j < results.length; j++) {
-            
+
           }
         }
-        console.error(`Returning ${results.length} results for query: "${query}"`);
         
         const insights = generateSearchInsights(results, query, effectiveWorkingDirectory);
-        
+
         const toolContext = createToolContext('searchcode', effectiveWorkingDirectory, query, {
           filesAccessed: results.map(r => r.file),
           patterns: [query],
           insights: insights
         });
-        
+
         await workingDirectoryContext.updateContext(effectiveWorkingDirectory, 'searchcode', toolContext);
-        
+
         const response = {
           content: [{ type: "text", text: JSON.stringify(formattedResults, null, 2) }]
         };
         return addExecutionStatusToResponse(response, 'searchcode');
       } catch (error) {
-        
+
         const errorContext = createToolContext('searchcode', workingDirectory || process.cwd(), query, {
           error: error.message
         });
@@ -1158,9 +1268,12 @@ export const searchTools = [
         };
         return addExecutionStatusToResponse(response, 'searchcode');
       } finally {
-        
+
         consoleRestore.restore();
       }
-    }
+    }, 'searchcode', {
+      maxRetries: 2,
+      retryDelay: 1000
+    }), 'searchcode')
   }
 ];

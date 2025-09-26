@@ -1,0 +1,231 @@
+{
+  "version": "1.0",
+  "lastUpdated": 1758879074252,
+  "workingDirectory": "/config/workspace/mcp-repl",
+  "files": [
+    {
+      "path": ".claude.json",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758811555121,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": ".gitignore",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758862401762,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "CLAUDE.md",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758446915365,
+      "lastUpdated": 1758878920731
+    },
+    {
+      "path": "Dockerfile",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1757685529011,
+      "lastUpdated": 1758878920731
+    },
+    {
+      "path": "LICENSE",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1757853617522,
+      "lastUpdated": 1758878920731
+    },
+    {
+      "path": "README.md",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758837778899,
+      "lastUpdated": 1758878920731
+    },
+    {
+      "path": "code_search_index/code_index.json",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758866684838,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "package-lock.json",
+      "firstSeen": 1758878920731,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758779602943,
+      "lastUpdated": 1758878920731
+    },
+    {
+      "path": "package.json",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758837739142,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/console-suppression.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758753129098,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/error-handling.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758811262281,
+      "reportedDates": {},
+      "lastModified": 1758811262281,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/core/execution-state.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758808023569,
+      "reportedDates": {},
+      "lastModified": 1758808023569,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/core/file-analysis-tracker.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758800828849,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/ignore-manager.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758865068041,
+      "reportedDates": {},
+      "lastModified": 1758865068041,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/core/index.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758631251028,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/mcp-pagination.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758741029315,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/mcp-tools.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758784131961,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/shared-utils.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758811761931,
+      "reportedDates": {},
+      "lastModified": 1758811761931,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/core/simple-linter.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758741053794,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/utilities.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758595494879,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/core/working-directory-context.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758865588545,
+      "reportedDates": {},
+      "lastModified": 1758865588545,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/index.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758879068882,
+      "reportedDates": {},
+      "lastModified": 1758879068882,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/tools/ast-tool.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758878366438,
+      "reportedDates": {},
+      "lastModified": 1758878366438,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/tools/code-similarity-detector.js",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758797638955,
+      "lastUpdated": 1758878920732
+    },
+    {
+      "path": "src/tools/executor-tool.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758878484216,
+      "reportedDates": {},
+      "lastModified": 1758878484216,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "src/tools/vector-tool.js",
+      "firstSeen": 1758878920732,
+      "lastReported": 1758878612268,
+      "reportedDates": {},
+      "lastModified": 1758878612268,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "test-gitignore.txt",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758823367538,
+      "lastUpdated": 1758879074217
+    },
+    {
+      "path": "test-runner.cjs",
+      "firstSeen": 1758878920732,
+      "lastReported": null,
+      "reportedDates": {},
+      "lastModified": 1758871643614,
+      "lastUpdated": 1758879074217
+    }
+  ]
+}

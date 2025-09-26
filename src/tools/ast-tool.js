@@ -7,15 +7,100 @@ import { workingDirectoryContext, createToolContext } from '../core/working-dire
 import { createIgnoreFilter } from '../core/ignore-manager.js';
 import { suppressConsoleOutput } from '../core/console-suppression.js';
 import { addExecutionStatusToResponse } from '../core/execution-state.js';
+import { ToolError, ToolErrorHandler } from '../core/error-handling.js';
+import { withConnectionManagement, getGlobalConnectionManager } from '../core/connection-manager.js';
+import { withCrossToolAwareness, addToolMetadata } from '../core/cross-tool-context.js';
 import { parse } from '@ast-grep/napi';
 import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+class ASTPatternValidator {
+  static validatePattern(pattern) {
+    if (!pattern || typeof pattern !== 'string') {
+      throw new ToolError(
+        'Pattern must be a non-empty string',
+        'INVALID_PATTERN',
+        'ast-tool',
+        false,
+        ['Provide a valid AST pattern string', 'Check pattern syntax documentation']
+      );
+    }
+
+    // Check for truly dangerous patterns that cause crashes
+    const dangerousPatterns = [
+      // Patterns that historically cause ast-grep crashes
+      /\$\w+\s+has\s+\$\w+/,
+      /has\s+\$\w+\s*\(/,
+      /\$\w+\s+has\s+\w+/,
+      // Multiple complex $$$ patterns
+      /\$\$\$.*\$\$\$.*\$\$\$/,
+      // Empty patterns
+      /^\s*$/,
+      // Invalid operators
+      /[^a-zA-Z0-9_\s\{\}\(\)\[\]\.\=\,\;\:\'\"\`\+\-\*\/\>\<\&\|\!\@\#\$\%\^\~\?\$\w]/g
+    ];
+
+    for (const dangerousRegex of dangerousPatterns) {
+      if (dangerousRegex.test(pattern)) {
+        throw new ToolError(
+          `Pattern "${pattern}" contains syntax that could cause AST tool crashes`,
+          'DANGEROUS_PATTERN',
+          'ast-tool',
+          false,
+          ['Use simpler AST patterns', 'Avoid complex "has" expressions', 'Break down complex patterns into simpler ones']
+        );
+      }
+    }
+
+    // Validate pattern length
+    if (pattern.length > 1000) {
+      throw new ToolError(
+        'Pattern is too long (max 1000 characters)',
+        'PATTERN_TOO_LONG',
+        'ast-tool',
+        false,
+        ['Shorten the pattern', 'Break into multiple smaller patterns']
+      );
+    }
+
+    return true;
+  }
+
+  static sanitizePattern(pattern) {
+    if (!pattern || typeof pattern !== 'string') {
+      return pattern;
+    }
+
+    let sanitized = pattern;
+
+    // Replace known problematic sequences
+    const sanitizations = [
+      // Fix problematic "has" patterns
+      { regex: /(\$\w+)\s+has\s+(\$\w+)/g, replacement: '$1' },
+      // Fix complex $$$ patterns
+      { regex: /\{\s*\$\$\$\s*\}/g, replacement: '{}' },
+      { regex: /\[\s*\$\$\$\s*\]/g, replacement: '[]' },
+      { regex: /\(\s*\$\$\$\s*\)/g, replacement: '($ARG)' },
+      // Fix dangerous function patterns
+      { regex: /(\$\w+)\s+has\s+(\w+)/g, replacement: '$1' },
+      // Fix multiple $$$ in function calls
+      { regex: /(\w+)\s*\(\s*\$\$\$.*\$\$\$\s*\)/g, replacement: '$1($ARG)' },
+    ];
+
+    for (const { regex, replacement } of sanitizations) {
+      sanitized = sanitized.replace(regex, replacement);
+    }
+
+    return sanitized !== pattern ? sanitized : pattern;
+  }
+}
+
 class ASTHelper {
   constructor(language = 'javascript') {
     this.language = language;
+    this.errorHandler = new ToolErrorHandler('ast-tool');
   }
 
   detectLanguageFromExtension(filePath) {
@@ -444,33 +529,98 @@ async function unifiedASTOperation(operation, options = {}) {
 }
 
 async function safeASTOperationWrapper(operation, context = {}) {
-  try {
-    return await operation();
-  } catch (error) {
-    console.error(`AST Operation Wrapper Error (${context.operation || 'unknown'}):`, error.message);
+  const connectionManager = getGlobalConnectionManager();
+  const errorHandler = new ToolErrorHandler('ast-tool');
 
-    // Return a graceful error response instead of crashing
-    return {
-      success: false,
-      results: [],
-      errors: [{
-        message: `AST Operation Error: ${context.operation || 'unknown'} failed - ${error.message}`,
-        operation: context.operation || 'unknown',
-        isWrapperError: true
-      }],
-      patternErrors: [],
-      generalErrors: [{
-        message: error.message,
-        operation: context.operation || 'unknown'
-      }],
-      otherErrors: [],
-      totalMatches: 0,
-      totalErrors: 1,
-      pattern: context.pattern || undefined,
-      error: `AST operation failed: ${error.message}`,
-      isGracefulError: true
-    };
-  }
+  return connectionManager.executeWithRetry(async () => {
+    try {
+      // Validate pattern before processing
+      if (context.pattern) {
+        try {
+          ASTPatternValidator.validatePattern(context.pattern);
+        } catch (validationError) {
+          return {
+            success: false,
+            results: [],
+            errors: [{
+              message: validationError.message,
+              operation: context.operation || 'unknown',
+              isPatternValidationError: true
+            }],
+            patternErrors: [{
+              message: validationError.message,
+              pattern: context.pattern,
+              isValidationError: true
+            }],
+            generalErrors: [],
+            otherErrors: [],
+            totalMatches: 0,
+            totalErrors: 1,
+            pattern: context.pattern,
+              error: validationError.message,
+            isValidationError: true
+          };
+        }
+      }
+
+      const result = await operation();
+      return result;
+    } catch (error) {
+      console.error(`AST Operation Wrapper Error (${context.operation || 'unknown'}):`, error.message);
+
+      // Handle different types of errors gracefully
+      let errorResponse;
+      if (connectionManager.isConnectionError(error)) {
+        errorResponse = {
+          success: false,
+          results: [],
+          errors: [{
+            message: `Connection Error: ${error.message}`,
+            operation: context.operation || 'unknown',
+            isConnectionError: true
+          }],
+          patternErrors: [],
+          generalErrors: [{
+            message: `Connection failed: ${error.message}`,
+            operation: context.operation || 'unknown'
+          }],
+          otherErrors: [],
+          totalMatches: 0,
+          totalErrors: 1,
+          pattern: context.pattern || undefined,
+          error: `Connection error: ${error.message}`,
+          isConnectionError: true
+        };
+      } else {
+        errorResponse = {
+          success: false,
+          results: [],
+          errors: [{
+            message: `AST Operation Error: ${context.operation || 'unknown'} failed - ${error.message}`,
+            operation: context.operation || 'unknown',
+            isWrapperError: true
+          }],
+          patternErrors: [],
+          generalErrors: [{
+            message: error.message,
+            operation: context.operation || 'unknown'
+          }],
+          otherErrors: [],
+          totalMatches: 0,
+          totalErrors: 1,
+          pattern: context.pattern || undefined,
+          error: `AST operation failed: ${error.message}`,
+          isGracefulError: true
+        };
+      }
+
+      return errorResponse;
+    }
+  }, {
+    toolName: 'ast-tool',
+    maxRetries: 2,
+    retryDelay: 1000
+  });
 }
 
 async function performSearch(helper, targetPath, pattern, recursive, maxResults) {
@@ -772,13 +922,9 @@ export const UNIFIED_AST_TOOL = {
         enum: ['search', 'replace'],
         description: 'search: find patterns, replace: transform code'
       },
-      path: {
+            pattern: {
         type: 'string',
-        description: 'File or directory path to search/modify'
-      },
-      pattern: {
-        type: 'string',
-        description: 'AST pattern to search for using ast-grep syntax'
+        description: 'REQUIRED: AST pattern to search for. ⚠️ CRITICAL: Use simple, safe patterns. Avoid multiple $$$ variables and "has $VAR" patterns that crash the tool. Use "console.log($ARG)" not "console.log($$$)". The tool auto-converts most dangerous patterns, but extremely complex ones will be blocked.'
       },
       replacement: {
         type: 'string',
@@ -791,7 +937,7 @@ export const UNIFIED_AST_TOOL = {
       },
       workingDirectory: {
         type: 'string',
-        description: 'Working directory path'
+        description: 'REQUIRED: Absolute path to working directory. ⚠️ MUST be a real, existing directory. NO fallbacks - if path is invalid, tool will fail. Example: "/home/user/project" not "./project" or "~/project".'
       },
       cursor: {
         type: 'string',
@@ -803,45 +949,59 @@ export const UNIFIED_AST_TOOL = {
         description: 'Results per page'
       }
     },
-    required: ['operation']
+    required: ['operation', 'workingDirectory', 'pattern']
   },
-  handler: async (args) => {
+  handler: withCrossToolAwareness(withConnectionManagement(async (args) => {
     const consoleRestore = suppressConsoleOutput();
-    const workingDirectory = args.path || process.cwd();
+    const workingDirectory = args.workingDirectory;
     const query = args.pattern || args.operation || '';
 
     try {
       const context = await workingDirectoryContext.getToolContext(workingDirectory, 'ast_tool', query);
 
+      // Validate input parameters
+      if (!args.operation) {
+        throw new ToolError(
+          'Operation parameter is required',
+          'MISSING_PARAMETER',
+          'ast-tool',
+          false,
+          ['Provide "operation" parameter (search or replace)', 'Check tool documentation']
+        );
+      }
+
+      if (!args.workingDirectory) {
+        throw new ToolError(
+          'Working directory parameter is required',
+          'MISSING_PARAMETER',
+          'ast-tool',
+          false,
+          ['Provide "workingDirectory" parameter', 'Use absolute path like "/Users/username/project"']
+        );
+      }
+
       if (args.operation === 'search' && (args.cursor || args.pageSize !== 50)) {
         const result = await unifiedASTOperation(args.operation, args);
 
-        // Check for pattern warnings (auto-fixed patterns)
-        if (result.patternWarnings && result.patternWarnings.length > 0) {
-          let output = `⚠️ Pattern Auto-Fixed:\n\n`;
-
-          // Get unique warnings
-          const uniqueWarnings = new Set();
-          result.patternWarnings.forEach(warning => {
-            uniqueWarnings.add(warning.warning);
-          });
-
-          uniqueWarnings.forEach(warning => {
-            output += `• ${warning}\n`;
-          });
-
-          output += `\n${result.totalMatches} matches found for the corrected pattern:\n\n`;
-          const results = Array.isArray(result) ? result : (result.results || []);
-          results.slice(0, 15).forEach((match, i) => {
-            output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
-          });
-
+        // Handle validation errors
+        if (result.isValidationError) {
           const response = {
-            content: [{ type: "text", text: output.trim() }],
-            isError: false
+            content: [{ type: "text", text: result.error }],
+            isError: true
           };
           return addExecutionStatusToResponse(response, 'ast_tool');
         }
+
+        // Handle connection errors
+        if (result.isConnectionError) {
+          const response = {
+            content: [{ type: "text", text: `Connection Error: ${result.error}` }],
+            isError: true
+          };
+          return addExecutionStatusToResponse(response, 'ast_tool');
+        }
+
+        // Skip pattern warnings - auto-fixing is handled silently
 
         // Check for pattern errors and return error response instead of pagination
         if (result.patternErrors && result.patternErrors.length > 0) {
@@ -882,7 +1042,7 @@ export const UNIFIED_AST_TOOL = {
           pageSize: args.pageSize,
           metadata: {
             operation: args.operation,
-            path: args.path,
+            path: workingDirectory,
             pattern: args.pattern,
             timestamp: new Date().toISOString()
           }
@@ -896,7 +1056,24 @@ export const UNIFIED_AST_TOOL = {
       } catch (error) {
         // Handle catastrophic errors gracefully
         const response = {
-          content: [{ type: "text", text: `AST Operation Error: ${error.message}\n\nOperation: ${args.operation}\nPattern: ${args.pattern || 'N/A'}\nPath: ${args.path || 'N/A'}` }],
+          content: [{ type: "text", text: `AST Operation Error: ${error.message}\n\nOperation: ${args.operation}\nPattern: ${args.pattern || 'N/A'}\nPath: ${workingDirectory || 'N/A'}\n\nThe operation encountered an unexpected error but the connection remains stable.` }],
+          isError: true
+        };
+        return addExecutionStatusToResponse(response, 'ast_tool');
+      }
+
+      // Handle validation and connection errors
+      if (result.isValidationError) {
+        const response = {
+          content: [{ type: "text", text: result.error }],
+          isError: true
+        };
+        return addExecutionStatusToResponse(response, 'ast_tool');
+      }
+
+      if (result.isConnectionError) {
+        const response = {
+          content: [{ type: "text", text: `Connection Error: ${result.error}` }],
           isError: true
         };
         return addExecutionStatusToResponse(response, 'ast_tool');
@@ -954,7 +1131,10 @@ export const UNIFIED_AST_TOOL = {
     } finally {
       consoleRestore.restore();
     }
-  }
+  }, 'ast-tool', {
+    maxRetries: 2,
+    retryDelay: 1000
+  }), 'ast_tool')
 };
 
 function formatSearchResult(result, args) {
@@ -976,31 +1156,7 @@ function formatSearchResult(result, args) {
     return addExecutionStatusToResponse(response, 'ast_tool');
   }
 
-  // Check for pattern warnings (auto-fixed patterns)
-  if (result.patternWarnings && result.patternWarnings.length > 0) {
-    let output = `⚠️ Pattern Auto-Fixed:\n\n`;
-
-    // Get unique warnings (same pattern may appear in multiple files)
-    const uniqueWarnings = new Set();
-    result.patternWarnings.forEach(warning => {
-      uniqueWarnings.add(warning.warning);
-    });
-
-    uniqueWarnings.forEach(warning => {
-      output += `• ${warning}\n`;
-    });
-
-    output += `\n${result.totalMatches} matches found for the corrected pattern:\n\n`;
-    result.results.slice(0, 15).forEach((match, i) => {
-      output += `${match.file}:${match.line}\n${match.content.trim()}\n\n`;
-    });
-
-    const response = {
-      content: [{ type: "text", text: output.trim() }],
-      isError: false  // Not an error, just a warning
-    };
-    return addExecutionStatusToResponse(response, 'ast_tool');
-  }
+  // Skip pattern warnings - auto-fixing is handled silently
 
   // Check for pattern errors even if search was successful
   if (result.patternErrors && result.patternErrors.length > 0) {

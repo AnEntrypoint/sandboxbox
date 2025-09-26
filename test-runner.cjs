@@ -7,100 +7,80 @@ const os = require('os');
 const TEST_TIMEOUT = 12000000;
 const MAX_RETRIES = 2;
 const NPM_TIMEOUT = 1200000;
-const RESULTS_DIR = 'results';
-
-// Command validation function
-function validateCommand(command, useMcp) {
-  const errors = [];
-
-  // Check for common command construction errors
-  if (command.includes('claude--permission-mode')) {
-    errors.push('Missing space between claude and --permission-mode');
-  }
-
-  if (command.includes('.claude.json--permission-mode')) {
-    errors.push('Missing space between --mcp-config and --permission-mode');
-  }
-
-  // Check for proper quoting
-  const openQuotes = (command.match(/"/g) || []).length;
-  if (openQuotes % 2 !== 0) {
-    errors.push('Unclosed quotes in command');
-  }
-
-  // Check for working directory existence
-  const workingDirMatch = command.match(/cd\s+"([^"]+)"/);
-  if (workingDirMatch && !fs.existsSync(workingDirMatch[1])) {
-    errors.push(`Working directory does not exist: ${workingDirMatch[1]}`);
-  }
-
-  // Check MCP config file exists for MCP tests
-  if (useMcp && command.includes('--mcp-config')) {
-    const configMatch = command.match(/--mcp-config\s+(\S+)/);
-    if (configMatch && !fs.existsSync(configMatch[1])) {
-      errors.push(`MCP config file does not exist: ${configMatch[1]}`);
-    }
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors: errors,
-    error: errors.length > 0 ? errors.join(', ') : null
-  };
-}
+const RESULTS_DIR = 'glootie/results';
 
 const TESTS = [
   {
-    name: 'Component Analysis & Enhancement',
-    prompt: 'Find all React components in this shadcn/ui project and analyze the component structure and patterns. Look specifically at the task-manager component and suggest improvements for better TypeScript typing and performance.',
+    name: 'Admin Dashboard Analysis',
+    prompt: 'Analyze the shadcn-admin dashboard structure and components. Examine the src/routes/_authenticated/ layout, src/components/ organization, and data visualization with recharts. Look specifically at the dashboard routing structure, navigation patterns using @tanstack/react-router, and authentication flow with Clerk. Identify areas where TypeScript types could be improved and suggest optimizations for the Vite-based admin interface.',
     category: 'component-analysis'
   },
   {
-    name: 'UI Component Generation',
-    prompt: 'Add a new shadcn/ui component for a modal dialog component. Create it following the existing patterns (similar to button, card, input components). Include proper TypeScript interfaces and make it accessible. Validate it follows shadcn/ui patterns.',
+    name: 'New Admin Page Creation',
+    prompt: 'Add a new admin page for reports/analytics to the shadcn-admin project. Follow the existing TanStack Router file-based routing patterns in src/routes/_authenticated/, create the page component with proper TypeScript interfaces, include shadcn/ui components (using @tanstack/react-table for data display), implement proper authentication guards, and ensure it fits the existing Vite-based admin dashboard design system with Tailwind CSS 4.',
     category: 'ui-generation'
   },
   {
-    name: 'Project Refactoring Task',
-    prompt: 'Perform a comprehensive refactoring: 1) Search for all hardcoded strings in components, 2) Extract common utility functions from multiple components into shared hooks, 3) Add proper error boundaries to the React components, 4) Generate a summary of changes made.',
+    name: 'State Management Refactoring',
+    prompt: 'Refactor the shadcn-admin state management: 1) Analyze current Zustand store usage in src/stores/ (like auth-store.ts), 2) Extract common state logic into reusable store modules, 3) Improve TypeScript typing using Zod schemas, 4) Add proper error handling for async state operations with React Query, 5) Create a summary of the refactoring improvements.',
     category: 'refactoring'
   },
   {
     name: 'Performance Optimization',
-    prompt: 'Analyze the task-manager component for performance issues. Look for unnecessary re-renders, missing memoization, and inefficient state management. Then implement optimizations using React.memo, useCallback, and useMemo where appropriate. Validate the performance improvements.',
+    prompt: 'Optimize the shadcn-admin dashboard performance: 1) Identify performance bottlenecks in @tanstack/react-table components and recharts visualizations, 2) Implement proper memoization for expensive components using React 19 features, 3) Optimize the TanStack Router navigation re-renders, 4) Add virtual scrolling for large data lists, 5) Validate performance improvements with Vite build optimizations.',
     category: 'optimization'
   }
 ];
 
 const PACKAGE_JSON = {
-  name: 'mcp-test-project',
-  version: '0.1.0',
+  name: 'shadcn-admin-test',
+  version: '2.1.0',
   private: true,
+  type: 'module',
   scripts: {
-    dev: 'next dev',
-    build: 'next build',
-    start: 'next start',
-    lint: 'next lint'
+    dev: 'vite',
+    build: 'tsc && vite build',
+    preview: 'vite preview',
+    lint: 'eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0'
   },
   dependencies: {
-    'react': '^18',
-    'react-dom': '^18',
-    'next': '14.2.5',
-    '@radix-ui/react-slot': '^1.0.2',
+    'react': '^19.1.1',
+    'react-dom': '^19.1.1',
+    '@radix-ui/react-avatar': '^1.1.1',
+    '@radix-ui/react-dropdown-menu': '^2.1.2',
+    '@radix-ui/react-label': '^2.1.0',
+    '@radix-ui/react-select': '^2.1.2',
+    '@radix-ui/react-separator': '^1.1.0',
+    '@radix-ui/react-slot': '^1.1.0',
+    '@radix-ui/react-switch': '^1.1.1',
+    '@radix-ui/react-toast': '^1.2.2',
+    '@radix-ui/react-tooltip': '^1.1.3',
+    '@tanstack/react-query': '^5.59.20',
+    '@tanstack/react-router': '^1.82.1',
     'class-variance-authority': '^0.7.0',
     'clsx': '^2.1.1',
-    'lucide-react': '^0.424.0',
-    'tailwind-merge': '^2.5.2',
+    'cmdk': '1.0.0',
+    'date-fns': '^4.1.0',
+    'lucide-react': '^0.463.0',
+    '@tanstack/react-table': '^8.21.3',
+    'recharts': '^2.13.3',
+    'react-hook-form': '^7.53.2',
+    'sonner': '^1.7.0',
+    'tailwind-merge': '^2.5.4',
     'tailwindcss-animate': '^1.0.7',
-    '@modelcontextprotocol/sdk': '^1.11.0',
-    '@ast-grep/napi': '^0.39.5',
-    'ignore': '^7.0.5'
+    'vite-tsconfig-paths': '^5.1.3',
+    'zod': '^3.23.8',
+    'zustand': '^5.0.2',
+    '@clerk/backend': '^1.17.1',
+    '@clerk/clerk-react': '^5.13.1',
+    'hono': '^4.6.12',
+    'react-resizable-panels': '^2.1.7'
   },
   devDependencies: {
-    'typescript': '^5',
-    '@types/node': '^20',
-    '@types/react': '^18',
-    '@types/react-dom': '^18',
+    'typescript': '~5.9.2',
+    '@types/node': '^24.3.0',
+    '@types/react': '^19.1.10',
+    '@types/react-dom': '^19.1.7',
     'postcss': '^8',
     'tailwindcss': '^3.4.1',
     'eslint': '^8',
@@ -108,527 +88,20 @@ const PACKAGE_JSON = {
   }
 };
 
-const FILE_TEMPLATES = {
-  utils: `
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-export function formatDate(date: Date | string): string {
-  const d = new Date(date)
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
-export function generateId(): string {
-  return Math.random().toString(36).substr(2, 9)
-}
-`,
-  button: `
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils"
-const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean
-}
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
-Button.displayName = "Button"
-export { Button, buttonVariants }
-`,
-  card: `
-import * as React from "react"
-import { cn } from "@/lib/utils"
-const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
-      className
-    )}
-    {...props}
-  />
-))
-Card.displayName = "Card"
-const CardHeader = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
-))
-CardHeader.displayName = "CardHeader"
-const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    ref={ref}
-    className={cn(
-      "text-2xl font-semibold leading-none tracking-tight",
-      className
-    )}
-    {...props}
-  />
-))
-CardTitle.displayName = "CardTitle"
-const CardDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
-))
-CardDescription.displayName = "CardDescription"
-const CardContent = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
-))
-CardContent.displayName = "CardContent"
-const CardFooter = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex items-center p-6 pt-0", className)}
-    {...props}
-  />
-))
-CardFooter.displayName = "CardFooter"
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
-`,
-  input: `
-import * as React from "react"
-import { cn } from "@/lib/utils"
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    return (
-      <input
-        type={type}
-        className={cn(
-          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-          className
-        )}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
-Input.displayName = "Input"
-export { Input }
-`,
-  taskManager: `
-'use client'
-import React, { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { formatDate, generateId } from '@/lib/utils'
-
-interface Task {
-  id: string
-  title: string
-  description: string
-  completed: boolean
-  priority: 'low' | 'medium' | 'high'
-  createdAt: Date
-  dueDate?: Date
-}
-
-export function TaskManager() {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium' as const })
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
-
-  useEffect(() => {
-    const savedTasks = localStorage.getItem('tasks')
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks).map((task: any) => ({
-        ...task,
-        createdAt: new Date(task.createdAt),
-        dueDate: task.dueDate ? new Date(task.dueDate) : undefined
-      })))
-    }
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks))
-  }, [tasks])
-
-  const addTask = () => {
-    if (!newTask.title.trim()) return
-    const task: Task = {
-      id: generateId(),
-      title: newTask.title,
-      description: newTask.description,
-      priority: newTask.priority,
-      completed: false,
-      createdAt: new Date()
-    }
-    setTasks(prev => [...prev, task])
-    setNewTask({ title: '', description: '', priority: 'medium' })
-  }
-
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(task =>
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ))
-  }
-
-  const deleteTask = (id: string) => {
-    setTasks(prev => prev.filter(task => task.id !== id))
-  }
-
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'active') return !task.completed
-    if (filter === 'completed') return task.completed
-    return true
-  })
-
-  return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Add New Task</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            placeholder="Task title..."
-            value={newTask.title}
-            onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-          />
-          <Input
-            placeholder="Task description..."
-            value={newTask.description}
-            onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
-          />
-          <select
-            value={newTask.priority}
-            onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as any }))}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="low">Low Priority</option>
-            <option value="medium">Medium Priority</option>
-            <option value="high">High Priority</option>
-          </select>
-          <Button onClick={addTask}>Add Task</Button>
-        </CardContent>
-      </Card>
-      <div className="flex gap-2 mb-4">
-        <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>
-          All ({tasks.length})
-        </Button>
-        <Button variant={filter === 'active' ? 'default' : 'outline'} onClick={() => setFilter('active')}>
-          Active ({tasks.filter(t => !t.completed).length})
-        </Button>
-        <Button variant={filter === 'completed' ? 'default' : 'outline'} onClick={() => setFilter('completed')}>
-          Completed ({tasks.filter(t => t.completed).length})
-        </Button>
-      </div>
-      <div className="space-y-4">
-        {filteredTasks.map(task => (
-          <Card key={task.id} className={task.completed ? 'opacity-60' : ''}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className={\`font-medium \${task.completed ? 'line-through' : ''}\`}>
-                    {task.title}
-                  </h3>
-                  {task.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {task.description}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span>Priority: {task.priority}</span>
-                    <span>Created: {formatDate(task.createdAt)}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleTask(task.id)}
-                  >
-                    {task.completed ? 'Undo' : 'Complete'}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteTask(task.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  )
-}
-export default TaskManager
-`,
-  page: `
-import { TaskManager } from '@/components/task-manager'
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-background">
-      <div className="container mx-auto py-10">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold tracking-tight">Task Manager</h1>
-          <p className="text-muted-foreground mt-4">
-            A modern task management application built with Next.js and shadcn/ui
-          </p>
-        </div>
-        <TaskManager />
-      </div>
-    </main>
-  )
-}
-`,
-  tailwindConfig: `
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  darkMode: ["class"],
-  content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
-  ],
-  prefix: "",
-  theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: {
-        "2xl": "1400px",
-      },
-    },
-    extend: {
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-      },
-    },
-  },
-  plugins: [require("tailwindcss-animate")],
-}
-`,
-  layout: `
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata: Metadata = {
-  title: 'Test Project',
-  description: 'Test project for components',
-}
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
-    </html>
-  )
-}
-`,
-  globalsCss: `
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-`,
-  eslintConfig: `
-{
-  "extends": ["next/core-web-vitals"]
-}
-`,
-  searchIgnore: [
-    'node_modules/**',
-    '.next/**',
-    'coverage/**',
-    '.nyc_output/**',
-    '*.log',
-    '*.tmp',
-    'temp/**',
-    'tmp/**',
-    '.git/**',
-    '.vscode/**',
-    '.idea/**',
-    'dist/**',
-    'build/**',
-    'out/**'
-  ]
-};
+const SEARCH_IGNORE_PATTERNS = [
+  'node_modules/**',
+  '.next/**',
+  'dist/**',
+  'build/**',
+  'out/**',
+  '.git/**',
+  '*.log',
+  '*.tmp',
+  'temp/**',
+  'tmp/**',
+  '.vscode/**',
+  '.idea/**'
+];
 
 class OptimizedMCPTest {
   constructor() {
@@ -652,7 +125,7 @@ class OptimizedMCPTest {
 
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
 
-    const testDir = './optimized-test-' + Date.now();
+    const testDir = '../optimized-test-' + Date.now();
     fs.mkdirSync(testDir, { recursive: true });
 
     let performanceResults = null;
@@ -911,93 +384,146 @@ class OptimizedMCPTest {
   }
 
   async setupTestDirectory(testDir) {
-    fs.writeFileSync(path.join(testDir, 'package.json'), JSON.stringify(PACKAGE_JSON, null, 2));
+    console.log('🚀 Setting up shadcn-admin test environment...');
 
-    const dirs = ['app/components', 'app/ui', 'components/ui', 'lib'];
-    dirs.forEach(dir => fs.mkdirSync(path.join(testDir, dir), { recursive: true }));
+    try {
+      // Clone shadcn-admin repository as the base
+      execSync('git clone https://github.com/satnaing/shadcn-admin.git temp-shadcn-admin', {
+        cwd: path.dirname(testDir),
+        stdio: 'inherit'
+      });
 
-    fs.writeFileSync(path.join(testDir, 'lib/utils.ts'), FILE_TEMPLATES.utils);
-    fs.writeFileSync(path.join(testDir, 'components/ui/button.tsx'), FILE_TEMPLATES.button);
-    fs.writeFileSync(path.join(testDir, 'components/ui/card.tsx'), FILE_TEMPLATES.card);
-    fs.writeFileSync(path.join(testDir, 'components/ui/input.tsx'), FILE_TEMPLATES.input);
-    fs.writeFileSync(path.join(testDir, 'components/task-manager.tsx'), FILE_TEMPLATES.taskManager);
-    fs.writeFileSync(path.join(testDir, 'app/page.tsx'), FILE_TEMPLATES.page);
-    fs.writeFileSync(path.join(testDir, 'app/layout.tsx'), FILE_TEMPLATES.layout);
-    fs.writeFileSync(path.join(testDir, 'app/globals.css'), FILE_TEMPLATES.globalsCss);
-    fs.writeFileSync(path.join(testDir, '.eslintrc.json'), FILE_TEMPLATES.eslintConfig);
-    fs.writeFileSync(path.join(testDir, 'tailwind.config.js'), FILE_TEMPLATES.tailwindConfig);
+      // Move the cloned content to the test directory
+      const tempDir = path.join(path.dirname(testDir), 'temp-shadcn-admin');
+      const files = fs.readdirSync(tempDir);
 
-    fs.writeFileSync(path.join(testDir, 'tsconfig.json'), JSON.stringify({
-      compilerOptions: {
-        target: 'es5',
-        lib: ['dom', 'dom.iterable', 'es6'],
-        allowJs: true,
-        skipLibCheck: true,
-        strict: true,
-        noEmit: true,
-        esModuleInterop: true,
-        module: 'esnext',
-        moduleResolution: 'bundler',
-        resolveJsonModule: true,
-        isolatedModules: true,
-        jsx: 'preserve',
-        incremental: true,
-        plugins: [{ name: 'next' }],
-        baseUrl: '.',
-        paths: { '@/*': ['./*'] }
-      },
-      include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts'],
-      exclude: ['node_modules']
-    }, null, 2));
+      files.forEach(file => {
+        const srcPath = path.join(tempDir, file);
+        const destPath = path.join(testDir, file);
 
-    console.log('📦 Installing dependencies...');
-    await this.runNpmInstall(testDir);
-
-    fs.writeFileSync(path.join(testDir, '.searchignore'), FILE_TEMPLATES.searchIgnore.join('\n'));
-
-    const defaultIgnorePatterns = {
-      files: [
-        '**/node_modules/**', '**/.next/**', '**/dist/**', '**/build/**', '**/out/**',
-        '**/coverage/**', '**/.nyc_output/**', '**/.git/**', '**/.vscode/**', '**/.idea/**',
-        '**/*.log', '**/*.tmp', '**/temp/**', '**/tmp/**', '**/.DS_Store', '**/Thumbs.db',
-        '**/*.map', '**/*.min.js', '**/*.min.css', '**/package-lock.json', '**/yarn.lock'
-      ],
-      extensions: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json', '.md'],
-      directories: ['node_modules', '.next', 'dist', 'build', 'out', 'coverage', '.nyc_output', '.git', '.vscode', '.idea', 'temp', 'tmp']
-    };
-    fs.writeFileSync(path.join(testDir, '.search-defaults.json'), JSON.stringify(defaultIgnorePatterns, null, 2));
-
-    const isMcpTest = path.basename(testDir).includes('mcp');
-    if (isMcpTest) {
-      const mainDir = process.cwd();
-      const hooksDir = path.resolve(mainDir, 'src', 'glooitie-hooks');
-
-      // For MCP tests, use glootie server with built-in hooks
-      const claudeConfig = {
-        mcpServers: {
-          glootie: {
-            command: "node",
-            args: [path.resolve(mainDir, 'src', 'index.js')],
-            env: {}
-          }
+        if (fs.statSync(srcPath).isDirectory()) {
+          fs.cpSync(srcPath, destPath, { recursive: true });
+        } else {
+          fs.copyFileSync(srcPath, destPath);
         }
+      });
+
+      // Clean up temporary directory
+      fs.rmSync(tempDir, { recursive: true, force: true });
+
+      // Update package.json with our specific configuration
+      const packageJsonPath = path.join(testDir, 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+        // Preserve shadcn-admin dependencies but ensure test compatibility
+        packageJson.devDependencies = packageJson.devDependencies || {};
+        packageJson.devDependencies = {
+          ...packageJson.devDependencies,
+          ...PACKAGE_JSON.devDependencies
+        };
+
+        // Add any additional test-specific dependencies
+        packageJson.dependencies = packageJson.dependencies || {};
+        packageJson.dependencies = {
+          ...packageJson.dependencies,
+          ...PACKAGE_JSON.dependencies
+        };
+
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      }
+
+      console.log('📦 Installing shadcn-admin dependencies...');
+      await this.runNpmInstall(testDir);
+
+      // Add searchignore file for shadcn-admin
+      fs.writeFileSync(path.join(testDir, '.searchignore'), SEARCH_IGNORE_PATTERNS.join('\n'));
+
+      const defaultIgnorePatterns = {
+        files: [
+          '**/node_modules/**', '**/.next/**', '**/dist/**', '**/build/**', '**/out/**',
+          '**/coverage/**', '**/.nyc_output/**', '**/.git/**', '**/.vscode/**', '**/.idea/**',
+          '**/*.log', '**/*.tmp', '**/temp/**', '**/tmp/**', '**/.DS_Store', '**/Thumbs.db',
+          '**/*.map', '**/*.min.js', '**/*.min.css', '**/package-lock.json', '**/yarn.lock'
+        ],
+        extensions: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json', '.md'],
+        directories: ['node_modules', '.next', 'dist', 'build', 'out', 'coverage', '.nyc_output', '.git', '.vscode', '.idea', 'temp', 'tmp']
       };
-      fs.writeFileSync(path.join(testDir, '.claude.json'), JSON.stringify(claudeConfig, null, 2));
-      console.log(`📝 Created MCP configuration for ${path.basename(testDir)}`);
+      fs.writeFileSync(path.join(testDir, '.search-defaults.json'), JSON.stringify(defaultIgnorePatterns, null, 2));
+
+      const isMcpTest = path.basename(testDir).includes('mcp');
+      if (isMcpTest) {
+        const mainDir = process.cwd();
+        const claudeConfig = {
+          mcpServers: {
+            glootie: {
+              command: "node",
+              args: [path.resolve(mainDir, 'src', 'index.js')],
+              env: {}
+            }
+          }
+        };
+        fs.writeFileSync(path.join(testDir, '.claude.json'), JSON.stringify(claudeConfig, null, 2));
+        console.log(`📝 Created MCP configuration for ${path.basename(testDir)}`);
+      }
+
+      // Initialize git repository
+      await this.initializeGitRepo(testDir);
+
+    } catch (cloneError) {
+      console.warn('⚠️ Failed to clone shadcn-admin, falling back to basic setup:', cloneError.message);
+
+      // Fallback to basic setup if cloning fails
+      fs.writeFileSync(path.join(testDir, 'package.json'), JSON.stringify(PACKAGE_JSON, null, 2));
+      const dirs = ['app/components', 'app/ui', 'components/ui', 'lib'];
+      dirs.forEach(dir => fs.mkdirSync(path.join(testDir, dir), { recursive: true }));
+
+      // Create basic shadcn/ui files
+      
+      console.log('📦 Installing dependencies...');
+      await this.runNpmInstall(testDir);
+
+      // Continue with default setup
+      fs.writeFileSync(path.join(testDir, '.searchignore'), SEARCH_IGNORE_PATTERNS.join('\n'));
+
+      const defaultIgnorePatterns = {
+        files: [
+          '**/node_modules/**', '**/.next/**', '**/dist/**', '**/build/**', '**/out/**',
+          '**/coverage/**', '**/.nyc_output/**', '**/.git/**', '**/.vscode/**', '**/.idea/**',
+          '**/*.log', '**/*.tmp', '**/temp/**', '**/tmp/**', '**/.DS_Store', '**/Thumbs.db',
+          '**/*.map', '**/*.min.js', '**/*.min.css', '**/package-lock.json', '**/yarn.lock'
+        ],
+        extensions: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json', '.md'],
+        directories: ['node_modules', '.next', 'dist', 'build', 'out', 'coverage', '.nyc_output', '.git', '.vscode', '.idea', 'temp', 'tmp']
+      };
+      fs.writeFileSync(path.join(testDir, '.search-defaults.json'), JSON.stringify(defaultIgnorePatterns, null, 2));
+
+      const isMcpTest = path.basename(testDir).includes('mcp');
+      if (isMcpTest) {
+        const mainDir = process.cwd();
+        const claudeConfig = {
+          mcpServers: {
+            glootie: {
+              command: "node",
+              args: [path.resolve(mainDir, 'src', 'index.js')],
+              env: {}
+            }
+          }
+        };
+        fs.writeFileSync(path.join(testDir, '.claude.json'), JSON.stringify(claudeConfig, null, 2));
+        console.log(`📝 Created MCP configuration for ${path.basename(testDir)}`);
+      }
+
+      const gitignoreContent = fs.readFileSync(path.join(process.cwd(), 'test-gitignore.txt'), 'utf8');
+      fs.writeFileSync(path.join(testDir, '.gitignore'), gitignoreContent);
+      await this.initializeGitRepo(testDir);
     }
-
-    const gitignoreContent = fs.readFileSync(path.join(process.cwd(), 'test-gitignore.txt'), 'utf8');
-    fs.writeFileSync(path.join(testDir, '.gitignore'), gitignoreContent);
-
-    await this.initializeGitRepo(testDir);
   }
 
   async runNpmInstall(testDir) {
     return new Promise((resolve, reject) => {
       const isMcpTest = path.basename(testDir).includes('mcp');
       let command = 'npm install --no-audit --prefer-offline --ignore-scripts --no-progress --silent @modelcontextprotocol/sdk @ast-grep/napi ignore';
-
-      // No additional dependencies needed for MCP tests
 
       const child = spawn('script', ['-q', '-c', command, '/dev/null'], {
         cwd: testDir,
@@ -1040,9 +566,9 @@ class OptimizedMCPTest {
 
   async initializeGitRepo(testDir) {
     try {
+      execSync('git init', { cwd: testDir, stdio: 'ignore' });
       execSync('git config user.name "Test User"', { cwd: testDir, stdio: 'ignore' });
       execSync('git config user.email "test@example.com"', { cwd: testDir, stdio: 'ignore' });
-      execSync('git init', { cwd: testDir, stdio: 'ignore' });
       execSync('git add .', { cwd: testDir, stdio: 'ignore' });
       execSync('git commit -a -m "Initial boilerplate commit"', { cwd: testDir, stdio: 'ignore' });
       console.log(`✅ Git repository initialized for ${path.basename(testDir)}`);
@@ -1204,7 +730,6 @@ class OptimizedMCPTest {
     let lastError = null;
     const testType = useMcp ? 'mcp' : 'baseline';
 
-    // Declare file paths outside retry loop so they're accessible to executeClaudeCommand
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
     const outputFile = path.join(RESULTS_DIR, `claude-output-${test.category}-${testType}.json`);
     const stepsFile = path.join(RESULTS_DIR, `claude-steps-${test.category}-${testType}.json`);
@@ -1221,22 +746,12 @@ class OptimizedMCPTest {
         const mcpTools = "mcp__glootie__execute,mcp__glootie__searchcode,mcp__glootie__ast_tool";
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
-        const finalPrompt = test.prompt + (useMcp ? " use glootie " : "");
+        const finalPrompt = test.prompt + (useMcp ? " always use glootie " : "");
         const mcpConfig = useMcp ? '--mcp-config ./.claude.json' : '';
         const permissionMode = '--permission-mode bypassPermissions';
 
-        // MCP tests now include built-in hooks
-
-        const claudeCmd = `cd "${workingDir}" && ${useMcp ? 'env CLAUDE_CONFIG_DIR=. ' : ''} claude ${mcpConfig} ${permissionMode} -p "${finalPrompt}" --allowed-tools "${allowedTools}" --add-dir "./" --output-format stream-json --verbose --debug`;
-
-        // Validate command construction
-        const validation = validateCommand(claudeCmd, useMcp);
-        if (!validation.valid) {
-          console.log(`   ❌ Command validation failed: ${validation.error}`);
-          console.log(`   🔧 Validation errors: ${validation.errors.join('; ')}`);
-          throw new Error(`Command validation failed: ${validation.error}`);
-        }
-        console.log(`   ✅ Command validation passed`);
+        console.log('Path',normalizedPath);
+        const claudeCmd = `cd ${normalizedPath}; ${useMcp ? 'env CLAUDE_CONFIG_DIR=. ' : ''} claude ${mcpConfig} ${permissionMode} -p "${finalPrompt}" --allowed-tools "${allowedTools}" --output-format stream-json --verbose --debug`;
 
         console.log(`🚀 [${new Date().toLocaleTimeString()}] Starting ${testType} test for ${test.name}`);
         console.log(`   📁 Working dir: ${path.basename(workingDir)}`);
@@ -1252,7 +767,6 @@ class OptimizedMCPTest {
         console.log(`   📋 Output sample: ${output.substring(0, 200).replace(/\n/g, '\\n')}...`);
         console.log(`   🔢 Output lines: ${output.split('\n').length}`);
 
-        // Create final output data
         const finalOutputData = {
           timestamp: new Date(startTime).toISOString(),
           testType,
@@ -1303,7 +817,6 @@ class OptimizedMCPTest {
           console.log(`   ⚠️  Parse warnings: ${parsedOutput.parseError}`);
         }
 
-        // Hooks are automatically managed by the MCP server
 
         return {
           success: true,
@@ -1555,7 +1068,6 @@ class OptimizedMCPTest {
 
       if (jsonLines.length === 0) return; // No new JSON data to process
 
-      // Update output file with current state
       const currentTime = Date.now();
       const duration = (currentTime - startTime) / 1000;
 
@@ -1575,7 +1087,6 @@ class OptimizedMCPTest {
 
       fs.writeFileSync(outputFile, JSON.stringify(incrementalOutputData, null, 2));
 
-      // Parse and update steps file
       const parsedOutput = this.parseOutput(fullStdout, testType === 'mcp', testType, testInfo.testName || 'Unknown', testInfo.testCategory || 'Unknown', startTime);
 
       const incrementalStepsData = {
@@ -1604,7 +1115,6 @@ class OptimizedMCPTest {
       }
 
     } catch (error) {
-      // Don't throw, just log to avoid breaking the main test flow
       console.error(`   ⚠️ Incremental write error: ${error.message}`);
     }
   }
@@ -1613,7 +1123,6 @@ class OptimizedMCPTest {
     try {
       const duration = (Date.now() - startTime) / 1000;
 
-      // Update output file with final status
       if (fs.existsSync(outputFile)) {
         const outputData = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
         outputData.status = status;
@@ -1623,7 +1132,6 @@ class OptimizedMCPTest {
         fs.writeFileSync(outputFile, JSON.stringify(outputData, null, 2));
       }
 
-      // Update steps file with final status
       if (fs.existsSync(stepsFile)) {
         const stepsData = JSON.parse(fs.readFileSync(stepsFile, 'utf8'));
         stepsData.status = status;
@@ -1706,9 +1214,9 @@ class OptimizedMCPTest {
       const performanceSummary = this.generatePerformanceSummary(performanceResults);
       const reviewCmd = `claude -p "I need you to analyze the actual experiences of the coding agents during the MCP Glootie v3.1.4 benchmarking test by examining their step outputs and history. Please base your analysis on a complete examination of the saved step files to find out what went right and what went wrong.
 
-CRITICAL: You must examine the actual step files in the results/ directory:
-- results/claude-steps-*.json files contain the actual step-by-step execution data
-- results/claude-output-*.json files contain the raw Claude outputs
+CRITICAL: You must examine the actual step files in the glootie/results/ directory:
+- glootie/results/claude-steps-*.json files contain the actual step-by-step execution data
+- glootie/results/claude-output-*.json files contain the raw Claude outputs
 - evaluate the difference between the work done on each project, the baseline vs the mcp, in their optimized-test directories
 - The step files show tool calls, results, and execution patterns
 - Compare baseline vs MCP tool usage patterns
@@ -1758,9 +1266,9 @@ Write an honest END_USER_REVIEW.md from the perspective of the agents who actual
       const performanceSummary = this.generatePerformanceSummary(performanceResults);
       const suggestionsCmd = `claude -p "I need you to analyze the actual experiences of coding agents using MCP Glootie v3.1.4 by examining their step history and outputs to write detailed SUGGESTIONS.md. Please base your analysis entirely on the saved step files to understand what the agents really experienced.
 
-CRITICAL: You must examine the actual step files in the results/ directory:
-- results/claude-steps-*.json files contain the real step-by-step execution data
-- results/claude-output-*.json files contain the raw Claude outputs
+CRITICAL: You must examine the actual step files in the glootie/results/ directory:
+- glootie/results/claude-steps-*.json files contain the real step-by-step execution data
+- glootie/results/claude-output-*.json files contain the raw Claude outputs
 - These files show what actually happened during testing
 
 WALL CLOCK TIMES:
