@@ -5,3 +5,7 @@
 [cav_1758883895913_fodtg] Performance test caveat (Recorded: 9/26/2025)
 
 [cav_1758884384746_qq6pr] Performance optimization test (Recorded: 9/26/2025)
+
+[cav_1758884729879_antnt] API rate limiting: 100 requests per minute (Recorded: 9/26/2025)
+
+[cav_1758884969594_e2nmp] Testing after restart and fix (Recorded: 9/26/2025)
