@@ -7,7 +7,7 @@ const os = require('os');
 const TEST_TIMEOUT = 12000000;
 const MAX_RETRIES = 2;
 const NPM_TIMEOUT = 1200000;
-const RESULTS_DIR = 'glootie/results';
+const RESULTS_DIR = 'results';
 
 const TESTS = [
   {
@@ -1214,9 +1214,9 @@ class OptimizedMCPTest {
       const performanceSummary = this.generatePerformanceSummary(performanceResults);
       const reviewCmd = `claude -p "I need you to analyze the actual experiences of the coding agents during the MCP Glootie v3.1.4 benchmarking test by examining their step outputs and history. Please base your analysis on a complete examination of the saved step files to find out what went right and what went wrong.
 
-CRITICAL: You must examine the actual step files in the glootie/results/ directory:
-- glootie/results/claude-steps-*.json files contain the actual step-by-step execution data
-- glootie/results/claude-output-*.json files contain the raw Claude outputs
+CRITICAL: You must examine the actual step files in the results/ directory:
+- results/claude-steps-*.json files contain the actual step-by-step execution data
+- results/claude-output-*.json files contain the raw Claude outputs
 - evaluate the difference between the work done on each project, the baseline vs the mcp, in their optimized-test directories
 - The step files show tool calls, results, and execution patterns
 - Compare baseline vs MCP tool usage patterns
@@ -1266,9 +1266,9 @@ Write an honest END_USER_REVIEW.md from the perspective of the agents who actual
       const performanceSummary = this.generatePerformanceSummary(performanceResults);
       const suggestionsCmd = `claude -p "I need you to analyze the actual experiences of coding agents using MCP Glootie v3.1.4 by examining their step history and outputs to write detailed SUGGESTIONS.md. Please base your analysis entirely on the saved step files to understand what the agents really experienced.
 
-CRITICAL: You must examine the actual step files in the glootie/results/ directory:
-- glootie/results/claude-steps-*.json files contain the real step-by-step execution data
-- glootie/results/claude-output-*.json files contain the raw Claude outputs
+CRITICAL: You must examine the actual step files in the results/ directory:
+- results/claude-steps-*.json files contain the real step-by-step execution data
+- results/claude-output-*.json files contain the raw Claude outputs
 - These files show what actually happened during testing
 
 WALL CLOCK TIMES:
