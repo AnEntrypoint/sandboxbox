@@ -746,7 +746,7 @@ class OptimizedMCPTest {
         const mcpTools = "mcp__glootie__execute,mcp__glootie__searchcode,mcp__glootie__ast_tool";
         const allowedTools = useMcp ? `${standardTools},${mcpTools}` : standardTools;
 
-        const finalPrompt = test.prompt + (useMcp ? " always use glootie " : "");
+        const finalPrompt = test.prompt + (useMcp ? " start with glootie mcp tools and use them to save time and improve work " : "");
         const mcpConfig = useMcp ? '--mcp-config ./.claude.json' : '';
         const permissionMode = '--permission-mode bypassPermissions';
 

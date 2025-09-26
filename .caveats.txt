@@ -1,0 +1,7 @@
+[cav_1758883508982_dd484] API rate limiting: 100 requests per minute (Recorded: 9/26/2025)
+
+[cav_1758883542611_d8xik] Database connection pool limited to 10 connections (Recorded: 9/26/2025)
+
+[cav_1758883895913_fodtg] Performance test caveat (Recorded: 9/26/2025)
+
+[cav_1758884384746_qq6pr] Performance optimization test (Recorded: 9/26/2025)

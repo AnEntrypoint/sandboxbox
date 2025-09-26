@@ -1,0 +1,157 @@
+{
+  "projectType": "node-library",
+  "framework": null,
+  "languages": [
+    "unknown",
+    "json",
+    "markdown",
+    "javascript"
+  ],
+  "buildTools": [],
+  "packageManagers": [
+    "npm"
+  ],
+  "testingFrameworks": [],
+  "dependencies": [
+    [
+      "@ast-grep/napi",
+      "^0.39.5"
+    ],
+    [
+      "@ast-grep/napi-linux-arm64-gnu",
+      "^0.39.5"
+    ],
+    [
+      "@modelcontextprotocol/sdk",
+      "^1.11.0"
+    ],
+    [
+      "@xenova/transformers",
+      "^2.17.2"
+    ],
+    [
+      "ignore",
+      "^7.0.5"
+    ],
+    [
+      "uuid",
+      "^9.0.1"
+    ]
+  ],
+  "devDependencies": [],
+  "structure": {
+    "directories": [
+      ".claude",
+      ".claude-context",
+      ".git",
+      ".mcp-metadata",
+      "code_search_index",
+      "glootie",
+      "results",
+      "node_modules",
+      "src",
+      "core",
+      "tools"
+    ],
+    "files": [
+      ".caveats.txt",
+      ".claude.json",
+      ".gitignore",
+      ".glootie-project-structure.json",
+      ".mcp-file-analysis-metadata.json",
+      ".mcp-init-flag.json",
+      "CLAUDE.md",
+      "Dockerfile",
+      "LICENSE",
+      "README.md",
+      "code_index.json",
+      "analyze_step_data.js",
+      "claude-output-component-analysis-baseline.json",
+      "claude-output-component-analysis-baseline.json.stderr.log",
+      "claude-output-component-analysis-baseline.json.stdout.log",
+      "claude-output-component-analysis-mcp.json",
+      "claude-output-component-analysis-mcp.json.stderr.log",
+      "claude-output-component-analysis-mcp.json.stdout.log",
+      "claude-output-optimization-baseline.json",
+      "claude-output-optimization-baseline.json.stderr.log",
+      "claude-output-optimization-baseline.json.stdout.log",
+      "claude-output-optimization-mcp.json",
+      "claude-output-optimization-mcp.json.stderr.log",
+      "claude-output-optimization-mcp.json.stdout.log",
+      "claude-output-refactoring-baseline.json",
+      "claude-output-refactoring-baseline.json.stderr.log",
+      "claude-output-refactoring-baseline.json.stdout.log",
+      "claude-output-refactoring-mcp.json",
+      "claude-output-refactoring-mcp.json.stderr.log",
+      "claude-output-refactoring-mcp.json.stdout.log",
+      "claude-output-ui-generation-baseline.json",
+      "claude-output-ui-generation-baseline.json.stderr.log",
+      "claude-output-ui-generation-baseline.json.stdout.log",
+      "claude-output-ui-generation-mcp.json",
+      "claude-output-ui-generation-mcp.json.stderr.log",
+      "claude-output-ui-generation-mcp.json.stdout.log",
+      "claude-steps-component-analysis-baseline.json",
+      "claude-steps-component-analysis-mcp.json",
+      "claude-steps-optimization-baseline.json",
+      "claude-steps-optimization-mcp.json",
+      "claude-steps-refactoring-baseline.json",
+      "claude-steps-refactoring-mcp.json",
+      "claude-steps-ui-generation-baseline.json",
+      "claude-steps-ui-generation-mcp.json",
+      "mcp-performance-1758880173749.json",
+      "package-lock.json",
+      "package.json",
+      "caveat-manager.js",
+      "connection-manager.js",
+      "console-suppression.js",
+      "cross-tool-context.js",
+      "error-handling.js",
+      "execution-state.js",
+      "file-analysis-tracker.js",
+      "ignore-manager.js",
+      "index.js",
+      "mcp-pagination.js",
+      "mcp-tools.js",
+      "project-intelligence.js",
+      "shared-utils.js",
+      "simple-linter.js",
+      "utilities.js",
+      "working-directory-context.js",
+      "index.js.backup",
+      "ast-tool.js",
+      "caveat-tool.js",
+      "code-similarity-detector.js",
+      "executor-tool.js",
+      "vector-tool.js",
+      "test-gitignore.txt",
+      "test-runner.cjs"
+    ],
+    "configFiles": [
+      ".caveats.txt",
+      ".claude.json",
+      ".gitignore",
+      ".glootie-project-structure.json",
+      ".mcp-file-analysis-metadata.json",
+      ".mcp-init-flag.json",
+      "Dockerfile",
+      "package.json"
+    ]
+  },
+  "patterns": {
+    "hasTypeScript": false,
+    "hasTests": false,
+    "hasSrcDir": true,
+    "hasPublicDir": false,
+    "monorepo": false,
+    "hasDocker": true,
+    "hasCI": false
+  },
+  "recommendations": [
+    "💡 Consider adding TypeScript for better type safety",
+    "🧪 Consider adding tests for better code quality",
+    "🔧 Consider adding a build tool like Vite or Webpack",
+    "🐳 Docker detected - Containerization ready",
+    "🔄 Consider adding CI/CD pipeline for automation"
+  ],
+  "lastAnalyzed": 1758884224319
+}
