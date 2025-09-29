@@ -5,7 +5,7 @@ import path from 'path';
 export class ProjectIntelligence {
   constructor() {
     this.projectCache = new Map();
-    this.projectStructureFile = '.glootie-project-structure.json';
+    this.projectStructureFile = './glootie/.glootie-project-structure.json';
   }
 
   // Analyze project structure and type

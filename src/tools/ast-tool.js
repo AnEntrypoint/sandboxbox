@@ -16,6 +16,23 @@ import { spawn } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+function generatePatternGuidance(issues) {
+  let guidance = '💡 Pattern Optimization Tips:\n\n';
+
+  issues.forEach((issue, index) => {
+    guidance += `${index + 1}. ${issue.message}\n`;
+    if (issue.examples && issue.examples.length > 0) {
+      guidance += '\n   Examples:\n';
+      issue.examples.forEach(example => {
+        guidance += `   ${example}\n`;
+      });
+    }
+    guidance += '\n';
+  });
+
+  return guidance;
+}
+
 export class ASTPatternValidator {
   static validateAndFixPattern(pattern) {
     if (!pattern || typeof pattern !== 'string') {
@@ -39,67 +56,105 @@ export class ASTPatternValidator {
       );
     }
 
-    // Auto-fix problematic patterns instead of blocking them
-    const originalPattern = pattern;
-    let fixedPattern = pattern;
+    // Provide helpful guidance for effective patterns instead of auto-fixing
+    const patternIssues = [];
+    let suggestedPattern = pattern;
 
-    // Fix problematic "has" patterns - convert to simple variable matches
-    const hasPatternFixes = [
-      // Convert "VAR has PROP" to just "VAR" (find the variable)
-      { regex: /\$\w+\s+has\s+\$\w+/g, replacement: (match) => match.split(' has ')[0] },
-      // Convert "VAR has specific_word" to just "VAR"
-      { regex: /\$\w+\s+has\s+\w+/g, replacement: (match) => match.split(' has ')[0] },
-      // Convert "has FUNC(...)" to "FUNC(...)"
-      { regex: /has\s+(\$\w+)\s*\(/g, replacement: '$1(' },
-    ];
-
-    for (const { regex, replacement } of hasPatternFixes) {
-      if (regex.test(fixedPattern)) {
-        fixedPattern = fixedPattern.replace(regex, replacement);
-        break; // Only apply first match to avoid over-fixing
+    // Check for "has" patterns and provide guidance
+    if (pattern.includes(' has ')) {
+      patternIssues.push({
+        type: 'HAS_PATTERN',
+        message: 'Pattern uses "has" syntax - for better results, search for the specific element directly',
+        examples: [
+          `Instead of: "$VAR has useEffect"`,
+          `Try: "useEffect($$$)" or "useEffect"`,
+          '',
+          `Instead of: "$COMPONENT has props"`,
+          `Try: "const $PROP = props.$PROP" or "$COMPONENT($$$)"`
+        ]
+      });
+      // Extract the variable part as a better pattern suggestion
+      const parts = pattern.split(' has ');
+      if (parts[0].startsWith('$')) {
+        suggestedPattern = parts[0];
       }
     }
 
-    // Fix multiple complex $$$ patterns
-    if ((fixedPattern.match(/\$\$\$/g) || []).length > 2) {
-      // Reduce multiple $$$ to single metavariables
-      fixedPattern = fixedPattern.replace(/\$\$\$/g, '$CONTENT');
+    // Check for overly complex patterns
+    const complexPatternCount = (pattern.match(/\$\$\$/g) || []).length;
+    if (complexPatternCount > 2) {
+      patternIssues.push({
+        type: 'COMPLEX_PATTERN',
+        message: 'Pattern contains multiple complex placeholders - simplify for better results',
+        examples: [
+          `Instead of: "function $FUNC($$$) { $$$ }"`,
+          `Try: "function $FUNC(" or just "$FUNC"`,
+          '',
+          `Break complex searches into multiple specific patterns`
+        ]
+      });
     }
 
-    // Only block truly dangerous patterns that can't be auto-fixed
-    const trulyDangerousPatterns = [
-      // Empty patterns
-      /^\s*$/,
-      // Invalid characters that definitely crash ast-grep
-      /[^a-zA-Z0-9_\s\{\}\(\)\[\]\.\=\,\;\:\'\"\`\+\-\*\/\>\<\&\|\!\@\#\$\%\^\~\?\$]/g
+    // Check for overly broad patterns
+    const overlyBroadPatterns = [
+      /^\w+$/, // Single words
+      /^[A-Z][a-zA-Z0-9]*$/, // Just class/function names
+      /^\$\w+$/ // Just metavariables
     ];
 
-    for (const dangerousRegex of trulyDangerousPatterns) {
-      if (dangerousRegex.test(fixedPattern)) {
+    if (overlyBroadPatterns.some(regex => regex.test(pattern))) {
+      patternIssues.push({
+        type: 'BROAD_PATTERN',
+        message: 'Pattern is very broad - add more context for better results',
+        examples: [
+          `Instead of: "Component"`,
+          `Try: "class Component" or "function Component("`,
+          '',
+          `Instead of: "$VAR"`,
+          `Try: "const $VAR =" or "let $VAR ="`
+        ]
+      });
+    }
+
+    // Only validate for truly invalid patterns
+    const invalidPatterns = [
+      // Empty patterns
+      /^\s*$/,
+      // Patterns with clearly invalid characters
+      /[<>\\|]/g
+    ];
+
+    for (const invalidRegex of invalidPatterns) {
+      if (invalidRegex.test(pattern)) {
         throw new ToolError(
-          `Pattern "${originalPattern}" contains invalid characters that cannot be auto-fixed`,
+          `Pattern "${pattern}" contains invalid syntax`,
           'INVALID_PATTERN',
           'ast-tool',
           false,
-          ['Use valid AST pattern syntax', 'Remove special characters']
+          [
+            'Use valid AST pattern syntax',
+            'Avoid special characters like < > \\ |',
+            'See tool description for effective examples'
+          ]
         );
       }
     }
 
     return {
       isValid: true,
-      originalPattern,
-      fixedPattern,
-      wasFixed: fixedPattern !== originalPattern,
-      fixMessage: fixedPattern !== originalPattern ?
-        `Auto-fixed pattern: "${originalPattern}" → "${fixedPattern}"` : null
+      originalPattern: pattern,
+      suggestedPattern,
+      patternIssues,
+      hasSuggestions: patternIssues.length > 0,
+      guidance: patternIssues.length > 0 ? generatePatternGuidance(patternIssues) : null
     };
-  }
+}
 
-  // sanitizePattern is now handled by validateAndFixPattern
+
+  // getSafePattern now returns the original pattern with validation info
   static getSafePattern(pattern) {
     const validation = ASTPatternValidator.validateAndFixPattern(pattern);
-    return validation.fixedPattern;
+    return validation.originalPattern;
   }
 }
 
@@ -566,28 +621,30 @@ async function safeASTOperationWrapper(operation, context = {}) {
 
   return connectionManager.executeWithRetry(async () => {
     try {
-      // Auto-fix problematic patterns instead of blocking them
-      let originalPattern = context.pattern;
-      let fixedPattern = context.pattern;
+      // Provide pattern guidance instead of auto-fixing
+      const originalPattern = context.pattern;
+      let patternGuidance = null;
 
       if (context.pattern) {
         const validation = ASTPatternValidator.validateAndFixPattern(context.pattern);
-        fixedPattern = validation.fixedPattern;
 
-        // Update context with fixed pattern
-        context.pattern = fixedPattern;
-        context.originalPattern = originalPattern;
-        context.wasAutoFixed = validation.wasFixed;
+        // Store validation info for guidance
+        if (validation.hasSuggestions) {
+          patternGuidance = validation.guidance;
+          context.pattern = validation.suggestedPattern;
+          context.originalPattern = originalPattern;
+          context.hasGuidance = true;
+        }
       }
 
       const result = await operation();
 
-      // Add auto-fix information to result if pattern was fixed
-      if (context.wasAutoFixed && result.results) {
-        result.autoFixed = {
+      // Add pattern guidance if suggestions were provided
+      if (patternGuidance && result.results) {
+        result.patternGuidance = {
           originalPattern,
-          fixedPattern,
-          message: `Auto-fixed pattern: "${originalPattern}" → "${fixedPattern}"`
+          guidance: patternGuidance,
+          message: 'Pattern optimization suggestions available'
         };
       }
 
@@ -890,28 +947,34 @@ function generateASTInsights(results, operation, pattern, workingDirectory, resu
 
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: `Powerful AST pattern matching tool for precise code search and transformation. Supports JavaScript, TypeScript, Python, Go, Rust, C, C++.
+  description: `Precise AST pattern matching tool for finding concrete code structures and implementation patterns.
 
-**🎯 EFFECTIVE PATTERN STRATEGIES:**
-• Use concrete syntax patterns rather than general concepts
-• Focus on specific function names, variable names, or language constructs
-• Combine patterns with relational operators for precision
-• Leverage the auto-fixing capability for complex patterns
+🎯 BEST FOR:
+- Finding specific function signatures, variable declarations, and language constructs
+- Locating exact code patterns, syntax structures, and implementation details
+- Searching for concrete API usage, library patterns, and framework-specific code
+- Identifying specific error handling patterns, data structures, and algorithm implementations
 
-**🤖 SMART AUTO-FIXING:**
-The tool automatically converts complex patterns to working ones:
-• "$VAR has $PROP" → "$VAR" (finds the variable)
-• "$COMPONENT has useEffect" → "$COMPONENT" (finds the component)
-• "$OBJECT has pair" → "$OBJECT" (finds the object)
-• Complex $$$ patterns → Simple metavariables
+💡 EFFECTIVE SEARCH QUERIES:
+• "useState($INITIAL)" - Find React state initialization patterns
+• "function $FUNC($PARAM)" - Find function definitions with parameters
+• "console.log($ARG)" - Find console logging statements
+• "try { $$$ } catch ($ERROR) { $$$ }" - Find error handling blocks
+• "const $VAR = await $ASYNC" - Find async/await patterns
+• "import $LIB from '$MODULE'" - Find specific import statements
 
-**✅ RELIABLE PATTERNS (Always work):**
-• Simple variables: "$VAR", "$FUNC", "$COMPONENT"
-• Function calls: "console.log($ARG)", "useState($INITIAL)"
-• Function definitions: "function $FUNC($PARAM)", "async function $FUNC($PARAM)"
-• Object patterns: "const $OBJ = {$KEY: $VALUE}", "{$KEY: $VALUE}"
-• Array patterns: "const $ARR = [$ITEM]", "[$FIRST, $SECOND]"
-• React hooks: "useEffect($DEPENDENCY)", "const [$STATE, $SETTER] = useState($INITIAL)"
+❌ AVOID:
+- Abstract concepts like "performance issues", "memory problems"
+- Business requirements instead of code structures
+- General descriptions instead of specific syntax patterns
+
+✅ RELIABLE PATTERNS:
+• Variables: "$VAR", "$FUNC", "$COMPONENT"
+• Functions: "function $FUNC($PARAM)", "async function $FUNC($PARAM)"
+• Objects: "const $OBJ = {$KEY: $VALUE}", "{$KEY: $VALUE}"
+• Arrays: "const $ARR = [$ITEM]", "[$FIRST, $SECOND]"
+• React: "useEffect($DEPENDENCY)", "const [$STATE, $SETTER] = useState($INITIAL)"
+• Relations: "$FUNC has debugger", "$VAR inside function_declaration"
 
 **🔍 POWERFUL RELATION OPERATORS:**
 • "has": Find elements containing specific patterns - "$FUNC has debugger", "$OBJ has pair"
@@ -942,9 +1005,9 @@ The tool automatically converts complex patterns to working ones:
   examples: [
     'operation="search", pattern="console.log($ARG)"',
     'operation="replace", pattern="var $NAME", replacement="let $NAME"',
-    'operation="search", pattern="$FUNC has debugger"',
+    'operation="search", pattern="$FUNC debugger"',
     'operation="search", pattern="kind: function_declaration"',
-    'operation="search", pattern="$OBJ has pair"'
+    'operation="search", pattern="$OBJ"'
   ],
   inputSchema: {
     type: 'object',
@@ -956,7 +1019,7 @@ The tool automatically converts complex patterns to working ones:
       },
             pattern: {
         type: 'string',
-        description: 'REQUIRED: AST pattern to search for. The tool automatically fixes complex patterns and converts "has" expressions. Examples: "$VAR", "$FUNC has debugger", "console.log($ARG)", "useState($INITIAL)".'
+        description: 'REQUIRED: AST pattern to search for. The tool provides guidance for optimizing complex patterns and suggests alternatives for "has" expressions. Examples: "$VAR", "$FUNC", "console.log($ARG)", "useState($INITIAL)".'
       },
       replacement: {
         type: 'string',
@@ -1033,7 +1096,13 @@ The tool automatically converts complex patterns to working ones:
           return addExecutionStatusToResponse(response, 'ast_tool');
         }
 
-        // Skip pattern warnings - auto-fixing is handled silently
+        // Add pattern guidance if available
+      if (result.patternGuidance) {
+        const response = {
+          content: [{ type: "text", text: result.patternGuidance.guidance + '\n\nSearching with suggested pattern...' }]
+        };
+        return addExecutionStatusToResponse(response, 'ast_tool');
+      }
 
         // Check for pattern errors and return error response instead of pagination
         if (result.patternErrors && result.patternErrors.length > 0) {
@@ -1188,7 +1257,13 @@ function formatSearchResult(result, args) {
     return addExecutionStatusToResponse(response, 'ast_tool');
   }
 
-  // Skip pattern warnings - auto-fixing is handled silently
+  // Add pattern guidance if available
+      if (result.patternGuidance) {
+        const response = {
+          content: [{ type: "text", text: result.patternGuidance.guidance + '\n\nSearching with suggested pattern...' }]
+        };
+        return addExecutionStatusToResponse(response, 'ast_tool');
+      }
 
   // Check for pattern errors even if search was successful
   if (result.patternErrors && result.patternErrors.length > 0) {

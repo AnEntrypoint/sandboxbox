@@ -4,16 +4,78 @@ import path from 'path';
 const ignoreFilterCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; 
 export const CORE_IGNORE_PATTERNS = [
-  
-  '.gittest*.test.*',
-  '**/*.spec.*',
-  
-  '.vscode*.md',
-  '**/*.txt',
-  'docs*.sqlite',
-  '**/*.db',
-  '**/*.sql',
-  
+  // Version control and build artifacts
+  '**/.git',
+  '**/.svn',
+  '**/.hg',
+  '**/node_modules',
+  '**/build',
+  '**/dist',
+  '**/target',
+  '**/out',
+  '**/public/build',
+  '**/.next',
+  '**/.nuxt',
+  '**/.out',
+  '**/.turbo',
+  '**/.vercel',
+  '**/.netlify',
+
+  // Dependencies and package managers
+  '**/vendor',
+  '**/bower_components',
+  '**/jspm_packages',
+
+  // Testing and coverage
+  '**/coverage',
+  '**/.coverage',
+  '**/.nyc_output',
+  '**/.pytest_cache',
+  '**/__pycache__',
+  '**/*.pyc',
+  '**/*.pyo',
+  '**/*.pyd',
+  '**/.mypy_cache',
+  '**/venv',
+  '**/env',
+  '**/.env',
+  '**/.venv',
+  '**/conda',
+
+  // IDE and editor files
+  '**/.vscode',
+  '**/.idea',
+  '**/.vs',
+  '**/.swp',
+  '**/.swo',
+  '**/.DS_Store',
+  '**/Thumbs.db',
+
+  // OS generated files
+  '**/.DS_Store',
+  '**/Thumbs.db',
+  '**/.Spotlight-V100',
+  '**/.Trashes',
+  '**/ehthumbs.db',
+  '**/Desktop.ini',
+
+  // Logs and temporary files
+  '**/.log',
+  '**/.tmp',
+  '**/.temp',
+  '**/tmp',
+  '**/temp',
+  '**/.cache',
+  '**/.parcel-cache',
+
+  // Documentation and generated files
+  '**/*.log',
+  '**/.env.local',
+  '**/.env.*.local',
+  '**/docs/build',
+  '**/site/public',
+
+  // Binary and media files
   '**/*.png',
   '**/*.jpg',
   '**/*.jpeg',
@@ -26,13 +88,7 @@ export const CORE_IGNORE_PATTERNS = [
   '**/*.gz',
   '**/*.rar',
   '**/*.7z',
-  
-  '**/*.min.*',
-  '**/*.map',
-  '**/*.bundle.*',
-  
-  '.claude**',
-  'debug-**.mp4',
+  '**/*.mp4',
   '**/*.avi',
   '**/*.mov',
   '**/*.wmv',
@@ -42,29 +98,56 @@ export const CORE_IGNORE_PATTERNS = [
   '**/*.wav',
   '**/*.flac',
   '**/*.aac',
-  
-  '**/node_modules',
-  '**/.git',
-  '**/build',
-  '**/dist',
-  '**/target',
-  '**/coverage',
-  '**/.next',
-  '**/.nuxt',
-  '**/.out',
-  '**/.turbo',
-  '**/.vercel',
-  '**/.netlify',
-  '**/venv',
-  '**/env',
-  '**/.pytest_cache',
-  '**/__pycache__',
-  '**/*.pyc',
-  '**/*.pyo',
-  '**/*.pyd',
+
+  // Minified and bundled files
+  '**/*.min.*',
+  '**/*.map',
+  '**/*.bundle.*',
+  '**/bundle.*',
+
+  // Database files
+  '**/*.sqlite',
+  '**/*.db',
+  '**/*.sql',
+
+  // Test files and fixtures
+  '**/*.test.*',
+  '**/*.spec.*',
+  '**/__tests__',
+  '**/__mocks__',
+  '**/fixtures',
+  '**/test_data',
+
+  // Claude and AI related
+  '.claude**',
+  '**/.claude',
+  'debug-**.*',
+
+  // Package lock files
+  '**/package-lock.json',
+  '**/yarn.lock',
+  '**/pnpm-lock.yaml',
+  '**/bun.lockb',
+
+  // Build and CI cache
   '**/.cache',
-  '**/temp',
-  '**/tmp'
+  '**/.angular',
+  '**/.svelte-kit',
+
+  // Results and glootie generated files
+  '**/results',
+  '**/glootie',
+
+  // Miscellaneous
+  '**/.npmrc',
+  '**/.yarnrc',
+  '**/.node-version',
+  '**/.nvmrc',
+  '**/todo.md',
+  '**/readme.md',
+  '**/license',
+  '**/changelog.md',
+  '**/contributing.md'
 ];
 
 export const SOURCE_CODE_EXTENSIONS = [

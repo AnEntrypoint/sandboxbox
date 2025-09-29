@@ -25,6 +25,7 @@ function pathRelative(from, to) {
 }
 import { workingDirectoryContext, createToolContext, getContextSummary } from '../core/working-directory-context.js';
 import { addExecutionStatusToResponse } from '../core/execution-state.js';
+import { createEnhancedErrorHandler } from '../core/enhanced-error-handler.js';
 import { withConnectionManagement, getGlobalConnectionManager } from '../core/connection-manager.js';
 import { withCrossToolAwareness, addToolMetadata } from '../core/cross-tool-context.js';
 function cacheSearchResult(query, results, path) {
@@ -48,25 +49,65 @@ const platform = {
   isLinux: os.platform() === 'linux',
   isWindows: os.platform() === 'win32'
 };
-const INDEX_DIR = './code_search_index';
+// Index directory - use absolute path for cross-directory access
+// Path resolution class to handle cross-directory access properly
+class PathResolver {
+  constructor(baseWorkingDir = null) {
+    this.baseWorkingDir = baseWorkingDir || process.cwd();
+    this.sharedIndexDir = '/config/workspace/mcp-repl/glootie/code_search_index';
+  }
+
+  // Get the appropriate index directory based on context
+  getIndexDirectory() {
+    // If we're in the main MCP directory, use local index
+    if (this.baseWorkingDir.includes('mcp-repl')) {
+      return this.sharedIndexDir;
+    }
+
+    // For other directories, create/use local index but fall back to shared
+    const localIndexDir = pathJoin(this.baseWorkingDir, 'glootie', 'code_search_index');
+    return localIndexDir;
+  }
+
+  // Get shared index path for fallback
+  getSharedIndexPath() {
+    return pathJoin(this.sharedIndexDir, INDEX_FILE);
+  }
+
+  // Check if path is within working directory
+  isWithinWorkingDirectory(filePath) {
+    return filePath.startsWith(this.baseWorkingDir);
+  }
+}
+
+// Global path resolver instance
+let globalPathResolver = null;
+
+function getPathResolver() {
+  if (!globalPathResolver) {
+    globalPathResolver = new PathResolver();
+  }
+  return globalPathResolver;
+}
 const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
-const DEFAULT_DIM = 384; 
+const DEFAULT_DIM = 384;
 const DEFAULT_EXTS = [
-  
+
   'js', 'ts', 'jsx', 'tsx',
   'go',
   'rs',
   'py', 'pyx',
   'c', 'cpp', 'cc', 'cxx', 'h', 'hpp',
-  
+
   'json', 'yaml', 'yml'
-  
+
 ];
-const MAX_FILE_SIZE = 75 * 1024; 
-const MAX_LINES_PER_CHUNK = 200; 
-const MAX_CACHE_SIZE = 1500; 
+const MAX_FILE_SIZE = 200 * 1024;
+const MAX_LINES_PER_CHUNK = 150;
+const MAX_CACHE_SIZE = 1500;
 const INDEX_FILE = 'code_index.json';
 const VECTOR_INDEX_FILE = 'vector_index.json';
+const INDEX_DIR = 'code_search_index';
 const platformConfig = {
   memoryLimit: 1024 * 1024 * 1024,
   batchSize: 64,
@@ -76,6 +117,7 @@ const platformConfig = {
 let codeChunks = [];
 let embeddingExtractor = null;
 let isInitialized = false;
+let initializationPromise = null;
 let indexTimestamp = 0;
 function generateSearchInsights(results, query, workingDirectory) {
   // Only provide essential insights for programming agents
@@ -127,25 +169,18 @@ async function initializeEmbeddingProvider() {
     const { pipeline, env } = await import('@xenova/transformers');
 
     // Configure transformers.js environment for better performance
-    env.localModelPath = './.cache';
+    env.localModelPath = './glootie/.cache';
     env.allowLocalModels = true;
     env.remoteModelPath = null;
     env.forceDownload = false;
 
     console.log(`Loading model: ${DEFAULT_MODEL}`);
 
-    // Create pipeline with timeout and error handling
-    const pipelinePromise = pipeline('feature-extraction', DEFAULT_MODEL, {
+    // Create pipeline
+    embeddingExtractor = await pipeline('feature-extraction', DEFAULT_MODEL, {
       quantized: true,
       device: 'cpu'
     });
-
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Model loading timeout after 60 seconds')), 60000);
-    });
-
-    embeddingExtractor = await Promise.race([pipelinePromise, timeoutPromise]);
     console.log('Embedding provider initialized successfully');
     return true;
   } catch (error) {
@@ -244,6 +279,10 @@ async function findCodeFiles(dir) {
   }
   return files;
 }
+function createCodeChunks(content, filePath, language) {
+  return processCodeIntoChunks(content, filePath);
+}
+
 function processCodeIntoChunks(content, filePath) {
   const chunks = [];
   const lines = content.split('\n');
@@ -254,11 +293,11 @@ function processCodeIntoChunks(content, filePath) {
   let inClass = false;
   let braceCount = 0;
   let chunkLineCount = 0;
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
-    
+
     if (trimmedLine.match(languagePattern) ||
         trimmedLine.match(/^(export|import|interface|type|enum|trait|impl|use|mod)\s/) ||
         trimmedLine.match(/^(component|directive|service|controller|middleware)\s/)) {
@@ -282,7 +321,7 @@ function processCodeIntoChunks(content, filePath) {
       chunkLineCount++;
       braceCount += (line.match(/{/g) || []).length;
       braceCount -= (line.match(/}/g) || []).length;
-      
+
       if ((braceCount === 0 && (inFunction || inClass)) ||
           chunkLineCount >= MAX_LINES_PER_CHUNK ||
           (trimmedLine === '' && currentChunk.length > 50)) {
@@ -300,7 +339,7 @@ function processCodeIntoChunks(content, filePath) {
       }
     }
   }
-  
+
   if (currentChunk.trim()) {
     chunks.push({
       content: currentChunk.trim(),
@@ -323,18 +362,35 @@ function getCodeChunkType(content, language) {
   return 'code';
 }
 async function loadIndex(indexDir) {
+  const pathResolver = getPathResolver();
+
   try {
     const indexPath = pathJoin(indexDir, INDEX_FILE);
+
     if (existsSync(indexPath)) {
       const indexData = JSON.parse(readFileSync(indexPath, 'utf8'));
       codeChunks = indexData.chunks || [];
       indexTimestamp = indexData.timestamp || 0;
-      console.log(`Loaded existing index with ${codeChunks.length} chunks`);
-    } else {
-      console.log("No existing index found, starting fresh");
-      codeChunks = [];
-      indexTimestamp = 0;
+      console.log(`Loaded existing index with ${codeChunks.length} chunks from ${indexPath}`);
+      return;
     }
+
+    console.log("No existing index found, checking for shared index");
+
+    // Try shared index as fallback
+    const sharedIndexPath = pathResolver.getSharedIndexPath();
+    if (existsSync(sharedIndexPath)) {
+      const sharedIndexData = JSON.parse(readFileSync(sharedIndexPath, 'utf8'));
+      codeChunks = sharedIndexData.chunks || [];
+      indexTimestamp = sharedIndexData.timestamp || 0;
+      console.log(`Loaded shared MCP-REPL index with ${codeChunks.length} chunks from ${sharedIndexPath}`);
+      return;
+    }
+
+    console.log("No existing index found, starting fresh");
+    codeChunks = [];
+    indexTimestamp = 0;
+
   } catch (error) {
     console.warn("Failed to load index, starting fresh:", error.message);
     codeChunks = [];
@@ -416,21 +472,30 @@ async function getEmbedding(text) {
     // Enhanced code-specific preprocessing for better embeddings
     const enhancedText = enhanceTextForCodeEmbedding(text);
 
-    // Add timeout to prevent hanging during embedding generation
-    const embeddingPromise = embeddingExtractor(enhancedText, {
+    const embedding = await embeddingExtractor(enhancedText, {
       pooling: 'cls',
       normalize: true,
       truncation: true,
       max_length: 512
     });
 
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Embedding generation timeout after 30 seconds')), 30000);
-    });
+    // Handle Transformers.js API contract properly
+    let embeddingArray;
+    if (embedding && embedding.data) {
+      // Tensor object with data property
+      embeddingArray = Array.from(embedding.data);
+    } else if (Array.isArray(embedding)) {
+      // Direct array response
+      embeddingArray = embedding;
+    } else if (embedding && typeof embedding.toArray === 'function') {
+      // Tensor with toArray method
+      embeddingArray = Array.from(await embedding.toArray());
+    } else {
+      throw new Error(`Unexpected embedding format: ${typeof embedding}`);
+    }
 
-    const embedding = await Promise.race([embeddingPromise, timeoutPromise]);
-    embeddingLRUCache.set(cacheKey, embedding);
-    return embedding;
+    embeddingLRUCache.set(cacheKey, embeddingArray);
+    return embeddingArray;
   } catch (error) {
     console.error('Embedding generation failed:', error);
     throw new Error(`Failed to generate embedding: ${error.message}`);
@@ -485,45 +550,62 @@ function calculateCosineSimilarity(vecA, vecB) {
   const denominator = Math.sqrt(normA) * Math.sqrt(normB);
   return denominator === 0 ? 0 : dotProduct / denominator;
 }
-export async function initializeVectorSystem(indexDir = INDEX_DIR) {
-  if (isInitialized) return true;
-  try {
-    if (!existsSync(indexDir)) {
-      mkdirSync(indexDir, { recursive: true });
-      console.log(`Created index directory: ${indexDir}`);
-    }
-    if (!embeddingExtractor) {
-      await initializeEmbeddingProvider();
-    }
-    await loadIndex(indexDir);
-    isInitialized = true;
-    return true;
-  } catch (error) {
-    console.error("Vector system initialization failed:", error);
-    throw new Error(`Vector system initialization failed: ${error.message}`);
+export async function initializeVectorSystem(indexDir = null) {
+  // Use path resolver to determine correct index directory
+  const pathResolver = getPathResolver();
+  const resolvedIndexDir = indexDir || pathResolver.getIndexDirectory();
+  // If already initializing, wait for that promise
+  if (initializationPromise) {
+    return await initializationPromise;
   }
+
+  // If already initialized, return immediately
+  if (isInitialized) return true;
+
+  // Create initialization promise to prevent race conditions
+  initializationPromise = (async () => {
+    try {
+      if (!existsSync(resolvedIndexDir)) {
+        mkdirSync(resolvedIndexDir, { recursive: true });
+        console.log(`Created index directory: ${resolvedIndexDir}`);
+      }
+      if (!embeddingExtractor) {
+        await initializeEmbeddingProvider();
+      }
+      await loadIndex(resolvedIndexDir);
+      isInitialized = true;
+      return true;
+    } catch (error) {
+      console.error("Vector system initialization failed:", error);
+      initializationPromise = null; // Reset on failure
+      throw new Error(`Vector system initialization failed: ${error.message}`);
+    }
+  })();
+
+  return await initializationPromise;
 }
 export async function processFile(file, codeChunks) {
   const newChunks = [];
   try {
     const stats = await fs.stat(file);
+    let content = await fs.readFile(file, 'utf8');
+
     if (stats.size > MAX_FILE_SIZE) {
-      console.log(`File ${file} is large (${stats.size} bytes), truncating`);
-      let content = await fs.readFile(file, 'utf8');
-      if (content.length > MAX_FILE_SIZE) {
-        content = content.substring(0, MAX_FILE_SIZE);
-      }
-      const chunks = [{
-        content,
-        file,
-        type: 'code',
-        metadata: { truncated: true, originalSize: stats.size }
-      }];
+      console.log(`File ${file} is large (${stats.size} bytes), using intelligent chunking`);
+      // Instead of truncating, use intelligent chunking for large files
+      const language = detectLanguageFromPath(file);
+      const largeFileChunks = createCodeChunks(content, file, language);
+      newChunks.push(...largeFileChunks);
+    } else {
+      // For smaller files, use the existing chunking logic
+      const language = detectLanguageFromPath(file);
+      const chunks = createCodeChunks(content, file, language);
       newChunks.push(...chunks);
     }
   } catch (error) {
     console.error(`Error reading file ${file}:`, error);
   }
+
   const updatedChunks = newChunks.length > 0 ? newChunks : codeChunks;
   const indexData = {
     chunks: updatedChunks,
@@ -593,6 +675,9 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS) {
   }
   codeChunks = newChunks;
   indexTimestamp = startTime;
+  const pathResolver = getPathResolver();
+  const resolvedIndexDir = pathResolver.getIndexDirectory();
+
   const indexData = {
     timestamp: indexTimestamp,
     chunks: codeChunks.map(c => ({
@@ -602,10 +687,10 @@ export async function syncVectorIndex(folders, exts = DEFAULT_EXTS) {
       endLine: c.endLine
     }))
   };
-  if (!existsSync(INDEX_DIR)) {
-    mkdirSync(INDEX_DIR, { recursive: true });
+  if (!existsSync(resolvedIndexDir)) {
+    mkdirSync(resolvedIndexDir, { recursive: true });
   }
-  const indexPath = pathJoin(INDEX_DIR, INDEX_FILE);
+  const indexPath = pathJoin(resolvedIndexDir, INDEX_FILE);
   writeFileSync(indexPath, JSON.stringify(indexData, null, 2));
   console.log(`Saved index to ${indexPath} with ${codeChunks.length} chunks`);
   return codeChunks.length;
@@ -654,7 +739,7 @@ export async function findSimilarFunctions(targetFunction, topK = 3) {
     for (const sig of signatures) {
       if (sig.name !== targetSignature.name) { 
         const chunkEmbedding = await getEmbedding(chunk.content);
-        const similarity = calculateCosineSimilarity(queryEmbedding.data, chunkEmbedding.data);
+        const similarity = calculateCosineSimilarity(queryEmbedding, chunkEmbedding);
         if (similarity > 0.80) { 
           functionResults.push({
             file: chunk.file,
@@ -673,92 +758,211 @@ export async function findSimilarFunctions(targetFunction, topK = 3) {
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, topK);
 }
+// AGENT QUERY OPTIMIZATION: Convert specific queries to generic coding patterns
+function optimizeAgentQuery(query) {
+  let optimizedQuery = query;
+
+  // Generic coding concept mappings (framework-agnostic)
+  const conceptMappings = {
+    // Routing patterns (any framework)
+    'routing|router|route': 'navigation path url handler controller endpoint',
+    'authenticated|auth|login': 'authentication authorization security user session',
+    'layout|template': 'structure design component wrapper container',
+
+    // Data management patterns
+    'query|fetch|request': 'data retrieval async api call http service',
+    'mutation|update|save': 'data modification persistence change write',
+    'state|store': 'data management persistence reactive state container',
+
+    // UI Component patterns
+    'component|ui|interface': 'user interface element widget view screen',
+    'form|input|field': 'data entry validation submission user input',
+    'table|list|grid': 'data display collection array items rows',
+    'chart|graph|visualization': 'data visual representation plot diagram',
+
+    // Architecture patterns
+    'service|api|endpoint': 'business logic data layer backend service',
+    'controller|handler': 'request processing logic coordination middleware',
+    'middleware|guard': 'interceptor filter validation security cross-cutting',
+    'repository|dao': 'data access persistence database abstraction',
+
+    // Code structure patterns
+    'hook|custom|util': 'reusable logic function helper utility',
+    'type|interface|schema': 'data structure definition contract validation',
+    'config|settings': 'configuration parameters environment setup',
+
+    // Path patterns (framework-agnostic)
+    'src/.*routes/': 'routing navigation url handler',
+    'src/.*components/': 'ui interface element widget',
+    'src/.*services/': 'business logic data layer',
+    'src/.*utils/': 'utility helper shared function',
+    'src/.*hooks/': 'reusable logic custom function',
+    'src/.*types/': 'type definition interface schema',
+  };
+
+  // Apply concept mappings using regex patterns
+  for (const [pattern, generic] of Object.entries(conceptMappings)) {
+    if (pattern.includes('|')) {
+      // Handle multiple patterns separated by |
+      const regex = new RegExp(`\\b(${pattern})\\b`, 'gi');
+      if (regex.test(optimizedQuery)) {
+        optimizedQuery = optimizedQuery.replace(regex, generic);
+      }
+    } else if (pattern.includes('/')) {
+      // Handle path patterns
+      const regex = new RegExp(pattern, 'gi');
+      optimizedQuery = optimizedQuery.replace(regex, generic);
+    }
+  }
+
+  // Generic path-to-concept conversions
+  const pathPatterns = [
+    { pattern: /src\/[^\/]+\/routes\/[^\/]*/gi, replacement: 'route handler navigation' },
+    { pattern: /src\/[^\/]+\/components\/[^\/]*/gi, replacement: 'ui component element' },
+    { pattern: /src\/[^\/]+\/services\/[^\/]*/gi, replacement: 'service data layer' },
+    { pattern: /src\/[^\/]+\/utils\/[^\/]*/gi, replacement: 'utility helper function' },
+    { pattern: /src\/[^\/]+\/hooks\/[^\/]*/gi, replacement: 'custom hook logic' },
+    { pattern: /src\/[^\/]+\/types\/[^\/]*/gi, replacement: 'type interface definition' },
+    { pattern: /src\/[^\/]+\/layouts?\/[^\/]*/gi, replacement: 'layout structure template' },
+    { pattern: /src\/[^\/]+\/stores?\/[^\/]*/gi, replacement: 'state management data' },
+  ];
+
+  pathPatterns.forEach(({ pattern, replacement }) => {
+    optimizedQuery = optimizedQuery.replace(pattern, replacement);
+  });
+
+  // Detect and transform abstract conceptual searches to concrete implementations
+  const abstractPatterns = [
+    {
+      pattern: /\b(performance bottleneck|slow performance|performance issue|performance problem)\b/gi,
+      replacement: 'debounce throttle memo useCallback useMemo inefficient loop',
+      reason: 'Abstract performance concepts → concrete optimization patterns'
+    },
+    {
+      pattern: /\b(memory leak|memory issue|memory problem)\b/gi,
+      replacement: 'cleanup useEffect clearInterval removeEventListener garbage collection',
+      reason: 'Abstract memory concepts → concrete cleanup patterns'
+    },
+    {
+      pattern: /\b(optimization opportunity|optimize|optimization)\b/gi,
+      replacement: 'memo useCallback useMemo lazy loading code splitting efficient',
+      reason: 'Abstract optimization → concrete optimization techniques'
+    },
+    {
+      pattern: /\b(slow component|slow rendering)\b/gi,
+      replacement: 'React.memo useMemo useCallback component re-render',
+      reason: 'Abstract slowness → concrete React optimization patterns'
+    }
+  ];
+
+  let wasAbstract = false;
+  abstractPatterns.forEach(({ pattern, replacement, reason }) => {
+    if (pattern.test(optimizedQuery)) {
+      console.error(`Optimizing abstract search: ${reason}`);
+      optimizedQuery = optimizedQuery.replace(pattern, replacement);
+      wasAbstract = true;
+    }
+  });
+
+  if (wasAbstract) {
+    console.error(`Transformed abstract query to concrete implementation patterns: "${optimizedQuery}"`);
+  }
+
+  // Remove overly specific prefixes/suffixes that limit search scope
+  optimizedQuery = optimizedQuery
+    .replace(/@[\w\-]+\/[\w\-]+/g, '') // Remove package names like @tanstack/react-router
+    .replace(/\b(create|use|get|post|put|delete)[A-Z]/g, (match) => match.toLowerCase()) // Normalize method prefixes
+    .replace(/\b[A-Z][a-z]*[A-Z][a-zA-Z]*/g, (match) => match.toLowerCase()); // Normalize camelCase
+
+  return optimizedQuery.trim();
+}
+
 function preprocessQuery(query) {
   let processedQuery = query.toLowerCase();
 
-  // Enhanced code-specific intent recognition and expansion - TECHNICAL IMPLEMENTATION FOCUSED
+  // AGENT QUERY OPTIMIZATION: Convert library-specific queries to generic patterns
+  processedQuery = optimizeAgentQuery(processedQuery);
+
+  // Enhanced code-specific intent recognition and expansion - FRAMEWORK-AGNOSTIC
   const intentPatterns = {
-    // Component and UI patterns - TECHNICAL FOCUS
-    'react': 'React.Component FunctionComponent JSX.Element useState useEffect useCallback useMemo useRef props children',
-    'component': 'interface Props<T = unknown> React.FC const function export return JSX.Element',
-    'hook': 'useState useEffect useCallback useMemo useRef customHook<T> useLayout useId useReducer',
-    'usestate': 'useState<T>(initial: T | () => T) const [state, setState] = useState',
-    'useeffect': 'useEffect(() => { return cleanup }, [dependencies]) sideEffect dependencyArray',
-    'props': 'interface Props extends React.PropsWithChildren<T> optional?: required: readonly',
+    // Component and UI patterns - GENERIC
+    'component|ui|view': 'interface props state lifecycle render template widget element',
+    'form|input|field': 'validation submission data entry user input schema control',
+    'table|list|grid': 'collection array items rows columns display data structure',
+    'layout|container': 'wrapper structure design template organization arrangement',
 
-    // Function and logic patterns - TECHNICAL FOCUS
-    'function': 'function name<T>(params: Type): ReturnType export const arrow = async => return',
-    'method': 'public private protected static method<T>(params): Type this.bind.apply.call',
-    'utility': 'export const util = <T>(input: T): Result => utility helper shared reusable',
-    'helper': 'function helper<T>(input: T): Output type Helper = (input: T) => Result',
+    // Function and logic patterns - GENERIC
+    'function|method': 'parameters return value signature scope visibility static instance',
+    'utility|helper': 'shared reusable common extract abstract helper function module',
+    'algorithm|logic': 'procedure steps flow control condition iteration recursion optimization',
 
-    // Data and state patterns - TECHNICAL FOCUS
-    'state': 'useState<T> dispatch reducer action selector createSlice configureStore Provider',
-    'data': 'Array<T> Map<K,V> Set<T> Record<K,V> interface type object json parse stringify',
-    'store': 'configureStore({ reducer: {} }) createSlice({ name, initialState, reducers })',
-    'context': 'createContext<ContextType>() useContext(Context) Context.Provider value={}',
+    // Data and state patterns - GENERIC
+    'state|data': 'persistence storage mutation reactive immutable observable container',
+    'store|repository': 'data access abstraction layer business logic entity model',
+    'cache|memory': 'temporary storage performance optimization fast access retention',
+    'model|entity': 'business object domain structure validation rules behavior',
 
-    // Architecture patterns - TECHNICAL FOCUS
-    'api': 'fetch(url, options) axios.get/post/put/delete request response headers status',
-    'endpoint': 'GET /api/users POST /api/data route handler controller service',
-    'service': 'class UserService { constructor(repo: UserRepo) async findAll(): Promise<User[]> }',
-    'controller': '@Controller() @Get("/users") async findAll(): Promise<User[]> { }',
-    'middleware': 'app.use(cors()) app.use(express.json()) authenticate(req, res, next)',
+    // Architecture patterns - GENERIC
+    'service|business': 'logic layer abstraction coordination workflow process flow',
+    'controller|handler': 'request processing response coordination endpoint routing',
+    'middleware|interceptor': 'cross-cutting validation security logging transformation',
+    'api|endpoint': 'interface contract communication protocol request response',
 
-    // Error and validation patterns - TECHNICAL FOCUS
-    'error': 'try catch finally throw new Error(message) Promise.catch async error boundary',
-    'validation': 'zod.object({}).parse() type guard instanceof isRequired constraint',
-    'boundary': 'ErrorBoundary getDerivedStateFromError componentDidCatch fallback UI Component',
-    'exception': 'Exception Error TypeError ReferenceError SyntaxError catch throw finally',
+    // Error and validation patterns - GENERIC
+    'error|exception': 'failure handling recovery debugging logging monitoring graceful',
+    'validation|constraint': 'rules checking verification business logic integrity',
+    'boundary|guard': 'protection isolation containment error handling security',
+    'retry|fallback': 'resilience recovery alternative backup graceful degradation',
 
-    // Performance and optimization patterns - TECHNICAL FOCUS
-    'performance': 'memo useMemo useCallback React.memo memoization cache key optimization',
-    'optimization': 'debounce throttle virtualization lazy loading suspense fallback useMemoKey',
-    'cache': 'cacheKey storage localStorage sessionStorage WeakMap memoization strategy React.cache',
-    'memo': 'memo<T>(Component: React.FC<T>) useMemo<T>(callback, deps) useCallback',
+    // Performance and optimization patterns - GENERIC (CONCRETE IMPLEMENTATIONS)
+    'performance|optimization': 'debounce throttle memo useCallback useMemo efficiency',
+    'cache|memoization': 'storage data retrieval memory optimization fast access',
+    'lazy|deferred': 'on-demand loading delayed execution resource management',
+    'concurrent|parallel': 'simultaneous execution threading async non-blocking',
 
-    // Code quality patterns - TECHNICAL FOCUS
-    'hardcoded': 'process.env.NODE_ENV const CONFIG = {} enum Values string literal magic number',
-    'magic': 'MAGIC_NUMBER const TIMEOUT = 5000 enum Status type StatusCode DRY principle',
-    'duplicate': 'DRY extract helper function abstract to utility reuse compose pattern',
-    'refactor': 'extract method inline variable rename signature change type improve maintainability',
+    // Code quality patterns - GENERIC
+    'refactor|cleanup': 'improvement restructuring simplification clarity maintainability',
+    'duplicate|redundant': 'repetition elimination consolidation DRY abstraction',
+    'magic|hardcoded': 'constants configuration parameters flexibility maintainability',
+    'standard|convention': 'consistency patterns best practices readability team standards',
 
-    // Testing patterns - TECHNICAL FOCUS
-    'test': 'describe() it() expect() jest.fn() vi.fn() mockReturnValue mockResolvedValue',
-    'spec': 'specification test suite beforeEach afterEach cleanup mock spy assertion expect',
-    'mock': 'jest.mock() vi.mock() mockImplementation mockImplementationOnce spyOn',
+    // Testing patterns - GENERIC
+    'test|spec': 'verification validation assertion behavior expected actual',
+    'mock|stub|fake': 'simulation isolation dependency injection controlled environment',
+    'assert|verify': 'checking validation expected outcome behavior correctness',
 
-    // Configuration and patterns - TECHNICAL FOCUS
-    'config': 'process.env config.env vite.config.ts tailwind.config.ts tsconfig.json package.json',
-    'setting': 'const settings = { key: value } type Settings = {} interface Config',
-    'pattern': 'design pattern singleton factory observer strategy decorator adapter composite',
+    // Configuration and patterns - GENERIC
+    'config|setting': 'parameter environment deployment customization setup configuration',
+    'pattern|design': 'architecture structure organization reusable solution approach',
+    'factory|builder': 'creation construction instantiation complex object assembly',
 
-    // Language specific patterns - TECHNICAL FOCUS
-    'typescript': 'interface type enum generic <T> extends implements readonly ? : utility types',
-    'javascript': 'async await => ...rest optional chaining ?. nullish coalescing ?? Promise',
-    'python': '@property def __init__ self class method decorator generator yield async def',
-    'go': 'func (r *Receiver) method() error struct interface channel make <- go defer',
-    'rust': 'fn main() -> Result<(), Error> struct impl trait lifetime mut let match',
+    // Language agnostic patterns - GENERIC
+    'type|interface': 'definition contract structure schema validation checking',
+    'async|promise': 'non-blocking concurrent future callback continuation',
+    'generics|templates': 'parameterized types reusable code flexibility safety',
+    'inheritance|polymorphism': 'extension specialization overriding abstraction hierarchy',
 
-    // File and module patterns - TECHNICAL FOCUS
-    'import': 'import type { } from import * as import default export { named } require',
-    'export': 'export default export const export type export interface export function module.exports',
-    'module': 'module.exports __esModule namespace package.json main index.ts barrel export',
+    // File and module patterns - GENERIC
+    'import|require|include': 'dependency module sharing encapsulation organization',
+    'export|provide|expose': 'interface API public contract sharing module',
+    'namespace|package': 'organization grouping structure encapsulation naming',
 
-    // Async patterns - TECHNICAL FOCUS
-    'async': 'async function await Promise.all Promise.race Promise.resolve() Promise.reject()',
-    'promise': 'new Promise((resolve, reject) =>) .then() .catch() .finally() async/await',
-    'await': 'await result try { await asyncOperation() } catch (error) { handle() }',
+    // Database and persistence patterns - GENERIC
+    'database|storage': 'persistence query transaction schema indexing relationship',
+    'query|search': 'retrieval filtering selection criteria condition matching',
+    'transaction|consistency': 'atomicity durability integrity rollback commit',
 
-    // Database patterns - TECHNICAL FOCUS
-    'database': 'SELECT INSERT UPDATE DELETE WHERE JOIN GROUP BY ORDER BY LIMIT',
-    'query': 'SELECT * FROM table WHERE condition = value ORDER BY column DESC LIMIT 10',
-    'model': 'interface User { id: number; email: string; createdAt: Date; } type UserModel',
+    // Security patterns - GENERIC
+    'authentication|authorization': 'identity verification permission access control',
+    'encryption|hashing': 'protection obfuscation security integrity verification',
+    'sanitization|validation': 'input cleaning verification security safety checking',
 
-    // Security patterns - TECHNICAL FOCUS
-    'security': 'sanitize(input) escapeHtml(xss) validation csrfToken authenticate authorize',
-    'validation': 'zod.parse(input) typeof value === "string" instance validation schema',
-    'sanitization': 'DOMPurify.sanitize(input) escape(input) encodeURI decodeURI encodeURIComponent'
+    // Logging and monitoring patterns - GENERIC
+    'log|trace|debug': 'observability troubleshooting auditing performance monitoring',
+    'metric|telemetry': 'measurement analytics reporting performance health',
+    'event|notification': 'messaging broadcasting signaling communication system',
+    'query': 'retrieval filtering selection criteria condition database search sql',
+    'model': 'interface structure definition schema business object entity data type',
   };
 
   // Apply single-word patterns
@@ -768,34 +972,70 @@ function preprocessQuery(query) {
     }
   }
 
-  // Enhanced multi-word intent patterns - TECHNICAL IMPLEMENTATION FOCUSED
+  // Enhanced multi-word intent patterns - GENERIC UNIVERSAL CODE PATTERNS
   const multiWordIntents = {
-    'react components': 'React.Component FunctionComponent interface props children ReactNode useState useEffect useCallback useMemo useRef',
-    'utility functions': 'function export const return parameter type interface generic utility helper',
-    'error handling': 'try catch throw Error TypeError finally Promise.catch async error boundary',
-    'state management': 'useState useState dispatch reducer action selector createSlice configureStore',
-    'performance optimization': 'memo useMemo useCallback React.memo memoization cache optimization useMemoKey',
-    'input validation': 'zod schema validate type guard interface constraint required optional',
-    'code organization': 'export import module namespace type interface class struct function',
-    'api endpoints': 'fetch axios request response get post put delete endpoint url http',
-    'data structures': 'Array<T> Map<K,V> Set<T> Record<K,V> interface type object array map set',
-    'error boundaries': 'ErrorBoundary getDerivedStateFromError componentDidCatch fallback error',
-    'async operations': 'async await Promise.all Promise.race Promise.resolve Promise.reject then catch',
-    'testing strategies': 'describe it expect jest.fn vi.fn mock spyOn beforeEach afterEach',
-    'configuration management': 'config.env process.env Config interface type const enum',
-    'security measures': 'xss csrf sanitization validation escape encode decode authentication authorization',
-    'memory management': 'cleanup useEffect return dispose WeakMap WeakRef finalize garbage collection',
-    // Technical library patterns
-    'tanstack table': 'useTable ColumnDef ColumnAccessor sorting filtering pagination flexRender',
-    'tanstack router': 'createRouter Route Link useNavigate useSearch createFileRoute',
-    'tanstack query': 'useQuery useMutation useQueryClient QueryClient staleTime refetch',
-    'recharts visualization': 'BarChart LineChart PieChart XAxis YAxis Tooltip Legend ResponsiveContainer dataKey',
-    'shadcn components': 'Button Input Card Dialog Select Table DataTable Command Badge',
-    'radix ui': 'Root Trigger Content Item Label Value Separator Checkbox RadioGroup',
-    'tailwind css': 'className flex gap px py rounded border shadow hover focus disabled',
-    'typescript types': 'interface type enum generic union intersection Record Partial Required Omit Pick',
-    'react hooks': 'useState useEffect useCallback useMemo useRef useLayout useId useReducer',
-    'form handling': 'handleSubmit register control watch formState react-hook-form zod resolver'
+    // Component and UI patterns (GENERIC)
+    'components': 'component class function interface props state lifecycle render return',
+    'user interface': 'ui view layout styling design element widget component interface',
+
+    // Function and logic patterns (GENERIC)
+    'functions': 'function method procedure return parameter call invoke execute',
+    'logic': 'logic conditionals if else switch case boolean expression algorithm',
+    'utilities': 'utility helper function shared common reusable logic method helper',
+
+    // Data and state patterns (GENERIC)
+    'state': 'state data store variable object array management data structure',
+    'data structures': 'object array map set list dictionary collection data structure',
+    'configuration': 'config settings options parameters environment variables constants',
+
+    // Architecture patterns (GENERIC)
+    'api': 'api endpoint route handler request response http service client server',
+    'service': 'service layer business logic data access controller handler',
+    'middleware': 'middleware authentication authorization logging error processing filter',
+
+    // Error and validation patterns (GENERIC)
+    'error handling': 'error handling exception catch throw try validation recovery',
+    'validation': 'validation check verify input form data schema constraint',
+    'boundaries': 'boundary component error handling fallback ui safety',
+
+    // Performance and optimization patterns (GENERIC)
+    'performance': 'performance optimization memoization caching efficient fast',
+    'optimization': 'optimization improve efficient fast algorithm performance',
+    'caching': 'cache storage retrieval performance optimization memory',
+
+    // Code quality patterns (GENERIC)
+    'refactoring': 'refactor improve code quality structure maintainability organization',
+    'duplication': 'duplicate code repeated logic copy paste refactor extract',
+    'magic': 'magic number hardcoded constant literal value configuration',
+
+    // Testing patterns (GENERIC)
+    'testing': 'test unit integration spec mock spy expect assert validation',
+    'specification': 'spec test specification validation unit integration',
+    'mocking': 'mock spy stub test double simulation fake',
+
+    // Language patterns (GENERIC)
+    'typescript': 'interface type enum generic union intersection readonly optional',
+    'javascript': 'function const let var async await promise object array',
+    'python': 'class def function async await with context decorator generator',
+    'go': 'func struct interface method channel goroutine defer return error',
+    'rust': 'fn struct trait enum lifetime ownership borrowing mut let match',
+
+    // Module and import patterns (GENERIC)
+    'modules': 'module package import export dependency file namespace',
+    'imports': 'import require module package dependency export default',
+
+    // Async patterns (GENERIC)
+    'async': 'async await promise then callback resolve reject',
+    'promises': 'promise async await then resolve reject catch finally',
+
+    // Database patterns (GENERIC)
+    'database': 'database sql query model schema table',
+    'queries': 'query search filter select data retrieve',
+
+    // Security patterns (GENERIC)
+    'security': 'security validation input sanitization authentication authorization',
+    'validation': 'validation input sanitization verification check constraint',
+    'sanitization': 'sanitization input security validation cleaning encoding'
   };
 
   // Apply multi-word patterns
@@ -808,23 +1048,38 @@ function preprocessQuery(query) {
   return processedQuery;
 }
 export async function queryVectorIndex(query, topK = 8) {
-  if (!isInitialized) {
-    await initializeVectorSystem();
-  }
+  // Ensure proper initialization with race condition protection
+  await initializeVectorSystem();
+
   if (codeChunks.length === 0) {
     return [];
   }
 
   const enhancedQuery = preprocessQuery(query);
-  const queryEmbedding = await getEmbedding(enhancedQuery);
+  let queryEmbedding;
+
+  try {
+    queryEmbedding = await getEmbedding(enhancedQuery);
+  } catch (error) {
+    console.error('Failed to generate query embedding:', error);
+    return [];
+  }
+
   const results = [];
   const batchSize = platformConfig.batchSize * 2;
 
   for (let i = 0; i < codeChunks.length; i += batchSize) {
     const batch = codeChunks.slice(i, i + batchSize);
     const batchPromises = batch.map(async (chunk) => {
-      const chunkEmbedding = await getEmbedding(chunk.content);
-      const vectorSimilarity = calculateCosineSimilarity(queryEmbedding.data, chunkEmbedding.data);
+      let chunkEmbedding;
+      try {
+        chunkEmbedding = await getEmbedding(chunk.content);
+      } catch (error) {
+        console.error(`Failed to generate embedding for chunk: ${error.message}`);
+        return null;
+      }
+
+      const vectorSimilarity = calculateCosineSimilarity(queryEmbedding, chunkEmbedding);
 
       // Calculate enhanced relevance score for code
       const relevanceScore = calculateCodeRelevanceScore(query, chunk.content, vectorSimilarity);
@@ -839,13 +1094,12 @@ export async function queryVectorIndex(query, topK = 8) {
       };
     });
     const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
+    results.push(...batchResults.filter(r => r !== null)); // Filter out failed embeddings
   }
 
-  // Enhanced filtering and ranking
-  const MIN_RELEVANCE_THRESHOLD = 0.25; // Lowered to catch more relevant results
+  // Enhanced filtering and ranking - AGENT QUERY OPTIMIZATION
+  // Remove relevance threshold - just sort by relevance and use topK cutoff
   return results
-    .filter(r => r.relevanceScore >= MIN_RELEVANCE_THRESHOLD)
     .sort((a, b) => b.relevanceScore - a.relevanceScore) // Sort by enhanced relevance score
     .slice(0, topK)
     .map(r => ({
@@ -877,25 +1131,25 @@ function calculateCodeRelevanceScore(query, codeContent, vectorSimilarity) {
     relevanceScore += Math.min(0.3, keywordOverlap * 0.1); // Boost up to 0.3 for keyword matches
   }
 
-  // Framework-specific boosts
-  if (queryLower.includes('tanstack') && codeLower.includes('tanstack')) {
-    relevanceScore += 0.2;
-  }
-  if (queryLower.includes('react') && codeLower.includes('react')) {
-    relevanceScore += 0.15;
-  }
-  if (queryLower.includes('recharts') && codeLower.includes('recharts')) {
-    relevanceScore += 0.2;
-  }
-  if (queryLower.includes('zustand') && codeLower.includes('zustand')) {
-    relevanceScore += 0.2;
-  }
-  if (queryLower.includes('clerk') && codeLower.includes('clerk')) {
-    relevanceScore += 0.2;
-  }
-  if (queryLower.includes('typescript') && (codeLower.includes('typescript') || codeLower.includes('type') || codeLower.includes('interface'))) {
-    relevanceScore += 0.15;
-  }
+  // Generic concept-based boosts (framework-agnostic)
+  const conceptBoosts = [
+    { query: ['routing', 'navigation', 'route'], code: ['router', 'route', 'navigation', 'endpoint'], boost: 0.15 },
+    { query: ['authentication', 'auth', 'login'], code: ['auth', 'login', 'session', 'user', 'security'], boost: 0.15 },
+    { query: ['component', 'ui', 'interface'], code: ['component', 'ui', 'view', 'element'], boost: 0.1 },
+    { query: ['state', 'store'], code: ['state', 'store', 'data', 'model'], boost: 0.1 },
+    { query: ['api', 'service'], code: ['api', 'service', 'endpoint', 'controller'], boost: 0.15 },
+    { query: ['form', 'input'], code: ['form', 'input', 'field', 'validation'], boost: 0.1 },
+    { query: ['query', 'fetch'], code: ['query', 'fetch', 'request', 'database'], boost: 0.15 },
+    { query: ['test', 'spec'], code: ['test', 'spec', 'assert', 'mock'], boost: 0.1 },
+  ];
+
+  conceptBoosts.forEach(({ query: queryTerms, code: codeTerms, boost }) => {
+    const queryMatch = queryTerms.some(term => queryLower.includes(term));
+    const codeMatch = codeTerms.some(term => codeLower.includes(term));
+    if (queryMatch && codeMatch) {
+      relevanceScore += boost;
+    }
+  });
 
   // Component-specific boosts
   if (queryLower.includes('component') && codeLower.includes('component')) {
@@ -944,18 +1198,20 @@ function extractKeywords(text) {
     .map(word => word.toLowerCase());
 }
 export async function searchCode(params, workingDirectory, folderPaths = ['.'], extensions = DEFAULT_EXTS, topK = 6) {
+  let query;
+  if (typeof params === 'object' && params !== null) {
+    query = params.query;
+    workingDirectory = params.workingDirectory;
+    folderPaths = ['.']; // Always search from working directory root
+    extensions = params.extensions || extensions;
+    topK = params.topK || topK;
+  } else {
+    query = params;
+  }
+
+  const queryForError = query; // Store query for error handling
+
   try {
-    
-    let query;
-    if (typeof params === 'object' && params !== null) {
-      query = params.query;
-      workingDirectory = params.workingDirectory;
-      folderPaths = ['.']; // Always search from working directory root
-      extensions = params.extensions || extensions;
-      topK = params.topK || topK;
-    } else {
-      query = params;
-    }
     console.error(`searchCode called with query: "${query}", workingDir: "${workingDirectory}", folders: ${Array.isArray(folderPaths) ? folderPaths.join(', ') : folderPaths}`);
     
     if (!workingDirectory || typeof workingDirectory !== 'string') {
@@ -990,12 +1246,17 @@ export async function searchCode(params, workingDirectory, folderPaths = ['.'], 
     }
     console.error(`Absolute folders: ${absFolders.join(', ')}`);
 
+    // Create ignore files if they don't exist
+    createIgnoreFilesIfNeeded(workingDirectory);
+
     // Check if sync is needed, but don't block search for it
     const lastModified = await getLastModifiedTime(absFolders);
     const needsSync = lastModified > indexTimestamp || codeChunks.length === 0;
 
     if (needsSync) {
       console.error("Index sync needed, starting background sync...");
+
+      
       // Start sync in background but don't wait for it
       syncVectorIndex(absFolders, extensions).catch(error => {
         console.error("Background sync failed:", error.message);
@@ -1017,7 +1278,7 @@ export async function searchCode(params, workingDirectory, folderPaths = ['.'], 
     const searchResults = await queryVectorIndex(query, topK);
         return searchResults;
   } catch (error) {
-    console.error(`Search failed for query "${query}":`, error);
+    console.error(`Search failed for query "${queryForError}":`, error);
     throw new Error(`Search failed: ${error.message}`);
   }
 }
@@ -1025,14 +1286,72 @@ export async function searchSemantic(query, options = {}) {
   const { workingDirectory, folders = ['.'], extensions = DEFAULT_EXTS, topK = 6 } = options;
   return await searchCode(query, workingDirectory, folders, extensions, topK);
 }
-export async function initialize(indexDir = INDEX_DIR) {
+// Automatic ignore file creation
+function createIgnoreFilesIfNeeded(workingDirectory) {
+  const searchIgnorePath = pathJoin(workingDirectory, '.searchignore');
+  const searchDefaultsPath = pathJoin(workingDirectory, '.search-defaults.json');
+  const gitignorePath = pathJoin(workingDirectory, '.gitignore');
+
+  // Create .searchignore if it doesn't exist
+  if (!existsSync(searchIgnorePath)) {
+    const searchIgnoreContent = [
+      'node_modules/**',
+      '.next/**',
+      'dist/**',
+      'build/**',
+      'out/**',
+      '.git/**',
+      '*.log',
+      '*.tmp',
+      'temp/**',
+      'tmp/**',
+      '.vscode/**',
+      '.idea/**'
+    ].join('\n');
+
+    try {
+      writeFileSync(searchIgnorePath, searchIgnoreContent);
+      console.error(`Created .searchignore file in ${workingDirectory}`);
+    } catch (error) {
+      console.warn(`Failed to create .searchignore file: ${error.message}`);
+    }
+  }
+
+  // Create .search-defaults.json if it doesn't exist
+  if (!existsSync(searchDefaultsPath)) {
+    const searchDefaultsContent = {
+      files: [
+        "**/node_modules/**", "**/.next/**", "**/dist/**", "**/build/**", "**/out/**",
+        "**/coverage/**", "**/.nyc_output/**", "**/.git/**", "**/.vscode/**", "**/.idea/**",
+        "**/*.log", "**/*.tmp", "**/temp/**", "**/tmp/**", "**/.DS_Store", "**/Thumbs.db",
+        "**/*.map", "**/*.min.js", "**/*.min.css", "**/package-lock.json", "**/yarn.lock"
+      ],
+      extensions: [".ts", ".tsx", ".js", ".jsx", ".css", ".json", ".md"],
+      directories: ["node_modules", ".next", "dist", "build", "out", "coverage", ".nyc_output", ".git", ".vscode", ".idea", "temp", "tmp"]
+    };
+
+    try {
+      writeFileSync(searchDefaultsPath, JSON.stringify(searchDefaultsContent, null, 2));
+      console.error(`Created .search-defaults.json file in ${workingDirectory}`);
+    } catch (error) {
+      console.warn(`Failed to create .search-defaults.json file: ${error.message}`);
+    }
+  }
+}
+
+export async function initialize(indexDir = null) {
   return await initializeVectorSystem(indexDir);
 }
 export async function syncIndex(folders, exts = DEFAULT_EXTS) {
   return await syncVectorIndex(folders, exts);
 }
 export async function queryIndex(query, topK = 8) {
-  return await queryVectorIndex(query, topK);
+  // Add timeout to prevent hanging during vector search
+    const searchPromise = queryVectorIndex(query, topK);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Vector search timeout after 20 seconds')), 20000);
+    });
+    return await Promise.race([searchPromise, timeoutPromise]);
 }
 export {
   MAX_FILE_SIZE,
@@ -1058,7 +1377,29 @@ function formatSearchResults(results, query, path) {
 export const searchTools = [
   {
     name: "searchcode",
-    description: `Vector code search for finding similar code patterns and components.`,
+    description: `Semantic code search for finding similar implementation patterns, code structures, and technical solutions.
+
+🎯 BEST FOR:
+- Finding similar functions, classes, or components with matching logic
+- Discovering existing implementations of specific technical patterns
+- Locating code that uses similar libraries, APIs, or frameworks
+- Finding architectural patterns (routing, state management, data flow)
+- Identifying code that handles similar problems or use cases
+
+💡 EFFECTIVE SEARCH QUERIES:
+• "function fetchUserData API axios" - Find functions that fetch user data
+• "useState useEffect component lifecycle" - Find React hooks patterns
+• "router navigation route handler" - Find routing implementations
+• "error handling try catch validation" - Find error management patterns
+• "database query SQL model" - Find data access patterns
+• "authentication middleware auth guard" - Find security implementations
+
+❌ AVOID:
+- Abstract concepts like "performance bottlenecks", "memory leaks"
+- Non-code terms like "slow components", "optimization opportunities"
+- Business requirements instead of implementation details
+
+Use specific technical terms, function names, library patterns, and implementation details for best results.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1135,14 +1476,27 @@ export const searchTools = [
 
             if (semanticResults && semanticResults.length > 0) {
               console.error(`Semantic search found ${semanticResults.length} results`);
-              results = semanticResults.map(r => ({
-                file: r.file,
-                startLine: r.startLine,
-                endLine: r.endLine,
-                content: r.content,
-                score: r.score || 0.8,
-                type: 'semantic'
-              }));
+
+              // Filter results to only include files from the target working directory
+              const filteredResults = semanticResults.filter(r =>
+                r.file.startsWith(fullPath)
+              );
+
+              console.error(`Filtered to ${filteredResults.length} results in target directory: ${fullPath}`);
+
+              if (filteredResults.length > 0) {
+                results = filteredResults.map(r => ({
+                  file: r.file,
+                  startLine: r.startLine || 0,
+                  endLine: r.endLine || 0,
+                  content: r.content || '',
+                  score: r.score || 0.8,
+                  type: 'semantic'
+                }));
+              } else {
+                console.error(`No files found in target directory ${fullPath}, falling back to text search`);
+                throw new Error('No files in target directory - fallback to text search');
+              }
             } else {
               console.error(`Semantic search returned no results, falling back to text search`);
               throw new Error('Fallback to text search');
@@ -1225,7 +1579,7 @@ export const searchTools = [
                 console.error(`Error reading file ${filePath}:`, error.message);
               }
             }
-                      }
+          }
         }
         } catch (error) {
           console.error(`Error during search:`, error.message);
@@ -1243,12 +1597,6 @@ export const searchTools = [
         cacheSearchResult(query, formattedResults, fullPath);
 
         addContextPattern(query, 'search');
-
-        for (let i = 0; i < results.length; i++) {
-          for (let j = i + 1; j < results.length; j++) {
-
-          }
-        }
         
         const insights = generateSearchInsights(results, query, effectiveWorkingDirectory);
 
@@ -1265,16 +1613,16 @@ export const searchTools = [
         };
         return addExecutionStatusToResponse(response, 'searchcode');
       } catch (error) {
-
-        const errorContext = createToolContext('searchcode', workingDirectory || process.cwd(), query, {
-          error: error.message
-        });
-        await workingDirectoryContext.updateContext(workingDirectory || process.cwd(), 'searchcode', errorContext);
-        const response = {
-          content: [{ type: "text", text: `Error: ${error.message}` }],
-          isError: true
+        // Use enhanced error handling with logging and clear feedback
+        const errorHandler = createEnhancedErrorHandler('searchcode');
+        const errorContext = {
+          workingDirectory: workingDirectory || process.cwd(),
+          query: query,
+          operation: 'search',
+          args: { query, workingDirectory, topK, cursor, pageSize }
         };
-        return addExecutionStatusToResponse(response, 'searchcode');
+
+        return errorHandler.createErrorResponse(error, errorContext);
       } finally {
 
         consoleRestore.restore();

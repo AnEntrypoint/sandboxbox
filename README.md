@@ -4,13 +4,19 @@ The aim of the current version is to provide similar turn around times and more 
 
 ## Version
 
-**Current Version:** v3.4.13
+**Current Version:** v3.4.18
 
-### Recent Changes (v3.4.13)
+### Recent Changes (v3.4.18)
+- **Root Cause Architecture Fixes**: Fixed race conditions, path resolution, and API contract violations
+- **Enhanced Vector Search Stability**: Implemented promise-based initialization and improved error handling
+- **Non-Blocking Operations**: Re-enabled similarity detection without blocking main tool execution
+- **Improved Index Quality**: Increased file size limits and better chunking strategies
+- **Transformers.js Integration**: Fixed API contract handling for robust embedding generation
+
+### Key Improvements (v3.4.14-v3.4.17)
 - **Enhanced Tool Descriptions**: Added prescriptive warnings and examples to prevent common usage mistakes
 - **Improved MCP Stability**: Fixed searchPathParam error and redundant validation issues
 - **Organized Directory Structure**: Moved all tooling folders under `glootie/` for cleaner workspace
-- **Git Initialization Fix**: Corrected git config order in test runner (git init → git config)
 - **Better Error Messages**: Clear validation feedback for working directory and pattern parameters
 
 ## Features
@@ -59,9 +65,17 @@ The aim of the current version is to provide similar turn around times and more 
 
 ## Installation
 
+### Global Installation (Recommended)
+
+Install globally for easy access across all projects:
+
+```bash
+npm install -g mcp-glootie
+```
+
 ### Local Development Setup
 
-Since this is a development project, you'll need to set it up locally:
+For development or local testing:
 
 ```bash
 # Clone the repository
@@ -70,6 +84,9 @@ cd mcp-glootie
 
 # Install dependencies
 npm install
+
+# Link globally for testing
+npm link
 ```
 
 ### Language Runtime Requirements
@@ -90,8 +107,11 @@ For full multi-language support, install the following CLI tools:
 
 ### Claude Code
 ```bash
-# Add the local server (replace /path/to with your actual path)
-claude mcp add -s user glootie "npx mcp-glootie"
+# For globally installed package
+claude mcp add -s user glootie "mcp-glootie"
+
+# For local development (replace /path/to with actual path)
+claude mcp add -s user glootie "node /path/to/mcp-glootie/src/index.js"
 ```
 
 ### Cursor
@@ -100,8 +120,8 @@ Add to your Cursor `mcpServers.json` configuration:
 {
   "mcpServers": {
     "glootie": {
-      "command": "npx",
-      "args": ["-y", "mcp-glootie"],
+      "command": "mcp-glootie",
+      "args": [],
       "env": {},
       "disabled": false,
       "autoApprove": [
@@ -120,8 +140,8 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
 {
   "mcpServers": {
     "glootie": {
-      "command": "npx",
-      "args": ["-y", "mcp-glootie"],
+      "command": "mcp-glootie",
+      "args": [],
       "env": {},
       "type": "local",
       "tools": [
@@ -140,8 +160,8 @@ Add to your VSCode MCP configuration:
 {
     "servers": {
         "glootie": {
-            "command": "npx",
-            "args": ["-y", "mcp-glootie"],
+            "command": "mcp-glootie",
+            "args": [],
             "env": {},
             "type": "stdio"
         }
@@ -150,13 +170,31 @@ Add to your VSCode MCP configuration:
 }
 ```
 
-**Note**: For Claude Code, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. For other clients using npx, the package will be downloaded automatically.
+**Note**: For Claude Code local development, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. The global installation uses the `mcp-glootie` command directly.
 
-## Built-in Auto-Hooks
+## Architecture Highlights
 
-### Zero-Configuration Auto-Linting
+### Root Cause Fixes & Stability Improvements
 
-Glootie now includes built-in auto-linting that works automatically without any setup:
+**Major Architecture Refactoring (v3.4.18):**
+- **Race Condition Prevention**: Implemented promise-based initialization to prevent concurrent access issues
+- **Enhanced Path Resolution**: Clean PathResolver abstraction for cross-directory index sharing
+- **API Contract Compliance**: Fixed Transformers.js integration with proper Tensor object handling
+- **Non-Blocking Operations**: Re-enabled similarity detection without blocking main tool execution
+- **Improved Index Quality**: Increased file size limits (75KB → 200KB) and optimized chunking (200 → 150 lines per chunk)
+- **Intelligent File Processing**: Smart chunking for large files instead of simple truncation
+
+**Key Benefits:**
+- **Zero Crashes**: All MCP connection stability issues resolved at root cause level
+- **Better Performance**: Enhanced error handling prevents symptomatic defensive programming
+- **Higher Quality Search**: Improved index quality provides better semantic search results
+- **Robust Error Recovery**: Graceful handling of edge cases without masking underlying issues
+
+### Built-in Auto-Hooks
+
+#### Zero-Configuration Auto-Linting
+
+Glootie includes built-in auto-linting that works automatically without any setup:
 
 - **Automatic Detection**: Tools automatically detect when files are modified
 - **Smart Linting**: Uses ESLint when available, falls back to ast-grep patterns
@@ -186,7 +224,7 @@ The tools will automatically:
 3. Display results with actionable feedback
 4. Continue operation even if linting fails
 
-## Recent Improvements
+## Additional Features
 
 ### Pattern Auto-Fixing & Error Prevention (v3.4.2)
 - **Automatic pattern conversion**: Problematic `$$$` patterns automatically converted to safe alternatives
