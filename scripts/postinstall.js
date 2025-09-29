@@ -18,14 +18,14 @@ async function fixAstGrepBinding() {
   }
 
   const bindingPath = 'node_modules/@ast-grep/napi-win32-x64-msvc';
+  const nodeFile = join(bindingPath, 'ast-grep-napi.win32-x64-msvc.node');
 
-  // Check if binding is already installed
-  if (existsSync(bindingPath)) {
-    console.log('✓ @ast-grep/napi Windows binding already installed');
-    return;
+  // Check if binding is already installed and has the .node file
+  if (existsSync(nodeFile)) {
+    return; // Silently succeed if already installed
   }
 
-  console.log('⚠️  @ast-grep/napi Windows binding missing, installing...');
+  console.error('⚠️  @ast-grep/napi Windows binding missing, installing...');
 
   try {
     // Download and extract the Windows binding
@@ -40,10 +40,10 @@ async function fixAstGrepBinding() {
     rmSync('package', { recursive: true, force: true });
     rmSync('ast-grep-napi-win32-x64-msvc-0.39.5.tgz', { force: true });
 
-    console.log('✓ @ast-grep/napi Windows binding installed successfully');
+    console.error('✓ @ast-grep/napi Windows binding installed successfully');
   } catch (error) {
+    // Silent failure - AST features will gracefully degrade
     console.error('✗ Failed to install @ast-grep/napi Windows binding:', error.message);
-    console.error('AST features may not be available');
   }
 }
 
