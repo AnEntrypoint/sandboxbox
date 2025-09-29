@@ -169,18 +169,36 @@ async function initializeEmbeddingProvider() {
     const { pipeline, env } = await import('@xenova/transformers');
 
     // Configure transformers.js environment for better performance
-    env.localModelPath = './glootie/.cache';
+    const cachePath = pathResolve(process.cwd(), '.transformers-cache');
+    console.log(`Using cache path: ${cachePath}`);
+
+    // Ensure cache directory exists
+    if (!existsSync(cachePath)) {
+      mkdirSync(cachePath, { recursive: true });
+      console.log(`Created cache directory: ${cachePath}`);
+    }
+
+    env.localModelPath = cachePath;
     env.allowLocalModels = true;
     env.remoteModelPath = null;
     env.forceDownload = false;
+    env.cacheDir = cachePath;
 
     console.log(`Loading model: ${DEFAULT_MODEL}`);
 
-    // Create pipeline
-    embeddingExtractor = await pipeline('feature-extraction', DEFAULT_MODEL, {
+    // Create pipeline with timeout to prevent hanging
+    const pipelinePromise = pipeline('feature-extraction', DEFAULT_MODEL, {
       quantized: true,
       device: 'cpu'
     });
+
+    // Race between pipeline initialization and timeout (40 seconds max for very large codebases)
+    embeddingExtractor = await Promise.race([
+      pipelinePromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Embedding provider initialization timeout after 40 seconds')), 40000)
+      )
+    ]);
     console.log('Embedding provider initialized successfully');
     return true;
   } catch (error) {
@@ -402,27 +420,18 @@ async function scanDirectory(dir, ignoreFilter, files, exts) {
     console.log(`Scanning directory: ${dir}`);
     const entries = await fs.readdir(dir, { withFileTypes: true });
     console.log(`Found ${entries.length} entries in ${dir}`);
-    const filePromises = entries.map(async (entry) => {
+    for (const entry of entries) {
       const fullPath = pathJoin(dir, entry.name);
-      if (ignoreFilter.ignores) {
-        
-        if (ignoreFilter.ignores(fullPath)) {
-          return null;
-        }
-      } else {
-        
-        const relativePath = pathRelative(ignoreFilter.rootDir, fullPath);
-        if (ignoreFilter.ig.ignores(relativePath)) {
-          return null;
-        }
+      if (ignoreFilter.ignores(fullPath)) {
+        continue;
       }
       if (entry.isDirectory()) {
-        return scanDirectory(fullPath, ignoreFilter, files, exts);
+        await scanDirectory(fullPath, ignoreFilter, files, exts);
       } else if (entry.isFile()) {
         if (shouldIndexFile(fullPath, exts)) {
           try {
             const stat = await fs.stat(fullPath);
-            if (stat.size <= MAX_FILE_SIZE) { 
+            if (stat.size <= MAX_FILE_SIZE) {
               files.push(fullPath);
               console.log(`Added file: ${fullPath} (${stat.size} bytes)`);
             } else {
@@ -433,9 +442,7 @@ async function scanDirectory(dir, ignoreFilter, files, exts) {
           }
         }
       }
-      return null;
-    });
-    await Promise.all(filePromises);
+    }
   } catch (error) {
     console.error(`Error scanning directory ${dir}:`, error.message);
   }
@@ -1066,14 +1073,23 @@ export async function queryVectorIndex(query, topK = 8) {
   }
 
   const results = [];
-  const batchSize = platformConfig.batchSize * 2;
+  // Use smaller batch size for better performance and memory usage
+  const batchSize = platformConfig.batchSize;
 
   for (let i = 0; i < codeChunks.length; i += batchSize) {
     const batch = codeChunks.slice(i, i + batchSize);
     const batchPromises = batch.map(async (chunk) => {
       let chunkEmbedding;
       try {
-        chunkEmbedding = await getEmbedding(chunk.content);
+        // Check if we have a cached embedding for this chunk
+        const cacheKey = `${chunk.file}:${chunk.startLine}:${chunk.endLine}`;
+        chunkEmbedding = embeddingLRUCache.get(cacheKey);
+
+        if (!chunkEmbedding) {
+          chunkEmbedding = await getEmbedding(chunk.content);
+          // Cache the embedding for future searches
+          embeddingLRUCache.set(cacheKey, chunkEmbedding);
+        }
       } catch (error) {
         console.error(`Failed to generate embedding for chunk: ${error.message}`);
         return null;
@@ -1346,10 +1362,10 @@ export async function syncIndex(folders, exts = DEFAULT_EXTS) {
   return await syncVectorIndex(folders, exts);
 }
 export async function queryIndex(query, topK = 8) {
-  // Add timeout to prevent hanging during vector search
+  // Add timeout to prevent hanging during vector search (120 seconds for very large codebases)
     const searchPromise = queryVectorIndex(query, topK);
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Vector search timeout after 20 seconds')), 20000);
+      setTimeout(() => reject(new Error('Vector search timeout after 120 seconds')), 120000);
     });
     return await Promise.race([searchPromise, timeoutPromise]);
 }
@@ -1457,7 +1473,12 @@ Use specific technical terms, function names, library patterns, and implementati
             // Initialize vector system if needed
             if (!isInitialized) {
               console.error(`Initializing vector system for semantic search...`);
-              await initializeVectorSystem();
+              await Promise.race([
+                initializeVectorSystem(),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error('Vector search initialization timeout')), 40000)
+                )
+              ]);
             }
 
             // Perform semantic search with the optimized query
