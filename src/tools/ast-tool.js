@@ -10,7 +10,7 @@ import { addExecutionStatusToResponse } from '../core/execution-state.js';
 import { ToolError, ToolErrorHandler } from '../core/error-handling.js';
 import { withConnectionManagement, getGlobalConnectionManager } from '../core/connection-manager.js';
 import { withCrossToolAwareness, addToolMetadata } from '../core/cross-tool-context.js';
-import { parse } from '@ast-grep/napi';
+import { parse, ensureAstGrepAvailable, isAstGrepAvailable } from './ast-grep-wrapper.js';
 import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -190,6 +190,7 @@ class ASTHelper {
   parseCode(code) {
     return this.safeASTOperation(() => {
       try {
+        ensureAstGrepAvailable();
         return parse(this.language, code);
       } catch (error) {
         return null;
