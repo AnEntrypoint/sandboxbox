@@ -7,7 +7,11 @@ import { platform, arch } from 'os';
 import { existsSync, mkdirSync, cpSync, rmSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const execPromise = promisify(exec);
 
@@ -17,7 +21,18 @@ async function fixAstGrepBinding() {
     return;
   }
 
-  const bindingPath = 'node_modules/@ast-grep/napi-win32-x64-msvc';
+  // Find the node_modules directory relative to this script
+  // Script is in: package_root/scripts/postinstall.js
+  // node_modules is in: package_root/node_modules or parent/node_modules
+  const packageRoot = join(__dirname, '..');
+  let nodeModulesPath = join(packageRoot, 'node_modules');
+
+  // If this is a dependency, node_modules is in parent's parent
+  if (!existsSync(nodeModulesPath)) {
+    nodeModulesPath = join(packageRoot, '..', '..');
+  }
+
+  const bindingPath = join(nodeModulesPath, '@ast-grep', 'napi-win32-x64-msvc');
   const nodeFile = join(bindingPath, 'ast-grep-napi.win32-x64-msvc.node');
 
   // Check if binding is already installed and has the .node file
@@ -28,17 +43,20 @@ async function fixAstGrepBinding() {
   console.error('⚠️  @ast-grep/napi Windows binding missing, installing...');
 
   try {
+    // Use a temp directory for download
+    const tempDir = join(packageRoot, '.ast-grep-temp');
+    mkdirSync(tempDir, { recursive: true });
+
     // Download and extract the Windows binding
-    await execPromise('npm pack @ast-grep/napi-win32-x64-msvc@0.39.5');
-    await execPromise('tar -xzf ast-grep-napi-win32-x64-msvc-0.39.5.tgz');
+    await execPromise('npm pack @ast-grep/napi-win32-x64-msvc@0.39.5', { cwd: tempDir });
+    await execPromise('tar -xzf ast-grep-napi-win32-x64-msvc-0.39.5.tgz', { cwd: tempDir });
 
     // Create directory and copy files using Node.js APIs (cross-platform)
     mkdirSync(bindingPath, { recursive: true });
-    cpSync('package', bindingPath, { recursive: true });
+    cpSync(join(tempDir, 'package'), bindingPath, { recursive: true });
 
     // Clean up
-    rmSync('package', { recursive: true, force: true });
-    rmSync('ast-grep-napi-win32-x64-msvc-0.39.5.tgz', { force: true });
+    rmSync(tempDir, { recursive: true, force: true });
 
     console.error('✓ @ast-grep/napi Windows binding installed successfully');
   } catch (error) {
