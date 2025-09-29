@@ -104,14 +104,14 @@ const DEFAULT_EXTS = [
 ];
 const MAX_FILE_SIZE = 200 * 1024;
 const MAX_LINES_PER_CHUNK = 150;
-const MAX_CACHE_SIZE = 1500;
+const MAX_CACHE_SIZE = 3000;
 const INDEX_FILE = 'code_index.json';
 const VECTOR_INDEX_FILE = 'vector_index.json';
 const INDEX_DIR = 'code_search_index';
 const platformConfig = {
   memoryLimit: 1024 * 1024 * 1024,
-  batchSize: 64,
-  maxConcurrency: 6,
+  batchSize: 32, // Reduced batch size for better memory usage and faster processing
+  maxConcurrency: 8, // Increased concurrency for better parallelization
   timeout: 45000
 };
 let codeChunks = [];
@@ -1075,42 +1075,26 @@ export async function queryVectorIndex(query, topK = 8) {
   const results = [];
   // Use smaller batch size for better performance and memory usage
   const batchSize = platformConfig.batchSize;
+  const maxConcurrency = Math.min(platformConfig.maxConcurrency, Math.ceil(codeChunks.length / batchSize));
 
+  // Process batches in parallel for better performance
+  const batchPromises = [];
   for (let i = 0; i < codeChunks.length; i += batchSize) {
     const batch = codeChunks.slice(i, i + batchSize);
-    const batchPromises = batch.map(async (chunk) => {
-      let chunkEmbedding;
-      try {
-        // Check if we have a cached embedding for this chunk
-        const cacheKey = `${chunk.file}:${chunk.startLine}:${chunk.endLine}`;
-        chunkEmbedding = embeddingLRUCache.get(cacheKey);
+    batchPromises.push(processBatch(batch, queryEmbedding, query));
 
-        if (!chunkEmbedding) {
-          chunkEmbedding = await getEmbedding(chunk.content);
-          // Cache the embedding for future searches
-          embeddingLRUCache.set(cacheKey, chunkEmbedding);
-        }
-      } catch (error) {
-        console.error(`Failed to generate embedding for chunk: ${error.message}`);
-        return null;
-      }
+    // Limit concurrent batches to prevent memory overload
+    if (batchPromises.length >= maxConcurrency) {
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults.flat());
+      batchPromises.length = 0;
+    }
+  }
 
-      const vectorSimilarity = calculateCosineSimilarity(queryEmbedding, chunkEmbedding);
-
-      // Calculate enhanced relevance score for code
-      const relevanceScore = calculateCodeRelevanceScore(query, chunk.content, vectorSimilarity);
-
-      return {
-        file: chunk.file,
-        content: chunk.content,
-        startLine: chunk.startLine,
-        endLine: chunk.endLine,
-        vectorSimilarity: vectorSimilarity,
-        relevanceScore: relevanceScore
-      };
-    });
+  // Process remaining batches
+  if (batchPromises.length > 0) {
     const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults.filter(r => r !== null)); // Filter out failed embeddings
+    results.push(...batchResults.flat());
   }
 
   // Enhanced filtering and ranking - AGENT QUERY OPTIMIZATION
@@ -1126,6 +1110,43 @@ export async function queryVectorIndex(query, topK = 8) {
       score: r.relevanceScore,
       vectorScore: r.vectorSimilarity
     }));
+}
+
+// Process a batch of chunks for vector similarity calculation
+async function processBatch(batch, queryEmbedding, query) {
+  const batchResults = await Promise.all(batch.map(async (chunk) => {
+    let chunkEmbedding;
+    try {
+      // Check if we have a cached embedding for this chunk
+      const cacheKey = `${chunk.file}:${chunk.startLine}:${chunk.endLine}`;
+      chunkEmbedding = embeddingLRUCache.get(cacheKey);
+
+      if (!chunkEmbedding) {
+        chunkEmbedding = await getEmbedding(chunk.content);
+        // Cache the embedding for future searches
+        embeddingLRUCache.set(cacheKey, chunkEmbedding);
+      }
+    } catch (error) {
+      console.error(`Failed to generate embedding for chunk: ${error.message}`);
+      return null;
+    }
+
+    const vectorSimilarity = calculateCosineSimilarity(queryEmbedding, chunkEmbedding);
+
+    // Calculate enhanced relevance score for code
+    const relevanceScore = calculateCodeRelevanceScore(query, chunk.content, vectorSimilarity);
+
+    return {
+      file: chunk.file,
+      content: chunk.content,
+      startLine: chunk.startLine,
+      endLine: chunk.endLine,
+      vectorSimilarity: vectorSimilarity,
+      relevanceScore: relevanceScore
+    };
+  }));
+
+  return batchResults.filter(r => r !== null); // Filter out failed embeddings
 }
 
 // Calculate enhanced relevance score for code searches

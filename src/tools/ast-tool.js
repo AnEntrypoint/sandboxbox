@@ -709,12 +709,14 @@ async function safeASTOperationWrapper(operation, context = {}) {
 
 async function performSearch(helper, targetPath, pattern, recursive, maxResults) {
   const results = [];
+  const maxFileSize = 100 * 1024; // Reduced from 150KB for better performance
+  const maxConcurrency = 8; // Process files in parallel
 
   const processFile = async (file) => {
     try {
       const stat = statSync(file);
-      if (stat.size > 150 * 1024) {
-        return [{ file, error: 'File too large for search (>150KB)' }];
+      if (stat.size > maxFileSize) {
+        return [{ file, error: `File too large for search (>${Math.round(maxFileSize/1024)}KB)` }];
       }
       const content = readFileSync(file, 'utf8');
       helper.setLanguage(helper.detectLanguageFromExtension(file));
@@ -759,9 +761,17 @@ async function performSearch(helper, targetPath, pattern, recursive, maxResults)
 
   if (statSync(targetPath).isDirectory()) {
     const files = await findFiles(targetPath, { recursive });
-    for (const file of files.slice(0, maxResults)) {
-      const fileResults = await processFile(file);
-      results.push(...fileResults);
+    const limitedFiles = files.slice(0, maxResults);
+
+    // Process files in batches for better performance
+    for (let i = 0; i < limitedFiles.length; i += maxConcurrency) {
+      const batch = limitedFiles.slice(i, i + maxConcurrency);
+      const batchPromises = batch.map(file => processFile(file));
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults.flat());
+
+      // Early termination if we have enough results
+      if (results.length >= maxResults * 2) break;
     }
   } else {
     const fileResults = await processFile(targetPath);

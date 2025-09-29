@@ -75,6 +75,41 @@ export const CORE_IGNORE_PATTERNS = [
   '**/docs/build',
   '**/site/public',
 
+  // Modern development and build artifacts
+  '**/.pnp',
+  '**/.pnp.js',
+  '**/.yarn',
+  '**/.yarnrc.yml',
+  '**/.pnpm-debug.log',
+  '**/.eslintcache',
+  '**/.stylelintcache',
+  '**/.rts2_cache_cjs',
+  '**/.rts2_cache_esm',
+  '**/.rts2_cache_umd',
+  '**/.parcel-cache',
+
+  // Testing and coverage
+  '**/junit.xml',
+  '**/coverage.xml',
+  '**/test-results',
+  '**/playwright-report',
+  '**/nyc_report',
+  '**/.test-output',
+
+  // TypeScript and build outputs
+  '**/*.d.ts.map',
+  '**/*.js.map',
+  '**/*.tsbuildinfo',
+  '**/.angular',
+  '**/.nx',
+  '**/.amplify',
+
+  // Package manager lock files (large and not source code)
+  '**/package-lock.json',
+  '**/yarn.lock',
+  '**/pnpm-lock.yaml',
+  '**/bun.lockb',
+
   // Binary and media files
   '**/*.png',
   '**/*.jpg',
@@ -151,23 +186,36 @@ export const CORE_IGNORE_PATTERNS = [
 ];
 
 export const SOURCE_CODE_EXTENSIONS = [
-  '.js', '.jsx', '.ts', '.tsx',
+  // Core web development
+  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+
+  // Systems programming
   '.go', '.rs', '.py', '.pyx',
   '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp',
-  '.java', '.kt', '.scala', '.swift',
-  '.rb', '.php', '.cs', '.vb',
-  '.m', '.mm', '.swift',
-  '.sh', '.bash', '.zsh', '.fish',
-  '.pl', '.pm', '.t', '.pod',
-  '.lua', '.r', '.R', '.Rmd',
-  '.dart', '.elm', '.f#', '.fs', '.fsi',
-  '.vim', '.viml', '.ex', '.exs',
-  '.clj', '.cljs', '.cljc', '.edn',
-  '.coffee', '.litcoffee', '.iced',
-  '.ts', '.tsx', '.d.ts',
-  '.json', '.yaml', '.yml', '.toml',
-  '.xml', '.html', '.htm', '.css', '.scss', '.sass', '.less',
-  '.sql', '.md', '.markdown', '.txt'
+
+  // JVM languages
+  '.java', '.kt', '.scala', '.groovy',
+
+  // Mobile and Swift
+  '.swift', '.m', '.mm', '.dart',
+
+  // Shell and scripting
+  '.sh', '.bash', '.zsh', '.fish', '.ps1',
+  '.pl', '.pm', '.t', '.pod', '.lua',
+
+  // Data and configuration
+  '.r', '.R', '.Rmd', '.sql',
+  '.json', '.yaml', '.yml', '.toml', '.ini', '.conf',
+
+  // Web markup and styling (processed selectively)
+  '.html', '.htm', '.css', '.scss', '.sass', '.less',
+  '.vue', '.svelte', '.astro',
+
+  // Documentation (limited processing)
+  '.md', '.markdown', '.txt'
+
+  // Removed redundant extensions and non-essential formats
+  // for better performance and focus on source code
 ];
 
 export function createIgnoreFilter(rootDir, customPatterns = [], options = {}) {
