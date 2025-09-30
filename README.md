@@ -61,13 +61,13 @@ For full multi-language support, install the following CLI tools:
 #### Windows
 On Windows, npx commands require the `cmd /c` wrapper:
 ```bash
-claude mcp add glootie -- cmd /c npx -y mcp-glootie
+claude mcp add glootie -- cmd /c npx -y mcp-glootie@latest
 ```
 
 #### macOS/Linux
 ```bash
-# Using npx (recommended)
-claude mcp add glootie -- npx -y mcp-glootie
+# Using npx (recommended - always gets latest version)
+claude mcp add glootie npx -s local -- -y mcp-glootie@latest
 
 # For local development (replace /path/to with actual path)
 claude mcp add glootie -- node /path/to/mcp-glootie/src/index.js
@@ -80,7 +80,7 @@ Add to your Cursor `mcpServers.json` configuration:
   "mcpServers": {
     "glootie": {
       "command": "npx",
-      "args": ["-y","mcp-glootie"],
+      "args": ["-y","mcp-glootie@latest"],
       "env": {},
       "disabled": false,
       "autoApprove": [
@@ -101,7 +101,7 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
   "mcpServers": {
     "glootie": {
       "command": "npx",
-      "args": ["-y","mcp-glootie"],
+      "args": ["-y","mcp-glootie@latest"],
       "env": {},
       "type": "local",
       "tools": [
@@ -122,7 +122,7 @@ Add to your VSCode MCP configuration:
     "servers": {
         "glootie": {
             "command": "npx",
-            "args": ["-y","mcp-glootie"],
+            "args": ["-y","mcp-glootie@latest"],
             "env": {},
             "type": "stdio"
         }
