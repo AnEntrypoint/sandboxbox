@@ -4,13 +4,11 @@ MCP (Model Context Protocol) server for development tools with optimized executi
 
 The aim of the current version is to make more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
-tl;dr simple full stack profit system/user prompt (to use with glootie as via mcp):
-
 benchmark prompt:
 
 ``` always use glootie ```
 
-my preferred prompt:
+my preferred prompts look somethinig like:
 
 ```always continuously track and update caveats with the caveat tool, always hypothesize and test ideas in glootie and playwright execute first before implementing them, only implment when you're sure something will work, use the tooling to always eliminate double implementations, DRY code is mandatory, generalization is mandatory, architectural foresight is mandatory, immediately implement changes that should be made across the board, use the code insight tools in glootie to improve your ourput and immediately fix anything that goes against policy, a stitch in time saves nine. use ast-grep for codebase wide pattern base replaces etc whenever needed, dont make any comments always eliminate any coments you see immediatley, dont make any mocks simulations fallbacks or failovers, our code must only have one primary implementation per concern, keep specs in specs/ and track their progress, you are not finished till all specs are recorded, tracked, all the parts of the codebase they use noted, end to end verified, and caveats recorded, never report further problems and finish, if they can be solved track them troubleshoot and iterate until they're fixed, if any problems warnings issues or errors or unexpected behaviors are encountered track them immediately and treat the solving of all known errors as a hard barrier that prevents you from finishing, you may only finish when all known issues are fully end-to-end verified to be resolved, that means that as a final step you must do a full error discovery run to find further issues and check the entire project to make sure it works as expected, end to end, tracking any new issues found immediately and iterating on troubleshooting them till an entire run of all the program features are fully end to end tested and known to work, no exceptions. we want to apply frameworking foresight thoughout our work process so that generalizations, dryness, automated frameworking, convention over configuration and code minimization is always enforced, every letter counts. we want compehensive and easy to use globals for debugging in our code and often use them in our code executions as possible, to get absolute truth on whats going on when fixing problems, we should never ever guess when changing code, first principals only.```
 
