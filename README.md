@@ -6,16 +6,6 @@ The aim of the current version is to make more thoroughly investigated outputs t
 
 ## Features
 
-### 🚀 Optimized Execution & Cross-Tool Status Sharing
-- **Optimized execute tool**: Multi-language code execution with 3-second threshold for direct responses
-- **Cross-tool status sharing**: Execution results automatically shared across tool calls
-- **Vector embeddings**: Semantic search powered by AI embeddings (no fallbacks)
-- **Performance optimized**: Fast operations return direct responses to save cycles and latency
-- **Smart execution tracking**: Automatic status detection and sharing between tools
-
-### Multi-Language Support
-**Supported Languages**: JavaScript, TypeScript, Go, Rust, Python, C, C++
-
 ### Built-in Auto-Hooks
 - **Auto-linting**: Automatically lints files after editing operations (built into tools)
 - **Context management**: Intelligent context awareness and session tracking
