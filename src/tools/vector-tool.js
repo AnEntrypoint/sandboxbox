@@ -1414,37 +1414,15 @@ function formatSearchResults(results, query, path) {
 export const searchTools = [
   {
     name: "searchcode",
-    description: `Semantic code search for finding similar implementation patterns, code structures, and technical solutions.
-
-🎯 BEST FOR:
-- Finding similar functions, classes, or components with matching logic
-- Discovering existing implementations of specific technical patterns
-- Locating code that uses similar libraries, APIs, or frameworks
-- Finding architectural patterns (routing, state management, data flow)
-- Identifying code that handles similar problems or use cases
-
-💡 EFFECTIVE SEARCH QUERIES:
-• "function fetchUserData API axios" - Find functions that fetch user data
-• "useState useEffect component lifecycle" - Find React hooks patterns
-• "router navigation route handler" - Find routing implementations
-• "error handling try catch validation" - Find error management patterns
-• "database query SQL model" - Find data access patterns
-• "authentication middleware auth guard" - Find security implementations
-
-❌ AVOID:
-- Abstract concepts like "performance bottlenecks", "memory leaks"
-- Non-code terms like "slow components", "optimization opportunities"
-- Business requirements instead of implementation details
-
-Use specific technical terms, function names, library patterns, and implementation details for best results.`,
+    description: "Semantic code search using vector embeddings. Best for: finding similar functions/patterns, discovering existing implementations, locating API usage, architectural patterns. Use technical terms like 'useState useEffect lifecycle', 'router navigation handler', 'error handling validation'. Avoid abstract concepts like 'performance bottlenecks' or 'memory leaks' - use concrete implementation patterns instead.",
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Search query for code patterns" },
-                workingDirectory: { type: "string", description: "Working directory path" },
-        cursor: { type: "string", description: "Pagination cursor from previous search results" },
-        pageSize: { type: "number", description: "Number of results per page (default: 6)" },
-        topK: { type: "number", description: "Maximum total results to consider (default: 10, take a few more than you need)" }
+        query: { type: "string", description: "Technical search query describing code patterns or implementations" },
+                workingDirectory: { type: "string", description: "Absolute path to search directory" },
+        cursor: { type: "string", description: "Pagination cursor for result sets" },
+        pageSize: { type: "number", description: "Results per page (default: 6)" },
+        topK: { type: "number", description: "Max results (default: 10)" }
       },
       required: ["query", "workingDirectory"]
     },

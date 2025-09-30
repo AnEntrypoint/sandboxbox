@@ -958,61 +958,7 @@ function generateASTInsights(results, operation, pattern, workingDirectory, resu
 
 export const UNIFIED_AST_TOOL = {
   name: 'ast_tool',
-  description: `Precise AST pattern matching tool for finding concrete code structures and implementation patterns.
-
-🎯 BEST FOR:
-- Finding specific function signatures, variable declarations, and language constructs
-- Locating exact code patterns, syntax structures, and implementation details
-- Searching for concrete API usage, library patterns, and framework-specific code
-- Identifying specific error handling patterns, data structures, and algorithm implementations
-
-💡 EFFECTIVE SEARCH QUERIES:
-• "useState($INITIAL)" - Find React state initialization patterns
-• "function $FUNC($PARAM)" - Find function definitions with parameters
-• "console.log($ARG)" - Find console logging statements
-• "try { $$$ } catch ($ERROR) { $$$ }" - Find error handling blocks
-• "const $VAR = await $ASYNC" - Find async/await patterns
-• "import $LIB from '$MODULE'" - Find specific import statements
-
-❌ AVOID:
-- Abstract concepts like "performance issues", "memory problems"
-- Business requirements instead of code structures
-- General descriptions instead of specific syntax patterns
-
-✅ RELIABLE PATTERNS:
-• Variables: "$VAR", "$FUNC", "$COMPONENT"
-• Functions: "function $FUNC($PARAM)", "async function $FUNC($PARAM)"
-• Objects: "const $OBJ = {$KEY: $VALUE}", "{$KEY: $VALUE}"
-• Arrays: "const $ARR = [$ITEM]", "[$FIRST, $SECOND]"
-• React: "useEffect($DEPENDENCY)", "const [$STATE, $SETTER] = useState($INITIAL)"
-• Relations: "$FUNC has debugger", "$VAR inside function_declaration"
-
-**🔍 POWERFUL RELATION OPERATORS:**
-• "has": Find elements containing specific patterns - "$FUNC has debugger", "$OBJ has pair"
-• "inside": Find patterns within specific contexts - "$VAR inside function_declaration"
-• "matches": Pattern matching with regex - "$PATTERN matches /^[A-Z]/"
-• "kind:": Match by AST node type - "kind: function_declaration", "kind: string_literal"
-
-**📋 PRACTICAL EXAMPLES:**
-• "createFileRoute" - Find route creation functions
-• "const $ROUTER = createRouter({ routes: $ROUTES })" - Find router setup
-• "$FUNC has debugger" - Find functions with debugger statements
-• "import { createFileRoute, createRouter }" - Find specific imports
-• "export const $ROUTE = createFileRoute('/auth/login')" - Find route definitions
-• "kind: function_declaration" matches /^[A-Z]/ - Find React components
-
-**⚡ COMPOSITE RULES:**
-• "all: [pattern1, pattern2]" - Both patterns must match
-• "any: [pattern1, pattern2]" - Either pattern can match
-• "not: pattern" - Pattern must NOT match
-
-**💡 PRO TIPS:**
-• The tool auto-fixes "has" patterns by searching for the base element
-• Multiple $$$ variables are automatically simplified
-• Focus on unique identifiers for precise matches
-• Use kind: patterns for structural code analysis
-
-**ADVANTAGE:** Natural language patterns work seamlessly - the tool handles the complexity!`,
+  description: "AST pattern matching for precise code structure searches. Patterns: $VAR (variables), $FUNC (functions), $$$ (any code). Examples: 'useState($INIT)', 'function $F($P)', 'console.log($A)', 'try {$$$} catch($E) {$$$}'. Relations: '$F has debugger' (contains), '$V inside function_declaration' (context), 'kind: function_declaration' (node type). Composites: 'all:[p1,p2]', 'any:[p1,p2]', 'not:p'. Use concrete syntax patterns, not abstract concepts. Auto-simplifies complex patterns.",
   examples: [
     'operation="search", pattern="console.log($ARG)"',
     'operation="replace", pattern="var $NAME", replacement="let $NAME"',
@@ -1030,7 +976,7 @@ export const UNIFIED_AST_TOOL = {
       },
             pattern: {
         type: 'string',
-        description: 'REQUIRED: AST pattern to search for. The tool provides guidance for optimizing complex patterns and suggests alternatives for "has" expressions. Examples: "$VAR", "$FUNC", "console.log($ARG)", "useState($INITIAL)".'
+        description: 'AST pattern: $VAR (variable), $FUNC (function), $$$ (any code). Ex: "useState($INIT)", "function $F($P)", "$F has debugger", "kind: function_declaration"'
       },
       replacement: {
         type: 'string',
@@ -1043,7 +989,7 @@ export const UNIFIED_AST_TOOL = {
       },
       workingDirectory: {
         type: 'string',
-        description: 'REQUIRED: Absolute path to working directory. ⚠️ MUST be a real, existing directory. NO fallbacks - if path is invalid, tool will fail. Example: "/home/user/project" not "./project" or "~/project".'
+        description: 'Absolute path to existing directory (no relative paths). Ex: "/home/user/project"'
       },
       cursor: {
         type: 'string',
