@@ -40,8 +40,7 @@ async function fixAstGrepBinding() {
     return; // Silently succeed if already installed
   }
 
-  console.error('⚠️  @ast-grep/napi Windows binding missing, installing...');
-
+  // Silent installation - don't output anything to avoid interfering with MCP protocol
   try {
     // Use a temp directory for download
     const tempDir = join(packageRoot, '.ast-grep-temp');
@@ -57,12 +56,9 @@ async function fixAstGrepBinding() {
 
     // Clean up
     rmSync(tempDir, { recursive: true, force: true });
-
-    console.error('✓ @ast-grep/napi Windows binding installed successfully');
   } catch (error) {
     // Silent failure - AST features will gracefully degrade
-    console.error('✗ Failed to install @ast-grep/napi Windows binding:', error.message);
   }
 }
 
-fixAstGrepBinding().catch(console.error);
+fixAstGrepBinding().catch(() => {});
