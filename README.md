@@ -4,9 +4,15 @@ The aim of the current version is to provide similar turn around times and more 
 
 ## Version
 
-**Current Version:** v3.4.18
+**Current Version:** v3.4.42
 
-### Recent Changes (v3.4.18)
+### Recent Changes (v3.4.42)
+- **Windows Support**: Added cmd /c wrapper instructions for Windows npx commands
+- **Removed Failure Analysis Tools**: Removed analyze_failures and get_failure_stats - failure tracking happens automatically in background
+- **Silent Postinstall**: Made postinstall script completely silent to avoid MCP protocol interference
+- **MCP Protocol Compliance**: Fixed stdio transport lifecycle management for reliable connections
+
+### Previous Changes (v3.4.18)
 - **Root Cause Architecture Fixes**: Fixed race conditions, path resolution, and API contract violations
 - **Enhanced Vector Search Stability**: Implemented promise-based initialization and improved error handling
 - **Non-Blocking Operations**: Re-enabled similarity detection without blocking main tool execution
@@ -106,12 +112,20 @@ For full multi-language support, install the following CLI tools:
 ## Client Configuration
 
 ### Claude Code
+
+#### Windows
+On Windows, npx commands require the `cmd /c` wrapper:
 ```bash
-# For globally installed package
-claude mcp add -s user glootie "mcp-glootie"
+claude mcp add glootie -- cmd /c npx -y mcp-glootie
+```
+
+#### macOS/Linux
+```bash
+# Using npx (recommended)
+claude mcp add glootie -- npx -y mcp-glootie
 
 # For local development (replace /path/to with actual path)
-claude mcp add -s user glootie "node /path/to/mcp-glootie/src/index.js"
+claude mcp add glootie -- node /path/to/mcp-glootie/src/index.js
 ```
 
 ### Cursor
