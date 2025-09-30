@@ -56,24 +56,9 @@ For full multi-language support, install the following CLI tools:
 
 ## Client Configuration
 
-### Claude Code
+### MCP-Compatible Clients
 
-#### Windows
-On Windows, npx commands require the `cmd /c` wrapper:
-```bash
-claude mcp add glootie -- cmd /c npx -y mcp-glootie@latest
-```
-
-#### macOS/Linux
-```bash
-# Using npx (recommended - always gets latest version)
-claude mcp add glootie npx -s local -- -y mcp-glootie@latest
-
-# For local development (replace /path/to with actual path)
-claude mcp add glootie -- node /path/to/mcp-glootie/src/index.js
-```
-
-### Cursor
+#### Cursor
 Add to your Cursor `mcpServers.json` configuration:
 ```json
 {
@@ -131,7 +116,7 @@ Add to your VSCode MCP configuration:
 }
 ```
 
-**Note**: For Claude Code local development, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. The global installation uses the `mcp-glootie` command directly.
+**Note**: For local development, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. The global installation uses the `mcp-glootie` command directly.
 
 ### Built-in Auto-Hooks
 
