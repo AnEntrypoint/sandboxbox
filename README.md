@@ -1,6 +1,8 @@
-Complete MCP (Model Context Protocol) server for advanced development tools with optimized execution and vector embeddings.
+![cd6d6b01e938ef486734ce8dd2544ae5-1](https://github.com/user-attachments/assets/c080416f-5fa3-44d0-aa36-8aa2cac0a7d2)
 
-The aim of the current version is to provide similar turn around times and more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
+MCP (Model Context Protocol) server for development tools with optimized execution and vector embeddings.
+
+The aim of the current version is to make more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
 ## Features
 
