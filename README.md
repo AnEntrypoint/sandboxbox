@@ -12,19 +12,6 @@ The aim of the current version is to provide similar turn around times and more 
 - **Silent Postinstall**: Made postinstall script completely silent to avoid MCP protocol interference
 - **MCP Protocol Compliance**: Fixed stdio transport lifecycle management for reliable connections
 
-### Previous Changes (v3.4.18)
-- **Root Cause Architecture Fixes**: Fixed race conditions, path resolution, and API contract violations
-- **Enhanced Vector Search Stability**: Implemented promise-based initialization and improved error handling
-- **Non-Blocking Operations**: Re-enabled similarity detection without blocking main tool execution
-- **Improved Index Quality**: Increased file size limits and better chunking strategies
-- **Transformers.js Integration**: Fixed API contract handling for robust embedding generation
-
-### Key Improvements (v3.4.14-v3.4.17)
-- **Enhanced Tool Descriptions**: Added prescriptive warnings and examples to prevent common usage mistakes
-- **Improved MCP Stability**: Fixed searchPathParam error and redundant validation issues
-- **Organized Directory Structure**: Moved all tooling folders under `glootie/` for cleaner workspace
-- **Better Error Messages**: Clear validation feedback for working directory and pattern parameters
-
 ## Features
 
 ### 🚀 Optimized Execution & Cross-Tool Status Sharing
@@ -64,36 +51,12 @@ The aim of the current version is to provide similar turn around times and more 
 - **execute** - Multi-language code execution with built-in async job management and progress tracking
 
 #### Utility Tools
+- **caveat** - Record, view, and delete technological caveats encountered during development. Important for tracking limitations, constraints, and considerations that inform future work.
 - **error_handling** - Enhanced error recovery and reporting
 - **shared_hooks** - Shared functionality across tools
 - **utilities** - Common utility functions and helpers
 - **mcp_pagination** - MCP pagination utilities for handling large datasets
 
-## Installation
-
-### Global Installation (Recommended)
-
-Install globally for easy access across all projects:
-
-```bash
-npm install -g mcp-glootie
-```
-
-### Local Development Setup
-
-For development or local testing:
-
-```bash
-# Clone the repository
-git clone https://github.com/AnEntrypoint/mcp-glootie.git
-cd mcp-glootie
-
-# Install dependencies
-npm install
-
-# Link globally for testing
-npm link
-```
 
 ### Language Runtime Requirements
 
@@ -134,14 +97,15 @@ Add to your Cursor `mcpServers.json` configuration:
 {
   "mcpServers": {
     "glootie": {
-      "command": "mcp-glootie",
-      "args": [],
+      "command": "npx",
+      "args": ["-y","mcp-glootie"],
       "env": {},
       "disabled": false,
       "autoApprove": [
         "execute",
         "searchcode",
-        "ast_tool"
+        "ast_tool",
+        "caveat"
       ]
     }
   }
@@ -154,14 +118,15 @@ Add to your GitHub Copilot `mcpServers.json` configuration:
 {
   "mcpServers": {
     "glootie": {
-      "command": "mcp-glootie",
-      "args": [],
+      "command": "npx",
+      "args": ["-y","mcp-glootie"],
       "env": {},
       "type": "local",
       "tools": [
         "execute",
         "searchcode",
-        "ast_tool"
+        "ast_tool",
+        "caveat"
       ]
     }
   }
@@ -174,8 +139,8 @@ Add to your VSCode MCP configuration:
 {
     "servers": {
         "glootie": {
-            "command": "mcp-glootie",
-            "args": [],
+            "command": "npx",
+            "args": ["-y","mcp-glootie"],
             "env": {},
             "type": "stdio"
         }
@@ -185,24 +150,6 @@ Add to your VSCode MCP configuration:
 ```
 
 **Note**: For Claude Code local development, replace `/path/to/mcp-glootie` with the actual path to your cloned repository. The global installation uses the `mcp-glootie` command directly.
-
-## Architecture Highlights
-
-### Root Cause Fixes & Stability Improvements
-
-**Major Architecture Refactoring (v3.4.18):**
-- **Race Condition Prevention**: Implemented promise-based initialization to prevent concurrent access issues
-- **Enhanced Path Resolution**: Clean PathResolver abstraction for cross-directory index sharing
-- **API Contract Compliance**: Fixed Transformers.js integration with proper Tensor object handling
-- **Non-Blocking Operations**: Re-enabled similarity detection without blocking main tool execution
-- **Improved Index Quality**: Increased file size limits (75KB → 200KB) and optimized chunking (200 → 150 lines per chunk)
-- **Intelligent File Processing**: Smart chunking for large files instead of simple truncation
-
-**Key Benefits:**
-- **Zero Crashes**: All MCP connection stability issues resolved at root cause level
-- **Better Performance**: Enhanced error handling prevents symptomatic defensive programming
-- **Higher Quality Search**: Improved index quality provides better semantic search results
-- **Robust Error Recovery**: Graceful handling of edge cases without masking underlying issues
 
 ### Built-in Auto-Hooks
 
@@ -214,79 +161,6 @@ Glootie includes built-in auto-linting that works automatically without any setu
 - **Smart Linting**: Uses ESLint when available, falls back to ast-grep patterns
 - **Multi-Language**: Supports JavaScript, TypeScript, Python, and more
 - **Zero Setup**: No separate processes or configuration required
-
-### Auto-Linting Features
-
-- **ESLint Integration**: Automatically uses project ESLint configuration when available
-- **AST Grep Fallback**: Built-in linting patterns for projects without ESLint
-- **Real-time Feedback**: Linting results displayed immediately after file operations
-- **Non-blocking**: Linting errors don't prevent operations, just provide guidance
-- **Multi-tool**: Works with ast_tool, execute, and other file-modifying operations
-
-### Usage
-
-Auto-linting works automatically - no configuration needed:
-
-```bash
-# Just use the tools normally - auto-linting happens automatically
-ast_tool(operation="replace", pattern="var $NAME", replacement="let $NAME", path="./src")
-```
-
-The tools will automatically:
-1. Detect file modifications
-2. Run appropriate linters (ESLint or ast-grep)
-3. Display results with actionable feedback
-4. Continue operation even if linting fails
-
-## Additional Features
-
-### Pattern Auto-Fixing & Error Prevention (v3.4.2)
-- **Automatic pattern conversion**: Problematic `$$$` patterns automatically converted to safe alternatives
-- **Connection closed errors fixed**: Eliminates MCP server crashes caused by invalid AST patterns
-- **Safe pattern library**: All conversions use verified working patterns from ast-grep catalog
-- **User-friendly warnings**: Agents receive clear warnings when patterns are auto-converted
-- **Non-blocking operation**: Pattern issues don't prevent tool usage, just provide guidance
-- **Comprehensive coverage**: Handles functions, arrow functions, objects, arrays, React hooks, and console patterns
-
-**Pattern Auto-Fixing Examples:**
-- `console.log($$$)` → `console.log($ARG)` ✅
-- `function $FUNC($$$) { $$$ }` → `function $FUNC($PARAM) { $STMT }` ✅
-- `onClick={() => $$$}` → `onClick={$_}` ✅
-- `{$$$}` → `{}` ✅
-- `useState($$$)` → `useState($PROP)` ✅
-
-### Optimized Execution & Cross-Tool Status Sharing (v3.4.0)
-- **3-second threshold optimization**: Execute tool returns direct responses for fast operations (< 3 seconds) to save cycles and latency
-- **Cross-tool status sharing**: Execution results automatically attached to subsequent tool calls with status markers
-- **Simplified architecture**: Removed async job management complexity for cleaner, more predictable behavior
-- **Performance-focused**: Smart execution tracking with automatic time-based optimization
-- **Enhanced agent experience**: Clear status indicators help agents identify and track execution results across tools
-
-### Vector Embedding Optimization (v3.3.0)
-- **Pure vector search**: Removed all fallback mechanisms - vector embeddings are mandatory and must work
-- **Lightweight models**: Switched to Xenova/all-MiniLM-L6-v2 for better performance
-- **Improved error handling**: Better timeout handling and diagnostics for embedding system
-- **No fallbacks**: Search requires vector embeddings to be available or errors appropriately
-
-### Built-in Hooks Integration (v3.2.15)
-- **Eliminated separate hook startup** - Auto-linting now works automatically within tools
-- **Zero configuration** - No separate processes or setup required for hooks
-- **Smart linting** - Automatically uses ESLint when available, falls back to ast-grep patterns
-- **Multi-language support** - Auto-linting works with JavaScript, TypeScript, Python, and more
-- **Non-blocking operation** - Linting provides guidance without preventing operations
-
-### AST Tool Consolidation (v3.2.2)
-- **Unified AST tool** - Consolidated 4 separate AST tools into 1 unified interface
-- **Enhanced ast-grep integration** - Comprehensive ast-grep capabilities with YAML configuration support
-- **Improved working directory handling** - Fixed critical working directory mismatch issues
-- **Code cleanup** - Removed redundant files and cleaned up exports for better maintainability
-- **Better performance** - Optimized implementation with reduced context overhead
-
-### Auto-Linting Enhancements
-- **Real-time feedback** - Linting results displayed immediately after file operations
-- **Smart fallback** - Uses ESLint when available, ast-grep patterns otherwise
-- **Multi-tool integration** - Works with ast_tool, execute, and other file-modifying operations
-- **Actionable results** - Provides specific guidance for fixing linting issues
 
 ## Tools
 
@@ -374,6 +248,30 @@ execute(code="console.log('Hello world')", runtime="nodejs")
 
 #### sequentialthinking
 Structure complex thoughts systematically for better analysis.
+
+#### caveat
+Record, view, and delete technological caveats encountered during development. This tool helps track system limitations, constraints, and important considerations that inform future work.
+
+**Features:**
+- **Record caveats**: Document technological limitations, API constraints, performance considerations
+- **View caveats**: Display all recorded caveats with timestamps for easy reference
+- **Delete caveats**: Remove caveats that are no longer relevant or have been resolved
+- **Persistent storage**: Caveats are stored locally and displayed during MCP initialization
+- **Informative context**: Caveats help agents understand project constraints and limitations
+
+**Usage:**
+```javascript
+// Record a new caveat
+caveat(action="record", text="This API endpoint has rate limiting of 100 requests per minute")
+
+// View all caveats
+caveat(action="view")
+
+// Delete a caveat by ID or text
+caveat(action="delete", id="cav_1234567890123_abcde")
+```
+
+**Important:** The caveat tool displays recorded caveats during MCP server initialization to inform future work. Use it to document any technological limitations that could impact development decisions.
 
 ## Testing
 
