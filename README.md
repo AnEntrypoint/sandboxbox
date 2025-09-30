@@ -2,16 +2,6 @@ Complete MCP (Model Context Protocol) server for advanced development tools with
 
 The aim of the current version is to provide similar turn around times and more thoroughly investigated outputs than regular tooling, which will save you on rounds of physical interaction with the agent
 
-## Version
-
-**Current Version:** v3.4.42
-
-### Recent Changes (v3.4.42)
-- **Windows Support**: Added cmd /c wrapper instructions for Windows npx commands
-- **Removed Failure Analysis Tools**: Removed analyze_failures and get_failure_stats - failure tracking happens automatically in background
-- **Silent Postinstall**: Made postinstall script completely silent to avoid MCP protocol interference
-- **MCP Protocol Compliance**: Fixed stdio transport lifecycle management for reliable connections
-
 ## Features
 
 ### 🚀 Optimized Execution & Cross-Tool Status Sharing
