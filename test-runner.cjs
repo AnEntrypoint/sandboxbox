@@ -120,7 +120,7 @@ class OptimizedMCPTest {
   constructor() {
     this.results = {
       timestamp: new Date().toISOString(),
-      version: '3.4.55',
+      version: '3.4.56',
       systemInfo: {
         platform: os.platform(),
         arch: os.arch(),
