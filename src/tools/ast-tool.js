@@ -1088,7 +1088,7 @@ export const UNIFIED_AST_TOOL = {
         const insights = generateASTInsights(results, args.operation, args.pattern, workingDirectory);
 
         const toolContext = createToolContext('ast_tool', workingDirectory, query, {
-          filesAccessed: results.map(r => r.file),
+          filesAccessed: Array.isArray(results) ? results.map(r => r?.file || r.path || 'unknown').filter(Boolean) : [],
           patterns: [args.pattern],
           insights: insights
         });
