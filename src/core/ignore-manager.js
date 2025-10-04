@@ -1,189 +1,41 @@
 import ignore from 'ignore';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
 const ignoreFilterCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; 
-export const CORE_IGNORE_PATTERNS = [
-  // Version control and build artifacts
-  '**/.git',
-  '**/.svn',
-  '**/.hg',
-  '**/node_modules',
-  '**/build',
-  '**/dist',
-  '**/target',
-  '**/out',
-  '**/public/build',
-  '**/.next',
-  '**/.nuxt',
-  '**/.out',
-  '**/.turbo',
-  '**/.vercel',
-  '**/.netlify',
+const CACHE_TTL = 5 * 60 * 1000;
 
-  // Dependencies and package managers
-  '**/vendor',
-  '**/bower_components',
-  '**/jspm_packages',
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-  // Testing and coverage
-  '**/coverage',
-  '**/.coverage',
-  '**/.nyc_output',
-  '**/.pytest_cache',
-  '**/__pycache__',
-  '**/*.pyc',
-  '**/*.pyo',
-  '**/*.pyd',
-  '**/.mypy_cache',
-  '**/venv',
-  '**/env',
-  '**/.env',
-  '**/.venv',
-  '**/conda',
+// Load universal ignore patterns from the shared file
+function loadUniversalIgnorePatterns() {
+  const universalIgnorePath = path.join(__dirname, 'universal-ignore.txt');
+  try {
+    const content = readFileSync(universalIgnorePath, 'utf8');
+    return content
+      .split('\n')
+      .filter(line => line.trim() && !line.startsWith('#'))
+      .map(line => line.trim());
+  } catch (error) {
+    console.warn(`Warning: Could not load universal ignore patterns from ${universalIgnorePath}: ${error.message}`);
+    // Fallback to minimal patterns if file can't be read
+    return [
+      'node_modules/**',
+      '.git/**',
+      'build/**',
+      'dist/**',
+      'coverage/**',
+      '*.log',
+      '.DS_Store',
+      'Thumbs.db'
+    ];
+  }
+}
 
-  // IDE and editor files
-  '**/.vscode',
-  '**/.idea',
-  '**/.vs',
-  '**/.swp',
-  '**/.swo',
-  '**/.DS_Store',
-  '**/Thumbs.db',
-
-  // OS generated files
-  '**/.DS_Store',
-  '**/Thumbs.db',
-  '**/.Spotlight-V100',
-  '**/.Trashes',
-  '**/ehthumbs.db',
-  '**/Desktop.ini',
-
-  // Logs and temporary files
-  '**/.log',
-  '**/.tmp',
-  '**/.temp',
-  '**/tmp',
-  '**/temp',
-  '**/.cache',
-  '**/.parcel-cache',
-
-  // Documentation and generated files
-  '**/*.log',
-  '**/.env.local',
-  '**/.env.*.local',
-  '**/docs/build',
-  '**/site/public',
-
-  // Modern development and build artifacts
-  '**/.pnp',
-  '**/.pnp.js',
-  '**/.yarn',
-  '**/.yarnrc.yml',
-  '**/.pnpm-debug.log',
-  '**/.eslintcache',
-  '**/.stylelintcache',
-  '**/.rts2_cache_cjs',
-  '**/.rts2_cache_esm',
-  '**/.rts2_cache_umd',
-  '**/.parcel-cache',
-
-  // Testing and coverage
-  '**/junit.xml',
-  '**/coverage.xml',
-  '**/test-results',
-  '**/playwright-report',
-  '**/nyc_report',
-  '**/.test-output',
-
-  // TypeScript and build outputs
-  '**/*.d.ts.map',
-  '**/*.js.map',
-  '**/*.tsbuildinfo',
-  '**/.angular',
-  '**/.nx',
-  '**/.amplify',
-
-  // Package manager lock files (large and not source code)
-  '**/package-lock.json',
-  '**/yarn.lock',
-  '**/pnpm-lock.yaml',
-  '**/bun.lockb',
-
-  // Binary and media files
-  '**/*.png',
-  '**/*.jpg',
-  '**/*.jpeg',
-  '**/*.gif',
-  '**/*.svg',
-  '**/*.ico',
-  '**/*.pdf',
-  '**/*.zip',
-  '**/*.tar',
-  '**/*.gz',
-  '**/*.rar',
-  '**/*.7z',
-  '**/*.mp4',
-  '**/*.avi',
-  '**/*.mov',
-  '**/*.wmv',
-  '**/*.flv',
-  '**/*.mkv',
-  '**/*.mp3',
-  '**/*.wav',
-  '**/*.flac',
-  '**/*.aac',
-
-  // Minified and bundled files
-  '**/*.min.*',
-  '**/*.map',
-  '**/*.bundle.*',
-  '**/bundle.*',
-
-  // Database files
-  '**/*.sqlite',
-  '**/*.db',
-  '**/*.sql',
-
-  // Test files and fixtures
-  '**/*.test.*',
-  '**/*.spec.*',
-  '**/__tests__',
-  '**/__mocks__',
-  '**/fixtures',
-  '**/test_data',
-
-  // Claude and AI related
-  '.claude**',
-  '**/.claude',
-  'debug-**.*',
-
-  // Package lock files
-  '**/package-lock.json',
-  '**/yarn.lock',
-  '**/pnpm-lock.yaml',
-  '**/bun.lockb',
-
-  // Build and CI cache
-  '**/.cache',
-  '**/.angular',
-  '**/.svelte-kit',
-
-  // Results and glootie generated files
-  '**/results',
-  '**/glootie',
-
-  // Miscellaneous
-  '**/.npmrc',
-  '**/.yarnrc',
-  '**/.node-version',
-  '**/.nvmrc',
-  '**/todo.md',
-  '**/readme.md',
-  '**/license',
-  '**/changelog.md',
-  '**/contributing.md'
-];
+export const CORE_IGNORE_PATTERNS = loadUniversalIgnorePatterns();
 
 export const SOURCE_CODE_EXTENSIONS = [
   // Core web development
@@ -257,7 +109,10 @@ export function createIgnoreFilter(rootDir, customPatterns = [], options = {}) {
     ig,
     rootDir,
     ignores: (filePath) => {
-      const relativePath = path.relative(rootDir, filePath).replace(/\\/g, '/');
+      // Ensure both paths are absolute for path.relative()
+      const absoluteRoot = path.resolve(rootDir);
+      const absoluteFile = path.resolve(filePath);
+      const relativePath = path.relative(absoluteRoot, absoluteFile).replace(/\\/g, '/');
       return ig.ignores(relativePath);
     },
     add: (patterns) => ig.add(patterns),
@@ -359,34 +214,15 @@ export function shouldIgnoreFile(filePath, ignorePatterns = null) {
   const ignoreFilter = createIgnoreFilter(path.dirname(filePath), patterns);
   return ignoreFilter.ignores(filePath);
 }
-export function loadCustomIgnorePatterns(workingDirectory) {
-  const patterns = [];
-  try {
-    
-    const searchignorePath = path.join(workingDirectory, '.searchignore');
-    if (existsSync(searchignorePath)) {
-      const content = readFileSync(searchignorePath, 'utf8');
-      patterns.push(...content
-        .split('\n')
-        .filter(line => line.trim() && !line.startsWith('#'))
-        .map(line => line.trim())
-      );
-    }
-    
-    const searchDefaultsPath = path.join(workingDirectory, '.search-defaults.json');
-    if (existsSync(searchDefaultsPath)) {
-      const customDefaults = JSON.parse(readFileSync(searchDefaultsPath, 'utf8'));
-      if (customDefaults.ignorePatterns) {
-        patterns.push(...customDefaults.ignorePatterns);
-      }
-    }
-  } catch (error) {
-    console.warn(`Warning: Could not load custom ignore patterns: ${error.message}`);
-  }
-  return patterns;
-}
 export function clearIgnoreCache() {
   ignoreFilterCache.clear();
+}
+
+export function reloadUniversalIgnorePatterns() {
+  // Clear cache to force reload with new patterns
+  clearIgnoreCache();
+  // Reload patterns from file
+  return loadUniversalIgnorePatterns();
 }
 export function getCacheStats() {
   return {
@@ -401,6 +237,5 @@ export default {
   createExtensionFilter,
   createFileFilter,
   getDefaultIgnorePatterns,
-  shouldIgnoreFile,
-  loadCustomIgnorePatterns
+  shouldIgnoreFile
 };

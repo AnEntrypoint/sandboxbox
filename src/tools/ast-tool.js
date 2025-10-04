@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import path from 'path';
+import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { createMCPResponse } from '../core/mcp-pagination.js';
 import { workingDirectoryContext, createToolContext } from '../core/working-directory-context.js';
 import { createIgnoreFilter } from '../core/ignore-manager.js';

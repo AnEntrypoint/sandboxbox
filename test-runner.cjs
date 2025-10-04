@@ -88,26 +88,39 @@ const PACKAGE_JSON = {
   }
 };
 
-const SEARCH_IGNORE_PATTERNS = [
-  'node_modules/**',
-  '.next/**',
-  'dist/**',
-  'build/**',
-  'out/**',
-  '.git/**',
-  '*.log',
-  '*.tmp',
-  'temp/**',
-  'tmp/**',
-  '.vscode/**',
-  '.idea/**'
-];
+// Load universal ignore patterns from shared file
+function loadUniversalIgnorePatterns() {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const universalIgnorePath = path.join(__dirname, 'src', 'core', 'universal-ignore.txt');
+    const content = fs.readFileSync(universalIgnorePath, 'utf8');
+    return content
+      .split('\n')
+      .filter(line => line.trim() && !line.startsWith('#'))
+      .map(line => line.trim());
+  } catch (error) {
+    console.warn(`Warning: Could not load universal ignore patterns: ${error.message}`);
+    return [
+      'node_modules/**',
+      '.git/**',
+      'build/**',
+      'dist/**',
+      'coverage/**',
+      '*.log',
+      '.DS_Store',
+      'Thumbs.db'
+    ];
+  }
+}
+
+const SEARCH_IGNORE_PATTERNS = loadUniversalIgnorePatterns();
 
 class OptimizedMCPTest {
   constructor() {
     this.results = {
       timestamp: new Date().toISOString(),
-      version: '3.1.6',
+      version: '3.4.55',
       systemInfo: {
         platform: os.platform(),
         arch: os.arch(),
