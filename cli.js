@@ -10,9 +10,9 @@
  *   npx sandboxbox shell <project>    # Interactive shell
  */
 
-// Debug: Make sure the script starts
-console.log('🚀 SandboxBox starting...');
+// Optional debug output
 if (process.env.DEBUG) {
+  console.log('🔧 Debug: SandboxBox CLI starting...');
   console.log(`🔧 Debug: Platform: ${process.platform}`);
   console.log(`🔧 Debug: Node.js: ${process.version}`);
   console.log(`🔧 Debug: Args: ${process.argv.slice(2).join(' ')}`);
@@ -192,7 +192,13 @@ async function main() {
     case 'run':
       const projectDir = commandArgs[0] || '.';
       console.log(color('blue', '🚀 Running Playwright tests...'));
-      if (!(await checkBubblewrap())) process.exit(1);
+      console.log(color('yellow', `Project directory: ${projectDir}`));
+
+      if (!(await checkBubblewrap())) {
+        console.log(color('red', '❌ Cannot run tests without bubblewrap'));
+        process.exit(1);
+      }
+
       runScript('./container.js', ['run', projectDir]);
       break;
 
