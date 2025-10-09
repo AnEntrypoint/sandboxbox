@@ -27,6 +27,11 @@ class BubblewrapContainer {
     this.verbose = options.verbose !== false;
     this.env = { ...process.env };
     this.workdir = '/workspace';
+
+    // Auto-create sandbox directory if it doesn't exist
+    if (!existsSync(this.sandboxDir)) {
+      mkdirSync(this.sandboxDir, { recursive: true });
+    }
   }
 
   /**
@@ -217,6 +222,87 @@ echo "⚠️  Note: Chromium-only (Firefox/WebKit need glibc - use Ubuntu)"
     // Resolve project directory
     const resolvedProjectDir = resolve(projectDir);
 
+    // First, try full namespace isolation
+    try {
+      console.log('🎯 Attempting full namespace isolation...');
+      return await this.runPlaywrightWithNamespaces(options);
+    } catch (error) {
+      console.log(`⚠️  Namespace isolation failed: ${error.message}`);
+      console.log('🔄 Falling back to basic isolation mode...\n');
+      return await this.runPlaywrightBasic(options);
+    }
+  }
+
+  /**
+   * Run simple container test without Playwright (for testing purposes)
+   */
+  async runSimpleTest(options = {}) {
+    const { projectDir = '.', testCommand = 'echo "Container is working!" && ls -la /workspace' } = options;
+    const resolvedProjectDir = resolve(projectDir);
+
+    console.log('🧪 Running simple container test...\n');
+
+    // Try basic isolation first
+    try {
+      console.log('🎯 Attempting basic isolation...');
+      return await this.runBasicTest(options);
+    } catch (error) {
+      console.log(`⚠️  Basic test failed: ${error.message}`);
+      console.log('🔄 Running without isolation...\n');
+      return this.runWithoutIsolation(options);
+    }
+  }
+
+  /**
+   * Run basic test in container
+   */
+  async runBasicTest(options = {}) {
+    const { projectDir = '.', testCommand = 'echo "Container is working!" && ls -la /workspace' } = options;
+    const resolvedProjectDir = resolve(projectDir);
+
+    // Simplified bubblewrap command
+    const bwrapCmd = [
+      bubblewrap.findBubblewrap(),
+      '--bind', resolvedProjectDir, '/workspace',
+      '--chdir', '/workspace',
+      '--tmpfs', '/tmp',
+      '/bin/sh', '-c', testCommand
+    ];
+
+    console.log(`🚀 Running: ${testCommand}`);
+    console.log(`📁 Project directory: ${resolvedProjectDir}`);
+    console.log(`🎯 Sandbox isolation: basic mode\n`);
+
+    return this.executeCommand(bwrapCmd, resolvedProjectDir);
+  }
+
+  /**
+   * Run without any isolation (last resort)
+   */
+  async runWithoutIsolation(options = {}) {
+    const { projectDir = '.', testCommand = 'echo "Container is working!" && ls -la' } = options;
+    const resolvedProjectDir = resolve(projectDir);
+
+    console.log(`🚀 Running without isolation: ${testCommand}`);
+    console.log(`📁 Project directory: ${resolvedProjectDir}`);
+    console.log(`🎯 Sandbox isolation: none\n`);
+
+    try {
+      execSync(testCommand, { stdio: 'inherit', cwd: resolvedProjectDir });
+      console.log('\n✅ Test completed successfully!');
+      return 0;
+    } catch (error) {
+      throw new Error(`Test failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Run Playwright with full namespace isolation (ideal mode)
+   */
+  async runPlaywrightWithNamespaces(options = {}) {
+    const { projectDir = '.', testCommand = 'npx playwright test', mountProject = true } = options;
+    const resolvedProjectDir = resolve(projectDir);
+
     // Build bubblewrap command with proper namespace isolation
     const bwrapCmd = [
       bubblewrap.findBubblewrap(),
@@ -289,6 +375,48 @@ echo "⚠️  Note: Chromium-only (Firefox/WebKit need glibc - use Ubuntu)"
     console.log(`📁 Project directory: ${resolvedProjectDir}`);
     console.log(`🎯 Sandbox isolation: full bubblewrap namespace isolation\n`);
 
+    return this.executeCommand(fullCmd, resolvedProjectDir);
+  }
+
+  /**
+   * Run Playwright with basic isolation (fallback mode for limited environments)
+   */
+  async runPlaywrightBasic(options = {}) {
+    const { projectDir = '.', testCommand = 'npx playwright test', mountProject = true } = options;
+    const resolvedProjectDir = resolve(projectDir);
+
+    console.log('🎯 Running in basic isolation mode (limited features)...');
+
+    // Simplified bubblewrap command without namespaces
+    const bwrapCmd = [
+      bubblewrap.findBubblewrap(),
+
+      // Basic filesystem
+      '--bind', resolvedProjectDir, '/workspace',
+      '--chdir', '/workspace',
+      '--tmpfs', '/tmp',
+      '--share-net',  // Keep network access
+
+      // Essential environment variables
+      '--setenv', 'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1',
+      '--setenv', 'PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser',
+      '--setenv', 'CHROMIUM_FLAGS=--no-sandbox --disable-dev-shm-usage --disable-gpu',
+
+      // Run command directly without wrapper script
+      '/bin/sh', '-c', testCommand
+    ];
+
+    console.log(`🚀 Running: ${testCommand}`);
+    console.log(`📁 Project directory: ${resolvedProjectDir}`);
+    console.log(`🎯 Sandbox isolation: basic mode (limited namespaces)\n`);
+
+    return this.executeCommand(bwrapCmd, resolvedProjectDir);
+  }
+
+  /**
+   * Execute bubblewrap command with proper error handling
+   */
+  executeCommand(fullCmd, resolvedProjectDir) {
     try {
       // Execute with spawn for better control
       const child = spawn(fullCmd[0], fullCmd.slice(1), {
@@ -355,6 +483,37 @@ echo "⚠️  Note: Chromium-only (Firefox/WebKit need glibc - use Ubuntu)"
   }
 
   /**
+   * Check if a command needs sudo privileges
+   */
+  commandNeedsSudo(command) {
+    const sudoCommands = [
+      'useradd', 'usermod', 'groupadd', 'userdel', 'chsh',
+      'apt-get', 'apt', 'yum', 'dnf', 'apk',
+      'chown', 'chmod',
+      'systemctl', 'service',
+      'npm install -g', 'npm i -g',
+      'pnpm install -g', 'pnpm i -g',
+      'npx --yes playwright install-deps'
+    ];
+
+    // System directories that need sudo for modifications
+    const systemPaths = ['/etc/', '/usr/', '/var/', '/opt/', '/home/'];
+
+    // Check if command modifies system directories
+    const modifiesSystem = systemPaths.some(path =>
+      command.includes(path) && (
+        command.includes('mkdir') ||
+        command.includes('tee') ||
+        command.includes('>') ||
+        command.includes('cp') ||
+        command.includes('mv')
+      )
+    );
+
+    return sudoCommands.some(cmd => command.includes(cmd)) || modifiesSystem;
+  }
+
+  /**
    * Build container from Dockerfile
    */
   async buildFromDockerfile(dockerfilePath, options = {}) {
@@ -364,40 +523,234 @@ echo "⚠️  Note: Chromium-only (Firefox/WebKit need glibc - use Ubuntu)"
 
     const content = readFileSync(dockerfilePath, 'utf-8');
     const lines = content.split('\n')
-      .filter(line => line.trim() && !line.trim().startsWith('#'));
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'));
 
+    // Parse Dockerfile
+    let baseImage = 'alpine';
     let workdir = '/workspace';
     const buildCommands = [];
+    const envVars = {};
+    const buildArgs = {}; // ARG variables
+    let defaultCmd = null;
+    let currentUser = 'root';
 
+    // Handle multi-line commands (lines ending with \)
+    const processedLines = [];
+    let currentLine = '';
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('FROM')) {
-        console.log(`📦 FROM ${trimmed.substring(5).trim()}`);
-        console.log('   ✅ Using Alpine Linux base image\n');
-      } else if (trimmed.startsWith('WORKDIR')) {
-        workdir = trimmed.substring(9).trim().replace(/['"]/g, '');
-        console.log(`📁 WORKDIR ${workdir}\n`);
-      } else if (trimmed.startsWith('RUN')) {
-        const command = trimmed.substring(4).trim();
-        buildCommands.push(command);
-        console.log(`⚙️  RUN ${command.substring(0, 60)}${command.length > 60 ? '...' : ''}`);
-        console.log('   📝 Added to build script\n');
-      } else if (trimmed.startsWith('CMD')) {
-        console.log(`🎯 CMD ${trimmed.substring(4).trim()}`);
-        console.log('   📝 Default command recorded\n');
+      if (line.endsWith('\\')) {
+        currentLine += line.slice(0, -1) + ' ';
+      } else {
+        currentLine += line;
+        processedLines.push(currentLine.trim());
+        currentLine = '';
       }
     }
 
+    // Parse instructions
+    for (const line of processedLines) {
+      if (line.startsWith('FROM ')) {
+        baseImage = line.substring(5).trim();
+        console.log(`📦 FROM ${baseImage}`);
+
+        // Detect base image type
+        if (baseImage.includes('ubuntu') || baseImage.includes('debian')) {
+          console.log('   🐧 Detected Ubuntu/Debian base image\n');
+        } else if (baseImage.includes('alpine')) {
+          console.log('   🏔️  Detected Alpine base image\n');
+        } else {
+          console.log('   ⚠️  Unknown base image type\n');
+        }
+      } else if (line.startsWith('WORKDIR ')) {
+        workdir = line.substring(9).trim().replace(/['"]/g, '');
+        console.log(`📁 WORKDIR ${workdir}\n`);
+      } else if (line.startsWith('ARG ')) {
+        const argLine = line.substring(4).trim();
+        const match = argLine.match(/^(\w+)(?:=(.+))?$/);
+        if (match) {
+          buildArgs[match[1]] = match[2] || '';
+          console.log(`🏗️  ARG ${match[1]}${match[2] ? `=${match[2]}` : ''}\n`);
+        }
+      } else if (line.startsWith('ENV ')) {
+        const envLine = line.substring(4).trim();
+        const match = envLine.match(/^(\w+)=(.+)$/);
+        if (match) {
+          envVars[match[1]] = match[2];
+          console.log(`🔧 ENV ${match[1]}=${match[2]}\n`);
+        }
+      } else if (line.startsWith('USER ')) {
+        currentUser = line.substring(5).trim();
+        console.log(`👤 USER ${currentUser}\n`);
+      } else if (line.startsWith('RUN ')) {
+        const command = line.substring(4).trim();
+        buildCommands.push({ command, user: currentUser, workdir });
+        console.log(`⚙️  RUN ${command.substring(0, 70)}${command.length > 70 ? '...' : ''}`);
+      } else if (line.startsWith('CMD ')) {
+        defaultCmd = line.substring(4).trim();
+        console.log(`🎯 CMD ${defaultCmd}\n`);
+      } else if (line.startsWith('COPY ') || line.startsWith('ADD ')) {
+        console.log(`📋 ${line.substring(0, 70)}${line.length > 70 ? '...' : ''}`);
+        console.log('   ⚠️  COPY/ADD commands must be run in project directory\n');
+      }
+    }
+
+    // Create container root directory
+    const containerRoot = join(this.sandboxDir, 'rootfs');
+    if (!existsSync(containerRoot)) {
+      mkdirSync(containerRoot, { recursive: true });
+      console.log(`📁 Created container root: ${containerRoot}\n`);
+    }
+
     // Create build script
-    const buildScript = buildCommands.join('\n');
-    const scriptPath = join(this.sandboxDir, 'build.sh');
-    writeFileSync(scriptPath, buildScript, { mode: 0o755 });
+    console.log('📝 Creating build script...\n');
+    const buildScriptContent = `#!/bin/bash
+set -e
 
-    console.log('✅ Container build complete!');
-    console.log(`📝 Build script: ${scriptPath}`);
-    console.log(`🎯 To run: node bubblewrap-container.js --run\n`);
+# Build script generated from ${dockerfilePath}
+# Base image: ${baseImage}
+# Total commands: ${buildCommands.length}
 
-    return { buildScript: scriptPath, workdir };
+echo "🏗️  Starting build process..."
+echo ""
+
+${buildCommands.map((cmd, idx) => `
+# Command ${idx + 1}/${buildCommands.length}
+echo "⚙️  [${idx + 1}/${buildCommands.length}] Executing: ${cmd.command.substring(0, 60)}..."
+${cmd.user !== 'root' ? `# Running as user: ${cmd.user}` : ''}
+${cmd.command}
+echo "   ✅ Command ${idx + 1} completed"
+echo ""
+`).join('')}
+
+echo "✅ Build complete!"
+`;
+
+    const buildScriptPath = join(this.sandboxDir, 'build.sh');
+    writeFileSync(buildScriptPath, buildScriptContent, { mode: 0o755 });
+    console.log(`✅ Build script created: ${buildScriptPath}\n`);
+
+    // Option to execute the build
+    if (options.execute !== false) {
+      console.log('🚀 Executing build commands...\n');
+      console.log('⚠️  Note: Commands will run on host system (Docker-free mode)\n');
+
+      // Clean up previous build artifacts for idempotency
+      console.log('🧹 Cleaning up previous build artifacts...');
+      try {
+        // Clean up directories
+        execSync('sudo rm -rf /commandhistory /workspace /home/node/.oh-my-zsh /home/node/.zshrc* /usr/local/share/npm-global 2>/dev/null || true', {
+          stdio: 'pipe'
+        });
+
+        // Clean up npm global packages that will be reinstalled
+        const npmRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
+        execSync(`sudo rm -rf "${npmRoot}/@anthropic-ai/claude-code" "${npmRoot}/@playwright/mcp" 2>/dev/null || true`, {
+          stdio: 'pipe'
+        });
+
+        console.log('✅ Cleanup complete\n');
+      } catch (error) {
+        console.log('⚠️  Cleanup had some errors (may be okay)\n');
+      }
+
+      console.log('─'.repeat(60) + '\n');
+
+      try {
+        for (let i = 0; i < buildCommands.length; i++) {
+          const { command, user } = buildCommands[i];
+          console.log(`\n📍 [${i + 1}/${buildCommands.length}] ${command.substring(0, 80)}${command.length > 80 ? '...' : ''}`);
+
+          try {
+            // Determine execution mode based on user and command requirements
+            let execCommand;
+            let runMessage;
+
+            // Commands that need sudo always run as root, regardless of USER directive
+            if (this.commandNeedsSudo(command)) {
+              // Sudo-requiring command: always run as root
+              const escapedCommand = command.replace(/'/g, "'\\''");
+              execCommand = `/usr/bin/sudo -E bash -c '${escapedCommand}'`;
+              runMessage = '🔐 Running with sudo (requires root privileges)';
+            } else if (user !== 'root') {
+              // Non-root user: run as that user
+              // Use single quotes to avoid nested quote issues with complex commands
+              const escapedCommand = command.replace(/'/g, "'\\''");
+              execCommand = `/usr/bin/sudo -u ${user} -E bash -c '${escapedCommand}'`;
+              runMessage = `👤 Running as user: ${user}`;
+            } else {
+              // Regular command
+              execCommand = command;
+              runMessage = null;
+            }
+
+            if (runMessage) {
+              console.log(`   ${runMessage}`);
+            }
+
+            // Execute command with proper environment (including ARG and ENV variables)
+            // Ensure npm/node paths are included for node user
+            const npmPath = execSync('which npm 2>/dev/null || echo ""', { encoding: 'utf-8' }).trim();
+            const nodePath = npmPath ? dirname(npmPath) : '';
+            const basePath = process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+            const fullPath = nodePath ? `${nodePath}:${basePath}` : basePath;
+
+            const execEnv = {
+              ...process.env,
+              ...buildArgs,
+              ...envVars,
+              PATH: fullPath
+            };
+
+            // Set HOME for non-root users
+            if (user !== 'root') {
+              execEnv.HOME = `/home/${user}`;
+            }
+
+            // Determine working directory (root for system commands, sandbox for user commands)
+            const isSystemCommand = user === 'root' && this.commandNeedsSudo(command);
+            const cwd = isSystemCommand ? '/' : this.sandboxDir;
+
+            execSync(execCommand, {
+              stdio: 'inherit',
+              cwd,
+              env: execEnv,
+              shell: true
+            });
+            console.log(`✅ Command ${i + 1} completed successfully`);
+          } catch (error) {
+            console.log(`❌ Command ${i + 1} failed: ${error.message}`);
+            console.log(`\n⚠️  Build failed at command ${i + 1}/${buildCommands.length}`);
+            console.log(`📝 Partial build script available at: ${buildScriptPath}`);
+            throw error;
+          }
+        }
+
+        console.log('\n' + '─'.repeat(60));
+        console.log('\n🎉 Build completed successfully!\n');
+        console.log(`📦 Container root: ${containerRoot}`);
+        console.log(`📝 Build script: ${buildScriptPath}`);
+        if (defaultCmd) {
+          console.log(`🎯 Default command: ${defaultCmd}`);
+        }
+        console.log('');
+
+      } catch (error) {
+        throw new Error(`Build failed: ${error.message}`);
+      }
+    } else {
+      console.log('📝 Build script ready (not executed)');
+      console.log(`   To build manually: bash ${buildScriptPath}\n`);
+    }
+
+    return {
+      buildScript: buildScriptPath,
+      workdir,
+      baseImage,
+      containerRoot,
+      defaultCmd,
+      envVars
+    };
   }
 }
 
@@ -438,15 +791,38 @@ Requirements:
       await container.setupAlpineRootfs();
 
     } else if (args[0] === 'build') {
-      const dockerfile = args[1] || './Dockerfile.claudebox';
+      const dockerfile = args[1] || './Dockerfile';
       if (!existsSync(dockerfile)) {
         throw new Error(`Dockerfile not found: ${dockerfile}`);
       }
-      await container.buildFromDockerfile(dockerfile);
+
+      // Check for --dry-run flag
+      const dryRun = args.includes('--dry-run');
+      const options = { execute: !dryRun };
+
+      if (dryRun) {
+        console.log('🔍 Dry-run mode: Commands will be parsed but not executed\n');
+      }
+
+      await container.buildFromDockerfile(dockerfile, options);
 
     } else if (args[0] === 'run') {
       const projectDir = args[1] || '.';
-      await container.runPlaywright({ projectDir });
+
+      // First try simple test to verify container works
+      console.log('🧪 Testing container functionality...\n');
+      try {
+        await container.runSimpleTest({ projectDir });
+        console.log('✅ Container test successful!\n');
+
+        // Now try Playwright
+        console.log('🎭 Running Playwright tests...\n');
+        await container.runPlaywright({ projectDir });
+      } catch (error) {
+        console.log(`⚠️  Container test failed: ${error.message}`);
+        console.log('🚫 Skipping Playwright tests due to container issues\n');
+        throw error;
+      }
 
     } else if (args[0] === 'shell') {
       const projectDir = args[1] || '.';

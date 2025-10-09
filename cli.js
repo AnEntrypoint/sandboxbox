@@ -181,12 +181,14 @@ async function main() {
     case 'build':
       if (commandArgs.length === 0) {
         console.log(color('red', '❌ Please specify a Dockerfile path'));
-        console.log(color('yellow', 'Usage: npx claudtainer build <dockerfile>'));
+        console.log(color('yellow', 'Usage: npx sandboxbox build <dockerfile> [--dry-run]'));
+        console.log(color('yellow', 'Options:'));
+        console.log('  --dry-run    Parse Dockerfile without executing commands');
         process.exit(1);
       }
       console.log(color('blue', '🏗️  Building container...'));
       if (!(await checkBubblewrap())) process.exit(1);
-      runScript('./container.js', ['build', commandArgs[0]]);
+      runScript('./container.js', ['build', ...commandArgs]);
       break;
 
     case 'run':
@@ -248,22 +250,20 @@ async function main() {
 }
 
 // Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    console.error('❌ SandboxBox failed to start:');
-    console.error('Error:', error.message);
-    console.error('');
-    console.error('💡 This might be because:');
-    console.error('   • You are not on Linux (SandboxBox requires Linux)');
-    console.error('   • Node.js version compatibility issue');
-    console.error('   • Missing dependencies during installation');
-    console.error('');
-    console.error('📋 System information:');
-    console.error(`   Platform: ${process.platform}`);
-    console.error(`   Node.js: ${process.version}`);
-    console.error(`   Architecture: ${process.arch}`);
-    console.error('');
-    console.error('🔧 Try: npx sandboxbox --help');
-    process.exit(1);
-  });
-}
+main().catch(error => {
+  console.error('❌ SandboxBox failed to start:');
+  console.error('Error:', error.message);
+  console.error('');
+  console.error('💡 This might be because:');
+  console.error('   • You are not on Linux (SandboxBox requires Linux)');
+  console.error('   • Node.js version compatibility issue');
+  console.error('   • Missing dependencies during installation');
+  console.error('');
+  console.error('📋 System information:');
+  console.error(`   Platform: ${process.platform}`);
+  console.error(`   Node.js: ${process.version}`);
+  console.error(`   Architecture: ${process.arch}`);
+  console.error('');
+  console.error('🔧 Try: npx sandboxbox --help');
+  process.exit(1);
+});

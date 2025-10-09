@@ -2,7 +2,7 @@
 
 /**
  * SQLite-style build script for SandboxBox
- * Downloads and compiles bubblewrap binary during npm install
+ * Downloads bubblewrap binary during npm install, with fallback to building from source
  */
 
 import fs from 'fs';
@@ -46,26 +46,29 @@ async function downloadAndBuild() {
     }
   }
 
-  // Try to use system bubblewrap first (fallback option)
-  try {
-    const systemBwrap = execSync('which bwrap', { encoding: 'utf8' }).trim();
-    if (systemBwrap && fs.existsSync(systemBwrap)) {
-      fs.copyFileSync(systemBwrap, binaryPath);
-      fs.chmodSync(binaryPath, 0o755);
-      console.log('✅ Using system bubblewrap:', systemBwrap);
-      return;
-    }
-  } catch (e) {
-    // System bwrap not found, continue with build
-  }
-
-  // Try to download pre-built binary first
+  // SQLite-style approach: try binary downloads first, then build from source
   if (await downloadPreBuiltBinary(binaryPath)) {
-    return;
+    return; // Binary download succeeded
   }
 
-  // Build from source like SQLite does as last resort
-  await buildFromSource(binaryPath);
+  if (await buildFromSource(binaryPath)) {
+    return; // Build from source succeeded
+  }
+
+  // Everything failed - show clear error
+  console.error('❌ All bubblewrap installation methods failed!');
+  console.error('');
+  console.error('💡 Option 1 - Install system bubblewrap (recommended):');
+  console.error('   sudo apt-get install bubblewrap    # Ubuntu/Debian');
+  console.error('   sudo apk add bubblewrap            # Alpine');
+  console.error('   sudo yum install bubblewrap        # CentOS/RHEL');
+  console.error('');
+  console.error('💡 Option 2 - Install build tools for compilation:');
+  console.error('   sudo apt-get install build-essential git autoconf automake libtool xz-utils');
+  console.error('   sudo yum groupinstall "Development Tools" && sudo yum install git xz');
+  console.error('');
+  console.error('🚫 SandboxBox cannot function without bubblewrap.');
+  process.exit(1);
 }
 
 async function downloadPreBuiltBinary(binaryPath) {
@@ -75,7 +78,7 @@ async function downloadPreBuiltBinary(binaryPath) {
   const possibleUrls = [
     // Alpine packages (HTTPS) - use the actual available version
     `https://dl-cdn.alpinelinux.org/alpine/v3.20/main/${arch}/bubblewrap-0.10.0-r0.apk`,
-    // Try some common locations for pre-built binaries
+    // Try GitHub releases with different architectures
     `https://github.com/containers/bubblewrap/releases/download/v${BWRAP_VERSION}/bubblewrap-${BWRAP_VERSION}-${arch}.tar.xz`,
     `https://github.com/containers/bubblewrap/releases/download/v${BWRAP_VERSION}/bubblewrap-${BWRAP_VERSION}.tar.gz`,
   ];
@@ -205,46 +208,27 @@ async function buildFromSource(binaryPath) {
   const tmpDir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'bwrap-build-'));
 
   try {
-    // Download source tarball
-    console.log('📥 Downloading bubblewrap source...');
-    const tarball = `bubblewrap-${BWRAP_VERSION}.tar.xz`;
-    const tarballPath = path.join(tmpDir, tarball);
-    const url = `https://github.com/containers/bubblewrap/releases/download/v${BWRAP_VERSION}/${tarball}`;
-
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(tarballPath);
-
-      function download(url) {
-        https.get(url, (response) => {
-          // Handle redirects
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            console.log(`🔄 Following redirect to: ${response.headers.location}`);
-            download(response.headers.location);
-            return;
-          }
-
-          if (response.statusCode !== 200) {
-            reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
-            return;
-          }
-
-          response.pipe(file);
-
-          file.on('finish', () => {
-            file.close();
-            resolve();
-          });
-        }).on('error', reject);
+    // Try to use system bubblewrap as fallback if available
+    try {
+      const systemBwrap = execSync('which bwrap', { encoding: 'utf8' }).trim();
+      if (systemBwrap && fs.existsSync(systemBwrap)) {
+        fs.copyFileSync(systemBwrap, binaryPath);
+        fs.chmodSync(binaryPath, 0o755);
+        console.log('✅ Using system bubblewrap:', systemBwrap);
+        return true;
       }
+    } catch (e) {
+      // System bwrap not found, continue with build
+    }
 
-      download(url);
-    });
+    // Clone git repository for build files
+    console.log('📥 Downloading bubblewrap source from git...');
+    const sourceDir = path.join(tmpDir, 'bubblewrap');
 
-    // Extract source
-    console.log('📦 Extracting source...');
-    execSync(`tar -xf "${tarballPath}" -C "${tmpDir}"`, { stdio: 'inherit' });
-
-    const sourceDir = path.join(tmpDir, `bubblewrap-${BWRAP_VERSION}`);
+    execSync(`
+      cd "${tmpDir}" &&
+      timeout 120 git clone --depth 1 --branch v${BWRAP_VERSION} https://github.com/containers/bubblewrap.git
+    `, { stdio: 'inherit' });
 
     // Check for required build tools
     const missingTools = [];
@@ -255,58 +239,37 @@ async function buildFromSource(binaryPath) {
     }
 
     try {
-      execSync('which xz', { stdio: 'ignore' });
+      execSync('which git', { stdio: 'ignore' });
     } catch (e) {
-      missingTools.push('xz');
+      missingTools.push('git');
     }
 
     if (missingTools.length > 0) {
-      console.log(`⚠️  Missing build tools: ${missingTools.join(', ')}`);
-      console.log('   On Ubuntu/Debian: sudo apt-get install build-essential xz-utils');
-      console.log('   On CentOS/RHEL: sudo yum groupinstall "Development Tools" && sudo yum install xz');
-      console.log('   Falling back to system bubblewrap check...');
-
-      // Create a placeholder binary that will show helpful error
-      const placeholderScript = `#!/bin/bash
-echo "❌ Bubblewrap not available"
-echo ""
-echo "💡 Install bubblewrap system-wide:"
-echo "   sudo apt-get install bubblewrap    # Ubuntu/Debian"
-echo "   sudo apk add bubblewrap            # Alpine"
-echo "   sudo yum install bubblewrap        # CentOS/RHEL"
-echo ""
-echo "Or install build tools and reinstall SandboxBox:"
-echo "   sudo apt-get install build-essential xz-utils"
-echo "   npm uninstall sandboxbox && npm install sandboxbox"
-exit 1
-`;
-      fs.writeFileSync(binaryPath, placeholderScript);
-      fs.chmodSync(binaryPath, 0o755);
-      console.log('📝 Created placeholder binary with installation instructions');
-      return;
+      console.error(`❌ Missing build tools: ${missingTools.join(', ')}`);
+      console.error('');
+      console.error('💡 Install build tools:');
+      console.error('   Ubuntu/Debian: sudo apt-get install build-essential git');
+      console.error('   CentOS/RHEL: sudo yum groupinstall "Development Tools" && sudo yum install git');
+      console.error('');
+      console.error('🚫 SandboxBox requires these build tools to compile bubblewrap.');
+      return false;
     }
 
-    // Configure and build
-    console.log('⚙️  Configuring build...');
-    execSync(`
-      cd "${sourceDir}" &&
-      ./configure --prefix="${tmpDir}/install" --disable-man
-    `, { stdio: 'inherit' });
-
-    console.log('🏗️  Compiling bubblewrap...');
-    execSync(`
-      cd "${sourceDir}" &&
-      make -j$(nproc 2>/dev/null || echo 4)
-    `, { stdio: 'inherit' });
-
-    console.log('📦 Installing...');
-    execSync(`
-      cd "${sourceDir}" &&
-      make install
-    `, { stdio: 'inherit' });
+    // Simple compilation without autotools
+    console.log('🏗️  Compiling bubblewrap directly...');
+    try {
+      execSync(`
+        cd "${sourceDir}" &&
+        timeout 120 gcc -std=c99 -O2 -DHAVE_CONFIG_H=1 -o bwrap bubblewrap.c || \
+        gcc -std=c99 -O2 -o bwrap bubblewrap.c
+      `, { stdio: 'inherit' });
+    } catch (e) {
+      console.error('❌ Direct compilation failed');
+      return false;
+    }
 
     // Copy binary to final location
-    const builtBinary = path.join(tmpDir, 'install', 'bin', 'bwrap');
+    const builtBinary = path.join(sourceDir, 'bwrap');
     if (fs.existsSync(builtBinary)) {
       fs.copyFileSync(builtBinary, binaryPath);
       fs.chmodSync(binaryPath, 0o755);
@@ -315,10 +278,15 @@ exit 1
       // Test the binary
       const version = execSync(`"${binaryPath}" --version`, { encoding: 'utf8' });
       console.log(`🎯 Built: ${version.trim()}`);
+      return true;
     } else {
-      throw new Error('Built binary not found');
+      console.log('❌ Built binary not found');
+      return false;
     }
 
+  } catch (error) {
+    console.log(`❌ Build from source failed: ${error.message}`);
+    return false;
   } finally {
     // Cleanup
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -327,70 +295,9 @@ exit 1
 
 // Run the build
 downloadAndBuild().catch(error => {
-  console.error('❌ Build failed:', error.message);
-  console.log('💡 SandboxBox will still work with system bubblewrap if available');
-
-  // Create a minimal fallback as last resort
-  createMinimalBubblewrap(path.join(BINARY_DIR, 'bwrap'));
-  process.exit(0); // Don't fail npm install
+  console.error('❌ Bubblewrap build failed:', error.message);
+  console.error('');
+  console.error('🚫 SandboxBox cannot function without bubblewrap.');
+  console.error('   Please install build tools and try again.');
+  process.exit(1);
 });
-
-function createMinimalBubblewrap(binaryPath) {
-  console.log('🔧 Creating minimal bubblewrap fallback...');
-
-  const minimalBwrap = `#!/bin/bash
-# Minimal bubblewrap fallback for SandboxBox
-# This provides basic namespace isolation functionality
-
-# Handle --version flag for compatibility
-if [[ "$1" == "--version" ]]; then
-  echo "bubblewrap 0.11.0 (minimal fallback for SandboxBox)"
-  exit 0
-fi
-
-# Handle --help flag
-if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
-  echo "bubblewrap - minimal fallback version"
-  echo ""
-  echo "⚠️  This is a minimal fallback for SandboxBox"
-  echo "💡 For full functionality, install bubblewrap:"
-  echo "   sudo apt-get install bubblewrap"
-  echo ""
-  echo "Usage: bwrap [options] -- command [args]"
-  exit 0
-fi
-
-echo "⚠️  Using minimal bubblewrap fallback"
-echo "💡 For full functionality, install bubblewrap:"
-echo "   sudo apt-get install bubblewrap"
-echo ""
-
-# Filter out bubblewrap-specific options that unshare doesn't support
-ARGS=()
-for arg in "$@"; do
-  case "$arg" in
-    --ro-bind|--bind|--dev-bind|--proc|--tmpfs|--symlink|--dir|--file|--setenv|--die-with-parent|--new-session|--share-net|--unshare-net|--unshare-pid|--unshare-ipc|--unshare-uts|--unshare-cgroup|--unshare-user)
-      # Skip bubblewrap-specific options
-      ;;
-    *)
-      ARGS+=("$arg")
-      ;;
-  esac
-done
-
-# Basic namespace isolation using unshare
-exec unshare \\
-  --pid \\
-  --mount \\
-  --uts \\
-  --ipc \\
-  --net \\
-  --fork \\
-  --mount-proc \\
-  "\${ARGS[@]}"
-`;
-
-  fs.writeFileSync(binaryPath, minimalBwrap);
-  fs.chmodSync(binaryPath, 0o755);
-  console.log('✅ Created minimal bubblewrap fallback');
-}
