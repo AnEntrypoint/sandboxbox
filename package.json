@@ -8,7 +8,6 @@
     "sandboxbox": "./cli.js"
   },
   "scripts": {
-    "postinstall": "node scripts/download-bubblewrap.js",
     "start": "node cli.js",
     "setup": "node cli.js setup",
     "build": "node cli.js build",
