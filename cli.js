@@ -14,7 +14,8 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import { bubblewrap } from './lib/bubblewrap.js';
+
+// We'll import bubblewrap later, only on Linux systems
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -66,19 +67,26 @@ function showHelp() {
   console.log(color('magenta', '🚀 8ms startup • True isolation • Playwright ready'));
 }
 
-function checkBubblewrap() {
-  if (bubblewrap.isAvailable()) {
-    console.log(color('green', `✅ Bubblewrap found: ${bubblewrap.getVersion()}`));
+async function checkBubblewrap() {
+  try {
+    const { bubblewrap } = await import('./lib/bubblewrap.js');
 
-    if (!bubblewrap.checkUserNamespaces()) {
-      console.log(color('yellow', '⚠️  User namespaces not available'));
-      console.log(color('yellow', '   Try: sudo sysctl kernel.unprivileged_userns_clone=1'));
-      console.log(color('yellow', '   Or: echo 1 | sudo tee /proc/sys/kernel/unprivileged_userns_clone'));
+    if (bubblewrap.isAvailable()) {
+      console.log(color('green', `✅ Bubblewrap found: ${bubblewrap.getVersion()}`));
+
+      if (!bubblewrap.checkUserNamespaces()) {
+        console.log(color('yellow', '⚠️  User namespaces not available'));
+        console.log(color('yellow', '   Try: sudo sysctl kernel.unprivileged_userns_clone=1'));
+        console.log(color('yellow', '   Or: echo 1 | sudo tee /proc/sys/kernel/unprivileged_userns_clone'));
+      }
+
+      return true;
+    } else {
+      console.log(color('red', bubblewrap.findBubblewrap().message));
+      return false;
     }
-
-    return true;
-  } else {
-    console.log(color('red', bubblewrap.findBubblewrap().message));
+  } catch (error) {
+    console.log(color('red', `❌ Failed to load bubblewrap manager: ${error.message}`));
     return false;
   }
 }
@@ -128,6 +136,21 @@ CMD ["npm", "test"]
 }
 
 async function main() {
+  // Check platform first
+  if (process.platform !== 'linux') {
+    console.log(color('red', '❌ SandboxBox only works on Linux systems'));
+    console.log(color('yellow', '🐧 Required: Linux with bubblewrap (bwrap)'));
+    console.log('');
+    console.log(color('cyan', '💡 Alternatives for Windows users:'));
+    console.log('   • Use WSL2 (Windows Subsystem for Linux 2)');
+    console.log('   • Use Docker Desktop with Linux containers');
+    console.log('   • Use GitHub Actions (ubuntu-latest runners)');
+    console.log('   • Use a cloud Linux instance (AWS, GCP, Azure)');
+    console.log('');
+    console.log(color('green', '✅ On Linux/WSL2, simply run: npx sandboxbox --help'));
+    process.exit(1);
+  }
+
   const args = process.argv.slice(2);
 
   showBanner();
@@ -143,7 +166,7 @@ async function main() {
   switch (command) {
     case 'setup':
       console.log(color('blue', '🏔️  Setting up Alpine Linux environment...'));
-      if (!checkBubblewrap()) process.exit(1);
+      if (!(await checkBubblewrap())) process.exit(1);
       runScript('./container.js', ['setup']);
       break;
 
@@ -154,21 +177,21 @@ async function main() {
         process.exit(1);
       }
       console.log(color('blue', '🏗️  Building container...'));
-      if (!checkBubblewrap()) process.exit(1);
+      if (!(await checkBubblewrap())) process.exit(1);
       runScript('./container.js', ['build', commandArgs[0]]);
       break;
 
     case 'run':
       const projectDir = commandArgs[0] || '.';
       console.log(color('blue', '🚀 Running Playwright tests...'));
-      if (!checkBubblewrap()) process.exit(1);
+      if (!(await checkBubblewrap())) process.exit(1);
       runScript('./container.js', ['run', projectDir]);
       break;
 
     case 'shell':
       const shellDir = commandArgs[0] || '.';
       console.log(color('blue', '🐚 Starting interactive shell...'));
-      if (!checkBubblewrap()) process.exit(1);
+      if (!(await checkBubblewrap())) process.exit(1);
       runScript('./container.js', ['shell', shellDir]);
       break;
 
@@ -181,7 +204,7 @@ async function main() {
       const sampleDockerfile = createSampleDockerfile(testDir);
 
       // Check for bubblewrap before proceeding
-      if (!checkBubblewrap()) {
+      if (!(await checkBubblewrap())) {
         console.log(color('yellow', '\n📋 Sample Dockerfile created successfully!'));
         console.log(color('yellow', 'To run tests, install bubblewrap and try again:'));
         console.log(color('cyan', `   npx sandboxbox build "${sampleDockerfile}"`));
