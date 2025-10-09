@@ -1,0 +1,38 @@
+{
+  "name": "sandboxbox",
+  "version": "1.0.0",
+  "description": "Zero-privilege container runner with Playwright support",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "sandboxbox": "./cli.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/download-bubblewrap.js",
+    "start": "node cli.js",
+    "setup": "node cli.js setup",
+    "build": "node cli.js build",
+    "run": "node cli.js run"
+  },
+  "keywords": [
+    "containers",
+    "playwright",
+    "bubblewrap",
+    "dockerless",
+    "sandbox",
+    "isolation",
+    "zero-privilege",
+    "userspace"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AnEntrypoint/sandboxbox.git"
+  },
+  "homepage": "https://github.com/AnEntrypoint/sandboxbox#readme",
+  "bugs": {
+    "url": "https://github.com/AnEntrypoint/sandboxbox/issues"
+  }
+}
