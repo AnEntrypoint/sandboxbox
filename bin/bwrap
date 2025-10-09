@@ -1,0 +1,50 @@
+#!/bin/bash
+# Minimal bubblewrap fallback for SandboxBox
+# This provides basic namespace isolation functionality
+
+# Handle --version flag for compatibility
+if [[ "$1" == "--version" ]]; then
+  echo "bubblewrap 0.11.0 (minimal fallback for SandboxBox)"
+  exit 0
+fi
+
+# Handle --help flag
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+  echo "bubblewrap - minimal fallback version"
+  echo ""
+  echo "⚠️  This is a minimal fallback for SandboxBox"
+  echo "💡 For full functionality, install bubblewrap:"
+  echo "   sudo apt-get install bubblewrap"
+  echo ""
+  echo "Usage: bwrap [options] -- command [args]"
+  exit 0
+fi
+
+echo "⚠️  Using minimal bubblewrap fallback"
+echo "💡 For full functionality, install bubblewrap:"
+echo "   sudo apt-get install bubblewrap"
+echo ""
+
+# Filter out bubblewrap-specific options that unshare doesn't support
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --ro-bind|--bind|--dev-bind|--proc|--tmpfs|--symlink|--dir|--file|--setenv|--die-with-parent|--new-session|--share-net|--unshare-net|--unshare-pid|--unshare-ipc|--unshare-uts|--unshare-cgroup|--unshare-user)
+      # Skip bubblewrap-specific options
+      ;;
+    *)
+      ARGS+=("$arg")
+      ;;
+  esac
+done
+
+# Basic namespace isolation using unshare
+exec unshare \
+  --pid \
+  --mount \
+  --uts \
+  --ipc \
+  --net \
+  --fork \
+  --mount-proc \
+  "${ARGS[@]}"

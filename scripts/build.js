@@ -59,8 +59,144 @@ async function downloadAndBuild() {
     // System bwrap not found, continue with build
   }
 
-  // Build from source like SQLite does
+  // Try to download pre-built binary first
+  if (await downloadPreBuiltBinary(binaryPath)) {
+    return;
+  }
+
+  // Build from source like SQLite does as last resort
   await buildFromSource(binaryPath);
+}
+
+async function downloadPreBuiltBinary(binaryPath) {
+  console.log('📥 Trying pre-built bubblewrap binary...');
+
+  const arch = process.arch === 'x64' ? 'x86_64' : process.arch;
+  const possibleUrls = [
+    // Alpine packages (HTTPS) - use the actual available version
+    `https://dl-cdn.alpinelinux.org/alpine/v3.20/main/${arch}/bubblewrap-0.10.0-r0.apk`,
+    // Try some common locations for pre-built binaries
+    `https://github.com/containers/bubblewrap/releases/download/v${BWRAP_VERSION}/bubblewrap-${BWRAP_VERSION}-${arch}.tar.xz`,
+    `https://github.com/containers/bubblewrap/releases/download/v${BWRAP_VERSION}/bubblewrap-${BWRAP_VERSION}.tar.gz`,
+  ];
+
+  for (const url of possibleUrls) {
+    try {
+      console.log(`📦 Trying: ${url.split('/').pop()}`);
+
+      const response = await new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+          if (res.statusCode === 200) {
+            resolve(res);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        }).on('error', reject);
+      });
+
+      if (url.endsWith('.apk')) {
+        // Handle Alpine package
+        console.log('📦 Alpine package found, extracting...');
+        return await extractAlpinePackage(url, binaryPath);
+      } else {
+        // Handle tarball
+        return await extractTarball(url, binaryPath);
+      }
+    } catch (error) {
+      console.log(`❌ Failed: ${error.message}`);
+      continue;
+    }
+  }
+
+  console.log('❌ No pre-built binaries available');
+  return false;
+}
+
+async function extractAlpinePackage(url, binaryPath) {
+  const tmpDir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'apk-extract-'));
+
+  try {
+    const apkPath = path.join(tmpDir, 'bubblewrap.apk');
+
+    // Download APK
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(apkPath);
+      https.get(url, (response) => {
+        response.pipe(file);
+        file.on('finish', resolve);
+      }).on('error', reject);
+    });
+
+    // Extract APK (tar.gz format)
+    execSync(`tar -xzf "${apkPath}" -C "${tmpDir}"`, { stdio: 'inherit' });
+
+    // Find the binary
+    const possiblePaths = [
+      path.join(tmpDir, 'usr', 'bin', 'bwrap'),
+      path.join(tmpDir, 'bin', 'bwrap'),
+    ];
+
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        fs.copyFileSync(possiblePath, binaryPath);
+        fs.chmodSync(binaryPath, 0o755);
+        console.log('✅ Extracted pre-built binary from Alpine package');
+        return true;
+      }
+    }
+
+    throw new Error('Binary not found in package');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+async function extractTarball(url, binaryPath) {
+  const tmpDir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'tar-extract-'));
+
+  try {
+    const tarballPath = path.join(tmpDir, 'bubblewrap.tar');
+
+    // Download tarball
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(tarballPath);
+      https.get(url, (response) => {
+        response.pipe(file);
+        file.on('finish', resolve);
+      }).on('error', reject);
+    });
+
+    // Extract with available tools
+    if (tarballPath.endsWith('.xz')) {
+      try {
+        execSync(`tar -xf "${tarballPath}" -C "${tmpDir}"`, { stdio: 'inherit' });
+      } catch (e) {
+        throw new Error('xz extraction failed - need xz-utils');
+      }
+    } else {
+      execSync(`tar -xzf "${tarballPath}" -C "${tmpDir}"`, { stdio: 'inherit' });
+    }
+
+    // Find the binary
+    const possiblePaths = [
+      path.join(tmpDir, `bubblewrap-${BWRAP_VERSION}`, 'bwrap'),
+      path.join(tmpDir, 'bwrap'),
+      path.join(tmpDir, 'bin', 'bwrap'),
+    ];
+
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        fs.copyFileSync(possiblePath, binaryPath);
+        fs.chmodSync(binaryPath, 0o755);
+        console.log('✅ Extracted pre-built binary');
+        return true;
+      }
+    }
+
+    throw new Error('Binary not found in tarball');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 async function buildFromSource(binaryPath) {
@@ -193,5 +329,68 @@ exit 1
 downloadAndBuild().catch(error => {
   console.error('❌ Build failed:', error.message);
   console.log('💡 SandboxBox will still work with system bubblewrap if available');
+
+  // Create a minimal fallback as last resort
+  createMinimalBubblewrap(path.join(BINARY_DIR, 'bwrap'));
   process.exit(0); // Don't fail npm install
 });
+
+function createMinimalBubblewrap(binaryPath) {
+  console.log('🔧 Creating minimal bubblewrap fallback...');
+
+  const minimalBwrap = `#!/bin/bash
+# Minimal bubblewrap fallback for SandboxBox
+# This provides basic namespace isolation functionality
+
+# Handle --version flag for compatibility
+if [[ "$1" == "--version" ]]; then
+  echo "bubblewrap 0.11.0 (minimal fallback for SandboxBox)"
+  exit 0
+fi
+
+# Handle --help flag
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+  echo "bubblewrap - minimal fallback version"
+  echo ""
+  echo "⚠️  This is a minimal fallback for SandboxBox"
+  echo "💡 For full functionality, install bubblewrap:"
+  echo "   sudo apt-get install bubblewrap"
+  echo ""
+  echo "Usage: bwrap [options] -- command [args]"
+  exit 0
+fi
+
+echo "⚠️  Using minimal bubblewrap fallback"
+echo "💡 For full functionality, install bubblewrap:"
+echo "   sudo apt-get install bubblewrap"
+echo ""
+
+# Filter out bubblewrap-specific options that unshare doesn't support
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --ro-bind|--bind|--dev-bind|--proc|--tmpfs|--symlink|--dir|--file|--setenv|--die-with-parent|--new-session|--share-net|--unshare-net|--unshare-pid|--unshare-ipc|--unshare-uts|--unshare-cgroup|--unshare-user)
+      # Skip bubblewrap-specific options
+      ;;
+    *)
+      ARGS+=("$arg")
+      ;;
+  esac
+done
+
+# Basic namespace isolation using unshare
+exec unshare \\
+  --pid \\
+  --mount \\
+  --uts \\
+  --ipc \\
+  --net \\
+  --fork \\
+  --mount-proc \\
+  "\${ARGS[@]}"
+`;
+
+  fs.writeFileSync(binaryPath, minimalBwrap);
+  fs.chmodSync(binaryPath, 0o755);
+  console.log('✅ Created minimal bubblewrap fallback');
+}
