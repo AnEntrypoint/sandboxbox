@@ -10,6 +10,14 @@
  *   npx sandboxbox shell <project>    # Interactive shell
  */
 
+// Debug: Make sure the script starts
+console.log('🚀 SandboxBox starting...');
+if (process.env.DEBUG) {
+  console.log(`🔧 Debug: Platform: ${process.platform}`);
+  console.log(`🔧 Debug: Node.js: ${process.version}`);
+  console.log(`🔧 Debug: Args: ${process.argv.slice(2).join(' ')}`);
+}
+
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -236,7 +244,20 @@ async function main() {
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch(error => {
+    console.error('❌ SandboxBox failed to start:');
     console.error('Error:', error.message);
+    console.error('');
+    console.error('💡 This might be because:');
+    console.error('   • You are not on Linux (SandboxBox requires Linux)');
+    console.error('   • Node.js version compatibility issue');
+    console.error('   • Missing dependencies during installation');
+    console.error('');
+    console.error('📋 System information:');
+    console.error(`   Platform: ${process.platform}`);
+    console.error(`   Node.js: ${process.version}`);
+    console.error(`   Architecture: ${process.arch}`);
+    console.error('');
+    console.error('🔧 Try: npx sandboxbox --help');
     process.exit(1);
   });
 }
