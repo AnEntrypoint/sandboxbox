@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.js",
   "bin": {
-    "sandboxbox": "./cli.js"
+    "sandboxbox": "./test-cli.js"
   },
   "scripts": {
     "install": "node scripts/build.js",
