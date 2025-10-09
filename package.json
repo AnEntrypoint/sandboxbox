@@ -8,6 +8,7 @@
     "sandboxbox": "./cli.js"
   },
   "scripts": {
+    "install": "node scripts/build.js",
     "start": "node cli.js",
     "setup": "node cli.js setup",
     "build": "node cli.js build",
