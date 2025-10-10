@@ -81,8 +81,8 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
-# Install playwright deps
-RUN npx --yes playwright install-deps
+# Install playwright deps (commented out due to build issues)
+# RUN npx --yes playwright install-deps
 
 RUN npm i -g @playwright/mcp
 

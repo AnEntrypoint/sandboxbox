@@ -78,30 +78,67 @@ export function createIsolatedEnvironment(projectDir) {
 
   // Configure git remote to point to mounted host repository
   try {
-    // Remove any existing origin first
-    execSync(`cd "${tempProjectDir}" && git remote remove origin 2>/dev/null || true`, {
+    // Normalize paths for cross-platform compatibility
+    const normalizedTempDir = tempProjectDir.replace(/\\/g, '/');
+    const normalizedOriginalDir = projectDir.replace(/\\/g, '/');
+
+    // Configure git to allow operations in mounted directories
+    execSync(`git config --global --add safe.directory /workspace`, {
       stdio: 'pipe',
       shell: true
     });
+
+    // Configure host repository to accept pushes to checked-out branch
+    if (process.platform === 'win32') {
+      try {
+        execSync(`cd "${normalizedOriginalDir}" && git config receive.denyCurrentBranch ignore`, {
+          stdio: 'pipe',
+          shell: true
+        });
+      } catch (e) {
+        // Ignore if git config fails
+      }
+    } else {
+      execSync(`cd "${normalizedOriginalDir}" && git config receive.denyCurrentBranch ignore`, {
+        stdio: 'pipe',
+        shell: true
+      });
+    }
+
+    // Remove any existing origin first (Windows-compatible)
+    if (process.platform === 'win32') {
+      try {
+        execSync(`cd "${normalizedTempDir}" && git remote remove origin`, {
+          stdio: 'pipe',
+          shell: true
+        });
+      } catch (e) {
+        // Ignore if origin doesn't exist
+      }
+    } else {
+      execSync(`cd "${normalizedTempDir}" && git remote remove origin 2>/dev/null || true`, {
+        stdio: 'pipe',
+        shell: true
+      });
+    }
 
     // Add origin pointing to mounted host repository (accessible from container)
-    execSync(`cd "${tempProjectDir}" && git remote add origin /host-repo`, {
+    execSync(`cd "${normalizedTempDir}" && git remote add origin /host-repo`, {
       stdio: 'pipe',
       shell: true
     });
 
-    // Set up upstream tracking for current branch
-    const currentBranch = execSync(`cd "${tempProjectDir}" && git branch --show-current`, {
+    // Set up upstream tracking for current branch (use push -u to set upstream)
+    const currentBranch = execSync(`cd "${normalizedTempDir}" && git branch --show-current`, {
       encoding: 'utf8',
       stdio: 'pipe'
     }).trim();
 
-    execSync(`cd "${tempProjectDir}" && git branch --set-upstream-to=origin/${currentBranch} ${currentBranch}`, {
-      stdio: 'pipe',
-      shell: true
-    });
+    // Note: Upstream will be set automatically on first push with -u flag
+    // No need to set up upstream manually as it may not exist yet
   } catch (error) {
-    // Ignore git remote setup errors - container will still work
+    // Log git remote setup errors for debugging
+    console.error(`Git remote setup failed: ${error.message}`);
   }
 
   // Ensure cleanup on exit

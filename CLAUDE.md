@@ -41,6 +41,21 @@ All `execSync()` calls must include:
 }
 ```
 
+### Windows Command Interpretation
+- **Avoid Unix-specific syntax**: `|| true` doesn't work on Windows
+- **Use platform-specific error handling**:
+  ```javascript
+  if (process.platform === 'win32') {
+    try {
+      execSync(`git remote remove origin`, { stdio: 'pipe', shell: true });
+    } catch (e) {
+      // Ignore if origin doesn't exist
+    }
+  } else {
+    execSync(`git remote remove origin 2>/dev/null || true`, { stdio: 'pipe', shell: true });
+  }
+  ```
+
 ### Auto Podman Machine Management
 ```javascript
 // cli.js checkPodman() function
@@ -192,6 +207,33 @@ git branch --set-upstream-to=origin/main main
 - **Windows command quoting**: Complex git commands with spaces require bash wrapper
 - **Interactive shells**: Use `bash -c 'command'` for complex operations
 - **Command chaining**: Multiple git operations work better in single container session
+- **Bash command execution**: Commands like `bash -c 'command'` may start interactive shell instead of executing
+
+### Git Remote Setup Requirements
+- **Automatic remote configuration**: `git remote add origin /host-repo`
+- **Upstream branch setup**: Use `git push -u origin master` instead of manual upstream configuration
+- **Host repository mounting**: Must mount original project as `/host-repo:rw` in container
+- **Git identity transfer**: Requires `.gitconfig` and `.ssh` directory mounting
+- **Windows path normalization**: Critical for cross-platform compatibility:
+  ```javascript
+  // Normalize paths for cross-platform compatibility
+  const normalizedTempDir = tempProjectDir.replace(/\\/g, '/');
+  ```
+- **Git safe directory configuration**: Required for mounted repositories:
+  ```bash
+  git config --global --add safe.directory /workspace
+  git config --global --add safe.directory /host-repo
+  git config --global --add safe.directory /host-repo/.git
+  ```
+- **Host repository push configuration**: Allow pushes to checked-out branch:
+  ```bash
+  git config receive.denyCurrentBranch ignore
+  ```
+- **Git identity setup**: Container requires explicit git user configuration:
+  ```bash
+  git config --global user.email "user@example.com"
+  git config --global user.name "User Name"
+  ```
 
 ### Claude Code MCP Integration
 The claude command includes MCP servers and settings:
