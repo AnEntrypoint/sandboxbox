@@ -7,10 +7,11 @@
  * Works on Windows, macOS, and Linux
  */
 
-import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdtempSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 import { color } from './utils/colors.js';
 import { checkPodman, getPodmanPath } from './utils/podman.js';
@@ -161,19 +162,74 @@ async function main() {
         process.exit(1);
       }
 
-      console.log(color('blue', '🚀 Running project in container...'));
+      console.log(color('blue', '🚀 Running project in isolated container...'));
       console.log(color('yellow', `Project: ${projectDir}`));
       console.log(color('yellow', `Command: ${cmd}\n`));
+      console.log(color('cyan', '📦 Note: Changes will NOT affect host files (isolated environment)'));
 
       const runPodman = checkPodman();
       if (!runPodman) process.exit(1);
 
       try {
-        execSync(`"${runPodman}" run --rm -it -v "${projectDir}:/workspace" -w /workspace sandboxbox:latest ${cmd}`, {
+        // Create a temporary directory for isolation
+        const tempDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
+        const projectName = projectDir.split(/[\\\/]/).pop() || 'project';
+        const tempProjectDir = join(tempDir, projectName);
+
+        // Copy project to temporary directory (creates isolation)
+        // First create the directory
+        execSync(`mkdir -p "${tempProjectDir}"`, {
+          stdio: 'pipe',
+          shell: true
+        });
+
+        if (process.platform === 'win32') {
+          // Windows approach - include hidden files like .git
+          execSync(`powershell -Command "Copy-Item -Path '${projectDir}\\*' -Destination '${tempProjectDir}' -Recurse -Force -Exclude 'node_modules'"`, {
+            stdio: 'pipe',
+            shell: true
+          });
+          // Also copy hidden files separately
+          execSync(`powershell -Command "Get-ChildItem -Path '${projectDir}' -Force -Name | Where-Object { $_ -like '.*' } | ForEach-Object { Copy-Item -Path (Join-Path '${projectDir}' $_) -Destination '${tempProjectDir}' -Recurse -Force }"`, {
+            stdio: 'pipe',
+            shell: true
+          });
+        } else {
+          // Unix approach - include hidden files
+          execSync(`cp -r "${projectDir}"/.* "${tempProjectDir}/" 2>/dev/null || true`, {
+            stdio: 'pipe',
+            shell: true
+          });
+          execSync(`cp -r "${projectDir}"/* "${tempProjectDir}/"`, {
+            stdio: 'pipe',
+            shell: true
+          });
+        }
+
+        // Ensure cleanup on exit
+        const cleanup = () => {
+          try {
+            rmSync(tempDir, { recursive: true, force: true });
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+        };
+
+        // Set up cleanup handlers
+        process.on('exit', cleanup);
+        process.on('SIGINT', () => { cleanup(); process.exit(130); });
+        process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+
+        // Run the command in isolated container with temporary directory
+        execSync(`"${runPodman}" run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest ${cmd}`, {
           stdio: 'inherit',
           shell: process.platform === 'win32'
         });
-        console.log(color('green', '\n✅ Container execution completed!'));
+
+        // Clean up the temporary directory
+        cleanup();
+
+        console.log(color('green', '\n✅ Container execution completed! (Isolated - no host changes)'));
       } catch (error) {
         console.log(color('red', `\n❌ Run failed: ${error.message}`));
         process.exit(1);
@@ -194,17 +250,55 @@ async function main() {
         process.exit(1);
       }
 
-      console.log(color('blue', '🐚 Starting interactive shell...'));
+      console.log(color('blue', '🐚 Starting interactive shell in isolated container...'));
       console.log(color('yellow', `Project: ${shellProjectDir}\n`));
+      console.log(color('cyan', '📦 Note: Changes will NOT affect host files (isolated environment)'));
 
       const shellPodman = checkPodman();
       if (!shellPodman) process.exit(1);
 
       try {
-        execSync(`"${shellPodman}" run --rm -it -v "${shellProjectDir}:/workspace" -w /workspace sandboxbox:latest /bin/bash`, {
+        // Create a temporary container with copied project (isolated environment)
+        const tempShellContainerName = `sandboxbox-shell-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Ensure cleanup on exit
+        const cleanup = () => {
+          try {
+            execSync(`"${shellPodman}" rm -f "${tempShellContainerName}"`, {
+              stdio: 'pipe',
+              shell: process.platform === 'win32'
+            });
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+        };
+
+        // Set up cleanup handlers
+        process.on('exit', cleanup);
+        process.on('SIGINT', () => { cleanup(); process.exit(130); });
+        process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+
+        // Copy project into container (isolated)
+        execSync(`"${shellPodman}" create --name "${tempShellContainerName}" -w /workspace -it sandboxbox:latest /bin/bash`, {
+          stdio: 'pipe',
+          shell: process.platform === 'win32'
+        });
+
+        // Copy project files into isolated container - use proper path handling
+        const normalizedShellProjectDir = shellProjectDir.replace(/\\/g, '/');
+        execSync(`"${shellPodman}" cp "${normalizedShellProjectDir}" "${tempShellContainerName}:/workspace"`, {
+          stdio: 'pipe',
+          shell: process.platform === 'win32'
+        });
+
+        // Start interactive shell in the isolated container
+        execSync(`"${shellPodman}" start -i "${tempShellContainerName}"`, {
           stdio: 'inherit',
           shell: process.platform === 'win32'
         });
+
+        // Clean up the temporary container
+        cleanup();
       } catch (error) {
         console.log(color('red', `\n❌ Shell failed: ${error.message}`));
         process.exit(1);
