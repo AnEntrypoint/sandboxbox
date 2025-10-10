@@ -12,6 +12,8 @@ Portable containerized environments using Podman with automatic WSL management a
 
 ### Podman Downloader (scripts/download-podman.js)
 - Cross-platform binary downloads from GitHub releases
+- Architecture auto-detection: `process.arch === 'arm64' ? 'arm64' : 'amd64'`
+- Platform support: Windows (amd64/arm64), macOS (amd64/arm64), Linux (amd64/arm64)
 - PowerShell ZIP extraction on Windows
 - Auto-detects existing installations
 - Auto-triggers on first use if Podman not found
@@ -81,7 +83,8 @@ if (process.platform === 'win32' && isBundled) {
 - **Simple Configuration**: Minimal backend setup only when needed
 - **Auto-Download**: Downloads platform-specific binaries automatically
 - **NPX Compatible**: Works via npx without global installation
-- **Windows Portable Binary**: Uses podman-remote-release-windows_amd64.zip with lightweight backend
+- **Architecture Support**: Auto-detects and downloads correct binary (amd64 or arm64)
+- **Cross-Platform**: Windows, macOS, Linux - all with amd64/arm64 support
 
 ## Isolation Architecture
 
