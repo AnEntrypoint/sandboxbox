@@ -58,6 +58,7 @@ function showHelp() {
   console.log('  setup                          Set up Alpine Linux environment (one-time)');
   console.log('  build <dockerfile>            Build container from Dockerfile');
   console.log('  run <project-dir>             Run Playwright tests in isolation');
+  console.log('  run-host <project-dir> [cmd]  Run project in built host environment');
   console.log('  shell <project-dir>           Start interactive shell in container');
   console.log('  quick-test <project-dir>      Quick test with sample Dockerfile');
   console.log('');
@@ -65,6 +66,8 @@ function showHelp() {
   console.log('  npx sandboxbox setup');
   console.log('  npx sandboxbox build ./Dockerfile');
   console.log('  npx sandboxbox run ./my-project');
+  console.log('  npx sandboxbox run-host ./my-project');
+  console.log('  npx sandboxbox run-host ./my-project "npm test"');
   console.log('  npx sandboxbox shell ./my-project');
   console.log('  npx sandboxbox quick-test ./my-app');
   console.log('');
@@ -202,6 +205,33 @@ async function main() {
       }
 
       runScript('./container.js', ['run', projectDir]);
+      break;
+
+    case 'run-host':
+      const hostProjectDir = commandArgs[0] || '.';
+      const hostCommand = commandArgs[1] || 'bash test.sh';
+      console.log(color('blue', '🚀 Running project in built host environment...'));
+      console.log(color('yellow', `Project directory: ${hostProjectDir}`));
+      console.log(color('yellow', `Command: ${hostCommand}`));
+
+      // Check if environment is built
+      if (!existsSync('/workspace')) {
+        console.log(color('red', '❌ Host environment not built yet'));
+        console.log(color('yellow', 'Run: npx sandboxbox build Dockerfile'));
+        process.exit(1);
+      }
+
+      try {
+        // Run the container script
+        const scriptPath = resolve(__dirname, 'run-container.sh');
+        execSync(`bash "${scriptPath}" "${hostProjectDir}" "${hostCommand}"`, {
+          stdio: 'inherit',
+          cwd: __dirname
+        });
+      } catch (error) {
+        console.log(color('red', `❌ Run failed: ${error.message}`));
+        process.exit(1);
+      }
       break;
 
     case 'shell':

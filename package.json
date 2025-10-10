@@ -1,6 +1,6 @@
 {
   "name": "sandboxbox",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Zero-privilege container runner with Playwright support",
   "type": "module",
   "main": "index.js",
