@@ -1,0 +1,18 @@
+FROM node:20
+
+# Install basic development tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    bash \
+    curl \
+    nano \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Set up non-root user
+USER node
+
+# Install Claude Code
+RUN npm install -g @anthropic-ai/claude-code@latest
