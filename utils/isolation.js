@@ -4,12 +4,16 @@ import { join } from 'path';
 import { execSync } from 'child_process';
 
 /**
- * Builds container volume mounts with git identity
+ * Builds container volume mounts with git identity and host remote
  * @param {string} tempProjectDir - Temporary project directory
+ * @param {string} originalProjectDir - Original host project directory
  * @returns {Array} - Array of volume mount strings
  */
-export function buildContainerMounts(tempProjectDir) {
+export function buildContainerMounts(tempProjectDir, originalProjectDir) {
   const mounts = [`-v "${tempProjectDir}:/workspace:rw"`];
+
+  // Add host repository as git remote
+  mounts.push(`-v "${originalProjectDir}:/host-repo:rw"`);
 
   // Add git identity mounts
   const homeDir = process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
@@ -70,6 +74,34 @@ export function createIsolatedEnvironment(projectDir) {
       stdio: 'pipe',
       shell: true
     });
+  }
+
+  // Configure git remote to point to mounted host repository
+  try {
+    // Remove any existing origin first
+    execSync(`cd "${tempProjectDir}" && git remote remove origin 2>/dev/null || true`, {
+      stdio: 'pipe',
+      shell: true
+    });
+
+    // Add origin pointing to mounted host repository (accessible from container)
+    execSync(`cd "${tempProjectDir}" && git remote add origin /host-repo`, {
+      stdio: 'pipe',
+      shell: true
+    });
+
+    // Set up upstream tracking for current branch
+    const currentBranch = execSync(`cd "${tempProjectDir}" && git branch --show-current`, {
+      encoding: 'utf8',
+      stdio: 'pipe'
+    }).trim();
+
+    execSync(`cd "${tempProjectDir}" && git branch --set-upstream-to=origin/${currentBranch} ${currentBranch}`, {
+      stdio: 'pipe',
+      shell: true
+    });
+  } catch (error) {
+    // Ignore git remote setup errors - container will still work
   }
 
   // Ensure cleanup on exit

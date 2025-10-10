@@ -177,6 +177,22 @@ All commands automatically mount git identity:
 -v "$HOME/.ssh:/root/.ssh:ro"            # SSH keys for git operations
 ```
 
+### Host Repository Git Remote Setup
+For git push functionality from isolated containers:
+```bash
+# Mount host repository as accessible remote
+-v "/path/to/host/repo:/host-repo:rw"
+
+# Configure git remote to point to mounted host repository
+git remote add origin /host-repo
+git branch --set-upstream-to=origin/main main
+```
+
+### Git Push Workflow Limitations
+- **Windows command quoting**: Complex git commands with spaces require bash wrapper
+- **Interactive shells**: Use `bash -c 'command'` for complex operations
+- **Command chaining**: Multiple git operations work better in single container session
+
 ### Claude Code MCP Integration
 The claude command includes MCP servers and settings:
 ```bash

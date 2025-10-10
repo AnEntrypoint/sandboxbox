@@ -101,8 +101,11 @@ function runClaudeWorkspace(projectDir, command = 'claude') {
     // Set up cleanup handlers
     setupCleanupHandlers(cleanup);
 
-    // Build container command with isolated project directory
-    const containerCommand = buildClaudeContainerCommand(tempProjectDir, podmanPath, command);
+    // Build container mounts with git identity and host remote
+    const mounts = buildContainerMounts(tempProjectDir, projectDir);
+
+    // Build claude-specific container command with mounts
+    const containerCommand = buildClaudeContainerCommand(tempProjectDir, podmanPath, command, mounts);
     execSync(containerCommand, {
       stdio: 'inherit',
       shell: process.platform === 'win32'
@@ -189,8 +192,8 @@ async function main() {
         // Set up cleanup handlers
         setupCleanupHandlers(cleanup);
 
-        // Build container mounts with git identity
-        const mounts = buildContainerMounts(tempProjectDir);
+        // Build container mounts with git identity and host remote
+        const mounts = buildContainerMounts(tempProjectDir, projectDir);
 
         // Run the command in isolated container with temporary directory and git identity
         execSync(`"${runPodman}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
@@ -236,8 +239,8 @@ async function main() {
         // Set up cleanup handlers
         setupCleanupHandlers(cleanup);
 
-        // Build container mounts with git identity
-        const mounts = buildContainerMounts(tempProjectDir);
+        // Build container mounts with git identity and host remote
+        const mounts = buildContainerMounts(tempProjectDir, shellProjectDir);
 
         // Start interactive shell in isolated container with temporary directory and git identity
         execSync(`"${shellPodman}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
