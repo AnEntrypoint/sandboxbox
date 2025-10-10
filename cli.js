@@ -66,32 +66,54 @@ function showHelp() {
   console.log(color('magenta', '🚀 Fast startup • True isolation • Cross-platform'));
 }
 
+function getPodmanPath() {
+  // Check for bundled podman first
+  const platform = process.platform;
+  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+  let bundledPodman;
+
+  if (platform === 'win32') {
+    bundledPodman = resolve(__dirname, 'bin', 'podman.exe');
+  } else if (platform === 'darwin') {
+    bundledPodman = resolve(__dirname, 'bin', 'podman');
+  } else {
+    bundledPodman = resolve(__dirname, 'bin', `podman-remote-static-linux_${arch}`);
+  }
+
+  if (existsSync(bundledPodman)) {
+    return bundledPodman;
+  }
+  // Fall back to system podman
+  return 'podman';
+}
+
 function checkPodman() {
+  const podmanPath = getPodmanPath();
+  const isBundled = podmanPath.includes('bin');
+
   try {
-    const version = execSync('podman --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-    console.log(color('green', `✅ ${version}`));
-    return true;
+    const version = execSync(`"${podmanPath}" --version`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    console.log(color('green', `✅ ${version}${isBundled ? ' (bundled)' : ''}`));
+    return podmanPath;
   } catch (error) {
     console.log(color('red', '❌ Podman not found'));
-    console.log(color('yellow', '\n📦 Please install Podman:'));
+    console.log(color('yellow', '\n📦 Podman will be auto-downloaded on first install'));
+    console.log(color('yellow', '   Or you can install manually:'));
     console.log('');
     if (process.platform === 'win32') {
       console.log(color('cyan', '   Windows:'));
-      console.log('   1. Download from https://podman.io/getting-started/installation');
-      console.log('   2. Or use: winget install RedHat.Podman');
+      console.log('   winget install RedHat.Podman');
     } else if (process.platform === 'darwin') {
       console.log(color('cyan', '   macOS:'));
       console.log('   brew install podman');
-      console.log('   podman machine init');
-      console.log('   podman machine start');
+      console.log('   podman machine init && podman machine start');
     } else {
       console.log(color('cyan', '   Linux:'));
       console.log('   sudo apt-get install podman       # Ubuntu/Debian');
       console.log('   sudo dnf install podman           # Fedora');
-      console.log('   sudo apk add podman               # Alpine');
     }
     console.log('');
-    return false;
+    return null;
   }
 }
 
@@ -120,11 +142,12 @@ async function main() {
       console.log(color('blue', '🏗️  Building container...'));
       console.log(color('yellow', `Dockerfile: ${dockerfilePath}\n`));
 
-      if (!checkPodman()) process.exit(1);
+      const buildPodman = checkPodman();
+      if (!buildPodman) process.exit(1);
 
       try {
         console.log('');
-        execSync(`podman build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
+        execSync(`"${buildPodman}" build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
           stdio: 'inherit',
           cwd: __dirname
         });
@@ -157,11 +180,12 @@ async function main() {
       console.log(color('yellow', `Project: ${projectDir}`));
       console.log(color('yellow', `Command: ${cmd}\n`));
 
-      if (!checkPodman()) process.exit(1);
+      const runPodman = checkPodman();
+      if (!runPodman) process.exit(1);
 
       try {
         console.log('');
-        execSync(`podman run --rm -it -v "${projectDir}:/workspace" -w /workspace sandboxbox:latest ${cmd}`, {
+        execSync(`"${runPodman}" run --rm -it -v "${projectDir}:/workspace" -w /workspace sandboxbox:latest ${cmd}`, {
           stdio: 'inherit'
         });
         console.log('');
@@ -189,11 +213,12 @@ async function main() {
       console.log(color('blue', '🐚 Starting interactive shell...'));
       console.log(color('yellow', `Project: ${shellProjectDir}\n`));
 
-      if (!checkPodman()) process.exit(1);
+      const shellPodman = checkPodman();
+      if (!shellPodman) process.exit(1);
 
       try {
         console.log('');
-        execSync(`podman run --rm -it -v "${shellProjectDir}:/workspace" -w /workspace sandboxbox:latest /bin/bash`, {
+        execSync(`"${shellPodman}" run --rm -it -v "${shellProjectDir}:/workspace" -w /workspace sandboxbox:latest /bin/bash`, {
           stdio: 'inherit'
         });
       } catch (error) {
