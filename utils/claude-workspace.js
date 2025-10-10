@@ -14,7 +14,7 @@ export function getClaudeEnvironment() {
   return envVars;
 }
 
-export function buildClaudeContainerCommand(projectPath, podmanPath, command = 'claude') {
+export function buildClaudeContainerCommand(projectPath, podmanPath, command = 'claude', customMounts = null) {
   const envVars = getClaudeEnvironment();
   const envArgs = Object.entries(envVars)
     .map(([key, value]) => `-e ${key}="${value}"`)
@@ -22,8 +22,16 @@ export function buildClaudeContainerCommand(projectPath, podmanPath, command = '
 
   const homeDir = process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
 
-  // Build base mounts from isolation utility (includes git identity)
-  const baseMounts = buildContainerMounts(projectPath);
+  let allMounts = [];
+
+  if (customMounts) {
+    // Use provided custom mounts (includes git identity and host remote)
+    allMounts = customMounts;
+  } else {
+    // Build base mounts from isolation utility (includes git identity)
+    const baseMounts = buildContainerMounts(projectPath);
+    allMounts = baseMounts;
+  }
 
   // Add Claude-specific mounts
   const claudeMounts = [
@@ -31,8 +39,7 @@ export function buildClaudeContainerCommand(projectPath, podmanPath, command = '
     `-v "${process.cwd()}/claude-settings.json:/root/.claude/settings.json:ro"`
   ];
 
-  // Combine all mounts
-  const allMounts = [...baseMounts, ...claudeMounts];
+  allMounts = [...allMounts, ...claudeMounts];
 
   return `${podmanPath} run --rm -it ${allMounts.join(' ')} ${envArgs} --env HOME=/root sandboxbox-local:latest ${command}`;
 }
