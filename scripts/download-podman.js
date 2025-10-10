@@ -38,7 +38,7 @@ async function main() {
     return;
   }
 
-  console.log(`📥 Downloading Podman remote v${PODMAN_VERSION}...`);
+  console.log(`📥 Downloading Podman v${PODMAN_VERSION}...`);
 
   const archiveName = url.split('/').pop();
   const archivePath = join(binDir, archiveName);
@@ -77,7 +77,7 @@ async function main() {
       chmodSync(binaryPath, 0o755);
     }
 
-    console.log(`✅ Podman remote installed successfully!`);
+    console.log(`✅ Podman installed successfully!`);
     console.log(`   Binary: ${binaryPath}\n`);
 
     if (existsSync(archivePath)) {
