@@ -53,18 +53,26 @@ if (process.platform === 'win32') {
 }
 ```
 
-### Auto Podman Machine Start
+### Auto Podman Machine Start (Rootless Mode)
 ```javascript
+// Initialize with explicit rootless mode for portability
 if (process.platform === 'win32' && isBundled) {
   try {
     execSync(`"${podmanPath}" info`, { stdio: 'pipe' });
   } catch (infoError) {
     if (infoError.message.includes('Cannot connect to Podman')) {
+      // Auto-initialize with rootless mode if machine doesn't exist
+      execSync(`"${podmanPath}" machine init --rootful=false`, { stdio: 'inherit' });
       execSync(`"${podmanPath}" machine start`, { stdio: 'inherit' });
     }
   }
 }
 ```
+
+### Rootless vs Rootful Mode
+- **Rootless (default)**: Runs without administrator privileges, portable across systems
+- **Configuration**: All machines initialized with `--rootful=false` flag
+- **Benefits**: No elevated permissions required, better security, true portability
 
 ## Isolation Architecture
 
