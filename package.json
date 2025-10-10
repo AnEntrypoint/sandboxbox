@@ -5,7 +5,7 @@
   "type": "module",
   "main": "cli.js",
   "bin": {
-    "sandboxbox": "./cli.js"
+    "sandboxbox": "cli.js"
   },
   "scripts": {
     "start": "node cli.js",
@@ -29,7 +29,7 @@
   "dependencies": {},
   "repository": {
     "type": "git",
-    "url": "https://github.com/AnEntrypoint/sandboxbox.git"
+    "url": "git+https://github.com/AnEntrypoint/sandboxbox.git"
   },
   "homepage": "https://github.com/AnEntrypoint/sandboxbox#readme",
   "bugs": {
