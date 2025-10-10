@@ -76,28 +76,47 @@ export function checkPodman() {
 
     return podmanPath;
   } catch (error) {
-    if (!isBundled) {
-      console.log('❌ Podman not found');
-      console.log('\n📦 Auto-downloading Podman...');
+    console.log('❌ Podman not found');
+    console.log('\n📦 Auto-downloading Podman...');
 
-      try {
-        const scriptPath = resolve(__dirname, '..', 'scripts', 'download-podman.js');
-        execSync(`node "${scriptPath}"`, { stdio: 'inherit', cwd: __dirname, shell: process.platform === 'win32' });
+    try {
+      const scriptPath = resolve(__dirname, '..', 'scripts', 'download-podman.js');
+      execSync(`node "${scriptPath}"`, { stdio: 'inherit', cwd: __dirname, shell: process.platform === 'win32' });
 
-        const newPodmanPath = getPodmanPath();
-        const execOptions = {
-          encoding: 'utf-8',
-          stdio: 'pipe',
-          shell: process.platform === 'win32'
-        };
-        const newVersion = execSync(`"${newPodmanPath}" --version`, execOptions).trim();
-        console.log(`\n✅ ${newVersion} (auto-downloaded)`);
-        return newPodmanPath;
-      } catch (downloadError) {
-        console.log(`\n❌ Auto-download failed: ${downloadError.message}`);
+      const newPodmanPath = getPodmanPath();
+      if (!existsSync(newPodmanPath) && newPodmanPath !== 'podman') {
+        throw new Error('Download completed but binary not found');
       }
-    } else {
-      console.log('❌ Podman not found');
+
+      const execOptions = {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+        shell: process.platform === 'win32'
+      };
+
+      const newVersion = execSync(`"${newPodmanPath}" --version`, execOptions).trim();
+      console.log(`\n✅ ${newVersion} (auto-downloaded)`);
+
+      if (process.platform === 'win32') {
+        try {
+          execSync(`"${newPodmanPath}" info`, { ...execOptions, stdio: 'pipe' });
+        } catch (infoError) {
+          if (infoError.message.includes('Cannot connect to Podman')) {
+            console.log('\n🔧 Initializing Podman machine...');
+            try {
+              execSync(`"${newPodmanPath}" machine init`, { stdio: 'inherit', shell: true });
+              execSync(`"${newPodmanPath}" machine start`, { stdio: 'inherit', shell: true });
+              console.log('\n✅ Podman machine initialized and started!');
+            } catch (machineError) {
+              console.log('\n⚠️  Podman machine initialization will be done on first use');
+            }
+          }
+        }
+      }
+
+      return newPodmanPath;
+    } catch (downloadError) {
+      console.log(`\n❌ Auto-download failed: ${downloadError.message}`);
     }
 
     console.log('\n💡 Please install Podman manually:');
