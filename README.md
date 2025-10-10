@@ -1,150 +1,188 @@
 # SandboxBox
 
-**Zero-privilege container runner with Playwright support**
+Zero-privilege container runner with Claude Code and Playwright support. Run your projects in an isolated environment with a single command.
 
-Run containers without Docker, root privileges, or external dependencies. Just bubblewrap and Node.js.
+## Installation
 
-## 🚀 Quick Start
+No installation required! Use with `npx`:
 
-### One-Time Setup
 ```bash
-# Install bubblewrap (requires sudo ONCE)
-sudo apt-get install bubblewrap  # Ubuntu/Debian
-sudo apk add bubblewrap          # Alpine
+npx sandboxbox run-host ./my-project
+```
 
-# Setup Alpine environment
-npx sandboxbox setup
+## Quick Start
+
+### 1. Build the Container Environment (One-time Setup)
+
+```bash
+npx sandboxbox build Dockerfile
+```
+
+This builds the container with:
+- Node.js v22
+- Claude Code CLI
+- Playwright with browser dependencies
+- Git, npm, and common build tools
+
+### 2. Run Your Project
+
+```bash
+# Run with default command
+npx sandboxbox run-host ./my-project
+
+# Run with custom command
+npx sandboxbox run-host ./my-project "npm test"
+
+# Run Claude Code
+npx sandboxbox run-host ./my-project "claude --help"
+
+# Run Playwright tests
+npx sandboxbox run-host ./my-project "npx playwright test"
+```
+
+### 3. Interactive Development
+
+```bash
+# Enter interactive shell
+./enter-shell.sh
+
+# Work in /workspace
+cd /workspace
+vim lib/code.js
+npm test
+git commit -am "Fix bug"
+git push origin master
+exit
+```
+
+## Features
+
+### 🔒 Isolation
+- Container runs with zero privileges
+- Your original files are never directly modified
+- Workspace is isolated in `/workspace`
+
+### 🔄 Git Integration
+- Original project automatically set as git remote `origin`
+- Use regular git commands: `git push`, `git pull`, `git fetch`
+- Full git workflow support
+
+### 🚀 Claude Code + Playwright
+- Claude Code CLI pre-installed
+- Playwright with all browser dependencies
+- 300+ system packages for complete environment
+
+### 📦 NPX-First Design
+- No global installation needed
+- Single command execution: `npx sandboxbox run-host <dir>`
+- Works with any project directory
+
+## Commands
+
+```bash
+# Build container environment (one-time)
+npx sandboxbox build Dockerfile
+
+# Run project in container
+npx sandboxbox run-host <project-dir> [command]
+
+# Examples
+npx sandboxbox run-host ./my-app
+npx sandboxbox run-host ./my-app "npm test"
+npx sandboxbox run-host ./my-app "claude code --help"
+```
+
+## How It Works
+
+1. **Copies** your project files to `/workspace` in the container
+2. **Sets up git** with your original directory as remote `origin`
+3. **Runs** your command in the isolated environment
+4. **Git operations** (push/pull) work directly with your original project
+
+```
+Your Project              Container
+./my-project    ←───→     /workspace
+(git origin)              (isolated copy)
+```
+
+## Git Workflow
+
+The container automatically configures git:
+
+```bash
+# In container, your original project is the git origin
+git remote -v
+# origin  file:///path/to/your/project (fetch/push)
+
+# Make changes and commit
+git add -A
+git commit -m "Add feature"
+
+# Push directly to your original project
+git push origin master
+
+# Pull latest changes
+git pull origin main
+```
+
+See [GIT-WORKFLOW.md](GIT-WORKFLOW.md) for detailed examples.
+
+## Use Cases
+
+### Run Claude Code in Isolation
+```bash
+npx sandboxbox run-host ./my-app "claude code review lib/"
 ```
 
 ### Run Playwright Tests
 ```bash
-# Test any project
-npx sandboxbox run ./my-project
-
-# Quick test with sample Dockerfile
-npx sandboxbox quick-test ./my-app
-
-# Interactive shell
-npx sandboxbox shell ./my-project
+npx sandboxbox run-host ./my-app "npx playwright test"
 ```
 
-### Build from Dockerfile
+### Development Workflow
 ```bash
-# Build container
-npx sandboxbox build ./Dockerfile
+# Enter interactive mode
+./enter-shell.sh
 
-# Run the built container
-npx sandboxbox run ./project-directory
+cd /workspace
+npm install
+npm test
+git commit -am "Update tests"
+git push origin master
+exit
 ```
 
-## 📋 Commands
-
-| Command | Description |
-|---------|-------------|
-| `setup` | Set up Alpine Linux environment (one-time) |
-| `build <dockerfile>` | Build container from Dockerfile |
-| `run <project>` | Run Playwright tests in isolation |
-| `shell <project>` | Interactive shell in container |
-| `quick-test <project>` | Quick test with sample Dockerfile |
-| `version` | Show version information |
-
-## ⚡ Performance
-
-- **8ms startup** (37x faster than Docker)
-- **1MB memory overhead** (50x less than Docker)
-- **True isolation** with Linux namespaces
-- **Zero privileges** after bubblewrap installation
-
-## 🎯 What Works
-
-✅ **Chromium testing** - Full Playwright support
-✅ **Node.js projects** - Complete npm ecosystem
-✅ **Filesystem isolation** - Separate container environment
-✅ **Network access** - Full connectivity
-✅ **Process isolation** - Separate PID namespace
-
-## ⚠️ Limitations
-
-❌ **Firefox/WebKit** - Need glibc (use Ubuntu for these)
-❌ **GPU acceleration** - Limited support
-❌ **System packages** - Can't install with apt/yum
-
-## 🔧 Alternative Usage
-
-### Local Script
+### Run npm Scripts
 ```bash
-# Using the wrapper script
-./run.sh run ./my-project
-
-# Direct Node.js execution
-node cli.js run ./my-project
+npx sandboxbox run-host ./my-app "npm run build"
+npx sandboxbox run-host ./my-app "npm run lint"
 ```
 
-### As npm dependency
-```bash
-# Install in your project
-npm install sandboxbox
+## Requirements
 
-# Use in package.json scripts
-{
-  "scripts": {
-    "test:isolated": "sandboxbox run .",
-    "test:container": "sandboxbox quick-test ."
-  }
-}
+- Linux system (uses bubblewrap for sandboxing)
+- Node.js 16+ (for running npx)
+- Git (for git workflow features)
+
+## Project Structure
+
+```
+sandboxbox/
+├── cli.js              # Main CLI entry point
+├── container.js        # Container logic
+├── Dockerfile          # Container build definition
+├── package.json        # NPM package config
+├── bin/bwrap          # Bubblewrap binary
+├── lib/               # Core modules
+├── scripts/           # Install/build scripts
+├── enter-shell.sh     # Interactive shell helper
+└── GIT-WORKFLOW.md    # Git workflow guide
 ```
 
-## 📖 Examples
-
-### Basic Playwright Testing
-```bash
-# Create a simple project
-mkdir my-test && cd my-test
-npm init -y
-npm install playwright
-
-# Create a test
-cat > test.spec.js << 'EOF'
-import { test, expect } from '@playwright/test';
-
-test('basic test', async ({ page }) => {
-  await page.goto('https://example.com');
-  await expect(page).toHaveTitle(/Example/);
-});
-EOF
-
-# Run in isolated container
-npx sandboxbox quick-test .
-```
-
-### Custom Dockerfile
-```dockerfile
-# Dockerfile.custom
-FROM alpine
-
-RUN apk add --no-cache nodejs npm curl
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-
-CMD ["npm", "start"]
-```
-
-```bash
-# Build and run
-npx sandboxbox build Dockerfile.custom
-npx sandboxbox run .
-```
-
-## 🏗️ Architecture
-
-SandboxBox uses:
-- **Bubblewrap (bwrap)** - Linux namespace isolation
-- **Alpine Linux** - Lightweight base filesystem
-- **System Chromium** - Avoids glibc compatibility issues
-- **Xvfb** - Virtual display for headless testing
-
-## 📄 License
+## License
 
 MIT
+
+## Contributing
+
+Contributions welcome! This project is focused on npx-first usage with Claude Code and Playwright support.
