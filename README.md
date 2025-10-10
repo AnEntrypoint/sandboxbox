@@ -6,16 +6,25 @@ Run your projects in isolated containers using Podman. Works on **Windows, macOS
 
 ## Installation
 
-No installation required! Use with `npx`:
+No installation required! **Podman binaries auto-download** on first use:
 
 ```bash
 npx sandboxbox build
 npx sandboxbox run ./my-project
 ```
 
-## Quick Start
+### Auto-Download Feature
 
-### 1. Install Podman (One-time)
+SandboxBox automatically downloads portable Podman binaries when you run it:
+- ✅ **Windows** - Downloads podman.exe (v4.9.3)
+- ✅ **macOS** - Downloads podman remote client
+- ✅ **Linux** - Downloads static podman binary
+
+Just like sqlite or Playwright, no manual installation needed!
+
+### Manual Installation (Optional)
+
+If you prefer to install Podman system-wide:
 
 **Windows:**
 ```powershell
@@ -36,7 +45,9 @@ sudo dnf install podman          # Fedora
 sudo apk add podman              # Alpine
 ```
 
-### 2. Build Container
+## Quick Start
+
+### 1. Build Container
 
 ```bash
 npx sandboxbox build
@@ -48,7 +59,7 @@ This builds a container with:
 - Playwright with all browser dependencies
 - Git, npm, and essential build tools
 
-### 3. Run Your Project
+### 2. Run Your Project
 
 ```bash
 # Run with default shell
@@ -64,7 +75,7 @@ npx sandboxbox run ./my-project "claude --help"
 npx sandboxbox run ./my-project "npx playwright test"
 ```
 
-### 4. Interactive Shell
+### 3. Interactive Shell
 
 ```bash
 npx sandboxbox shell ./my-project

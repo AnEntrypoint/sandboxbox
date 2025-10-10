@@ -1,3 +1,11 @@
+# Downloaded Podman binaries
+bin/podman
+bin/podman.exe
+bin/podman-remote-static-linux_amd64
+bin/podman-remote-static-linux_arm64
+bin/*.tar.gz
+bin/*.zip
+
 # Build logs
 *.log
 build-*.log
