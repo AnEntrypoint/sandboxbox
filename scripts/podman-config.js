@@ -3,7 +3,7 @@ export const ARCH = process.arch === 'arm64' ? 'arm64' : 'amd64';
 
 export const DOWNLOADS = {
   win32: {
-    url: `https://github.com/containers/podman/releases/download/v${PODMAN_VERSION}/podman-remote-release-windows_amd64.zip`,
+    url: `https://github.com/containers/podman/releases/download/v${PODMAN_VERSION}/podman-remote-release-windows_${ARCH}.zip`,
     binary: 'podman.exe',
     extract: 'unzip'
   },
