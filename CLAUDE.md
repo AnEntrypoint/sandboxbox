@@ -149,7 +149,7 @@ exec claude  # Changes save directly to local repo
 ### Shared Isolation Utility (utils/isolation.js)
 ```javascript
 // All commands use the same isolation pattern
-import { createIsolatedEnvironment, setupCleanupHandlers } from './utils/isolation.js';
+import { createIsolatedEnvironment, setupCleanupHandlers, buildContainerMounts } from './utils/isolation.js';
 
 // Create isolated environment
 const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
@@ -157,14 +157,37 @@ const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
 // Set up cleanup handlers
 setupCleanupHandlers(cleanup);
 
-// Run command with isolated directory
-execSync(`podman run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest ${cmd}`, {
+// Build container mounts with git identity
+const mounts = buildContainerMounts(tempProjectDir);
+
+// Run command with isolated directory and git identity
+execSync(`podman run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
   stdio: 'inherit',
   shell: process.platform === 'win32'
 });
 
 // Clean up on completion
 cleanup();
+```
+
+### Git Identity Transfer
+All commands automatically mount git identity:
+```bash
+-v "$HOME/.gitconfig:/root/.gitconfig:ro"  # Git configuration
+-v "$HOME/.ssh:/root/.ssh:ro"            # SSH keys for git operations
+```
+
+### Claude Code MCP Integration
+The claude command includes MCP servers and settings:
+```bash
+# MCP servers pre-installed in container
+RUN claude mcp add glootie -- npx -y mcp-glootie@latest
+RUN claude mcp add vexify -- npx -y mcp-vexify@latest
+RUN claude mcp add playwright -- npx @playwright/mcp@latest
+
+# Settings injection
+-v "./claude-settings.json:/root/.claude/settings.json:ro"
+-v "$HOME/.claude:/root/.claude-host:ro"
 ```
 
 ### Container Naming and Cleanup

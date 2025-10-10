@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { buildContainerMounts } from './isolation.js';
 
 export function getClaudeEnvironment() {
   const envVars = {};
@@ -21,15 +22,19 @@ export function buildClaudeContainerCommand(projectPath, podmanPath, command = '
 
   const homeDir = process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
 
-  return `${podmanPath} run --rm -it \
-    -v "${projectPath}:/workspace:rw" \
-    -v "${homeDir}/.claude:/root/.claude" \
-    -v "${homeDir}/.ssh:/root/.ssh:ro" \
-    -v "${homeDir}/.gitconfig:/root/.gitconfig:ro" \
-    ${envArgs} \
-    --env HOME=/root \
-    sandboxbox-local:latest \
-    ${command}`;
+  // Build base mounts from isolation utility (includes git identity)
+  const baseMounts = buildContainerMounts(projectPath);
+
+  // Add Claude-specific mounts
+  const claudeMounts = [
+    `-v "${homeDir}/.claude:/root/.claude-host:ro"`,
+    `-v "${process.cwd()}/claude-settings.json:/root/.claude/settings.json:ro"`
+  ];
+
+  // Combine all mounts
+  const allMounts = [...baseMounts, ...claudeMounts];
+
+  return `${podmanPath} run --rm -it ${allMounts.join(' ')} ${envArgs} --env HOME=/root sandboxbox-local:latest ${command}`;
 }
 
 export function createClaudeDockerfile() {
@@ -45,27 +50,13 @@ WORKDIR /workspace
 # Install Claude Code
 RUN npm install -g @anthropic-ai/claude-code@latest
 
-# Create isolated workspace script
-RUN echo '#!/bin/bash
-set -e
+# Setup MCP servers after Claude installation
+RUN claude mcp add glootie -- npx -y mcp-glootie@latest && \\
+    claude mcp add vexify -- npx -y mcp-vexify@latest && \\
+    claude mcp add playwright -- npx @playwright/mcp@latest
 
-echo "🚀 Starting SandboxBox with Claude Code in isolated environment..."
-echo "📁 Working directory: /workspace"
-echo "🎯 This is an isolated copy of your repository"
-
-if [ -d "/workspace/.git" ]; then
-    echo "✅ Git repository detected in workspace"
-    echo "📋 Current status:"
-    git status
-    echo ""
-    echo "🔧 Starting Claude Code..."
-    echo "💡 Changes will be isolated and will NOT affect the original repository"
-    echo "📝 To save changes, use git commands to commit and push before exiting"
-    exec claude
-else
-    echo "❌ Error: /workspace is not a valid git repository"
-    exit 1
-fi' > /usr/local/bin/start-isolated-sandbox.sh && chmod +x /usr/local/bin/start-isolated-sandbox.sh
+# Create isolated workspace script with cleanup
+RUN echo '#!/bin/bash\\nset -e\\n\\necho "🚀 Starting SandboxBox with Claude Code in isolated environment..."\\necho "📁 Working directory: /workspace"\\necho "🎯 This is an isolated copy of your repository"\\n\\n# Cleanup function for temporary files\\ncleanup_temp_files() {\\n    echo "🧹 Cleaning up temporary files..."\\n    find /tmp -user root -name "claude-*" -type f -delete 2>/dev/null || true\\n    find /tmp -user root -name "*.tmp" -type f -delete 2>/dev/null || true\\n    find /var/tmp -user root -name "claude-*" -type f -delete 2>/dev/null || true\\n}\\n\\n# Set up cleanup trap\\ntrap cleanup_temp_files EXIT INT TERM\\n\\nif [ -d "/workspace/.git" ]; then\\n    echo "✅ Git repository detected in workspace"\\n    echo "📋 Current status:"\\n    git status\\n    echo ""\\n    echo "🔧 Starting Claude Code..."\\n    echo "💡 Changes will be isolated and will NOT affect the original repository"\\n    echo "📝 To save changes, use git commands to commit and push before exiting"\\n    echo "🔧 MCP servers: glootie, vexify, playwright"\\n    exec claude\\nelse\\n    echo "❌ Error: /workspace is not a valid git repository"\\n    exit 1\\nfi' > /usr/local/bin/start-isolated-sandbox.sh && chmod +x /usr/local/bin/start-isolated-sandbox.sh
 
 CMD ["/usr/local/bin/start-isolated-sandbox.sh"]`;
 }
