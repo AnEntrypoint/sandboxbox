@@ -7,15 +7,15 @@
  * Works on Windows, macOS, and Linux
  */
 
-import { readFileSync, existsSync, writeFileSync, mkdtempSync, rmSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
-import { resolve, dirname, join } from 'path';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { tmpdir } from 'os';
 
 import { color } from './utils/colors.js';
 import { checkPodman, getPodmanPath } from './utils/podman.js';
 import { buildClaudeContainerCommand, createClaudeDockerfile } from './utils/claude-workspace.js';
+import { createIsolatedEnvironment, setupCleanupHandlers } from './utils/isolation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,20 +86,32 @@ function runClaudeWorkspace(projectDir, command = 'claude') {
     return false;
   }
 
-  console.log(color('blue', '🚀 Starting Claude Code with local repository...'));
+  console.log(color('blue', '🚀 Starting Claude Code in isolated environment...'));
   console.log(color('yellow', `Project: ${projectDir}`));
-  console.log(color('yellow', `Command: ${command}\n`));
+  console.log(color('yellow', `Command: ${command}`));
+  console.log(color('cyan', '📦 Note: Changes will be isolated and will NOT affect the original repository\n'));
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
 
   try {
-    const containerCommand = buildClaudeContainerCommand(projectDir, podmanPath, command);
+    // Create isolated environment
+    const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+
+    // Set up cleanup handlers
+    setupCleanupHandlers(cleanup);
+
+    // Build container command with isolated project directory
+    const containerCommand = buildClaudeContainerCommand(tempProjectDir, podmanPath, command);
     execSync(containerCommand, {
       stdio: 'inherit',
       shell: process.platform === 'win32'
     });
-    console.log(color('green', '\n✅ Claude Code session completed!'));
+
+    // Clean up the temporary directory
+    cleanup();
+
+    console.log(color('green', '\n✅ Claude Code session completed! (Isolated - no host changes)'));
     return true;
   } catch (error) {
     console.log(color('red', `\n❌ Claude Code failed: ${error.message}`));
@@ -171,54 +183,11 @@ async function main() {
       if (!runPodman) process.exit(1);
 
       try {
-        // Create a temporary directory for isolation
-        const tempDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
-        const projectName = projectDir.split(/[\\\/]/).pop() || 'project';
-        const tempProjectDir = join(tempDir, projectName);
-
-        // Copy project to temporary directory (creates isolation)
-        // First create the directory
-        execSync(`mkdir -p "${tempProjectDir}"`, {
-          stdio: 'pipe',
-          shell: true
-        });
-
-        if (process.platform === 'win32') {
-          // Windows approach - include hidden files like .git
-          execSync(`powershell -Command "Copy-Item -Path '${projectDir}\\*' -Destination '${tempProjectDir}' -Recurse -Force -Exclude 'node_modules'"`, {
-            stdio: 'pipe',
-            shell: true
-          });
-          // Also copy hidden files separately
-          execSync(`powershell -Command "Get-ChildItem -Path '${projectDir}' -Force -Name | Where-Object { $_ -like '.*' } | ForEach-Object { Copy-Item -Path (Join-Path '${projectDir}' $_) -Destination '${tempProjectDir}' -Recurse -Force }"`, {
-            stdio: 'pipe',
-            shell: true
-          });
-        } else {
-          // Unix approach - include hidden files
-          execSync(`cp -r "${projectDir}"/.* "${tempProjectDir}/" 2>/dev/null || true`, {
-            stdio: 'pipe',
-            shell: true
-          });
-          execSync(`cp -r "${projectDir}"/* "${tempProjectDir}/"`, {
-            stdio: 'pipe',
-            shell: true
-          });
-        }
-
-        // Ensure cleanup on exit
-        const cleanup = () => {
-          try {
-            rmSync(tempDir, { recursive: true, force: true });
-          } catch (cleanupError) {
-            // Ignore cleanup errors
-          }
-        };
+        // Create isolated environment
+        const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
 
         // Set up cleanup handlers
-        process.on('exit', cleanup);
-        process.on('SIGINT', () => { cleanup(); process.exit(130); });
-        process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+        setupCleanupHandlers(cleanup);
 
         // Run the command in isolated container with temporary directory
         execSync(`"${runPodman}" run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest ${cmd}`, {
@@ -258,46 +227,19 @@ async function main() {
       if (!shellPodman) process.exit(1);
 
       try {
-        // Create a temporary container with copied project (isolated environment)
-        const tempShellContainerName = `sandboxbox-shell-${Math.random().toString(36).substr(2, 9)}`;
-
-        // Ensure cleanup on exit
-        const cleanup = () => {
-          try {
-            execSync(`"${shellPodman}" rm -f "${tempShellContainerName}"`, {
-              stdio: 'pipe',
-              shell: process.platform === 'win32'
-            });
-          } catch (cleanupError) {
-            // Ignore cleanup errors
-          }
-        };
+        // Create isolated environment
+        const { tempProjectDir, cleanup } = createIsolatedEnvironment(shellProjectDir);
 
         // Set up cleanup handlers
-        process.on('exit', cleanup);
-        process.on('SIGINT', () => { cleanup(); process.exit(130); });
-        process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+        setupCleanupHandlers(cleanup);
 
-        // Copy project into container (isolated)
-        execSync(`"${shellPodman}" create --name "${tempShellContainerName}" -w /workspace -it sandboxbox:latest /bin/bash`, {
-          stdio: 'pipe',
-          shell: process.platform === 'win32'
-        });
-
-        // Copy project files into isolated container - use proper path handling
-        const normalizedShellProjectDir = shellProjectDir.replace(/\\/g, '/');
-        execSync(`"${shellPodman}" cp "${normalizedShellProjectDir}" "${tempShellContainerName}:/workspace"`, {
-          stdio: 'pipe',
-          shell: process.platform === 'win32'
-        });
-
-        // Start interactive shell in the isolated container
-        execSync(`"${shellPodman}" start -i "${tempShellContainerName}"`, {
+        // Start interactive shell in isolated container with temporary directory
+        execSync(`"${shellPodman}" run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest /bin/bash`, {
           stdio: 'inherit',
           shell: process.platform === 'win32'
         });
 
-        // Clean up the temporary container
+        // Clean up the temporary directory
         cleanup();
       } catch (error) {
         console.log(color('red', `\n❌ Shell failed: ${error.message}`));

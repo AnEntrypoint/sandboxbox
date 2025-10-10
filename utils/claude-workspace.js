@@ -22,12 +22,11 @@ export function buildClaudeContainerCommand(projectPath, podmanPath, command = '
   const homeDir = process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
 
   return `${podmanPath} run --rm -it \
-    -v "${projectPath}:/project:rw" \
+    -v "${projectPath}:/workspace:rw" \
     -v "${homeDir}/.claude:/root/.claude" \
     -v "${homeDir}/.ssh:/root/.ssh:ro" \
     -v "${homeDir}/.gitconfig:/root/.gitconfig:ro" \
     ${envArgs} \
-    --env REPO_PATH=/project \
     --env HOME=/root \
     sandboxbox-local:latest \
     ${command}`;
@@ -46,32 +45,27 @@ WORKDIR /workspace
 # Install Claude Code
 RUN npm install -g @anthropic-ai/claude-code@latest
 
-# Create local workspace script
+# Create isolated workspace script
 RUN echo '#!/bin/bash
 set -e
 
-REPO_PATH=\${REPO_PATH:-"/project"}
-WORKSPACE_DIR="/workspace/project"
+echo "🚀 Starting SandboxBox with Claude Code in isolated environment..."
+echo "📁 Working directory: /workspace"
+echo "🎯 This is an isolated copy of your repository"
 
-echo "🚀 Starting SandboxBox with Claude Code..."
-echo "📁 Working with local repository: \$REPO_PATH"
-echo "🎯 Workspace: \$WORKSPACE_DIR"
-
-if [ -d "\$REPO_PATH" ] && [ -d "\$REPO_PATH/.git" ]; then
-    echo "📂 Creating workspace symlink to local repository..."
-    ln -sf "\$REPO_PATH" "\$WORKSPACE_DIR"
-    cd "\$WORKSPACE_DIR"
-    echo "✅ Workspace linked successfully!"
+if [ -d "/workspace/.git" ]; then
+    echo "✅ Git repository detected in workspace"
     echo "📋 Current status:"
     git status
     echo ""
     echo "🔧 Starting Claude Code..."
-    echo "💡 Changes will be saved directly to the local repository"
+    echo "💡 Changes will be isolated and will NOT affect the original repository"
+    echo "📝 To save changes, use git commands to commit and push before exiting"
     exec claude
 else
-    echo "❌ Error: \$REPO_PATH is not a valid git repository"
+    echo "❌ Error: /workspace is not a valid git repository"
     exit 1
-fi' > /usr/local/bin/start-local-sandbox.sh && chmod +x /usr/local/bin/start-local-sandbox.sh
+fi' > /usr/local/bin/start-isolated-sandbox.sh && chmod +x /usr/local/bin/start-isolated-sandbox.sh
 
-CMD ["/usr/local/bin/start-local-sandbox.sh"]`;
+CMD ["/usr/local/bin/start-isolated-sandbox.sh"]`;
 }
