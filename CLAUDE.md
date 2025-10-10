@@ -74,6 +74,15 @@ if (process.platform === 'win32' && isBundled) {
 - **Configuration**: All machines initialized with `--rootful=false` flag
 - **Benefits**: No elevated permissions required, better security, true portability
 
+### Portable Podman Architecture
+- **Direct Podman Execution**: Uses bundled Podman binary without complex machine management
+- **Rootless Operation**: Always runs in rootless mode for portability (--rootful=false)
+- **Self-Contained**: All dependencies included in the package
+- **Simple Configuration**: Minimal backend setup only when needed
+- **Auto-Download**: Downloads platform-specific binaries automatically
+- **NPX Compatible**: Works via npx without global installation
+- **Windows Portable Binary**: Uses podman-remote-release-windows_amd64.zip with lightweight backend
+
 ## Isolation Architecture
 
 ### Workflow
