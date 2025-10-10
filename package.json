@@ -1,6 +1,6 @@
 {
   "name": "sandboxbox",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Portable container runner with Podman - Claude Code & Playwright support. Works on Windows, macOS, and Linux.",
   "type": "module",
   "main": "cli.js",

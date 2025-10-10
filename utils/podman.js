@@ -55,7 +55,7 @@ export function checkPodman() {
             console.log('\n✅ Podman machine started successfully in rootless mode!');
           } catch (startError) {
             if (startError.message.includes('not found') || startError.message.includes('does not exist')) {
-              execSync(`"${podmanPath}" machine init`, {
+              execSync(`"${podmanPath}" machine init --rootful=false`, {
                 stdio: 'inherit',
                 cwd: __dirname,
                 shell: process.platform === 'win32'
@@ -65,7 +65,7 @@ export function checkPodman() {
                 cwd: __dirname,
                 shell: process.platform === 'win32'
               });
-              console.log('\n✅ Podman machine initialized and started successfully!');
+              console.log('\n✅ Podman machine initialized and started in rootless mode!');
             } else {
               throw startError;
             }
@@ -102,11 +102,11 @@ export function checkPodman() {
           execSync(`"${newPodmanPath}" info`, { ...execOptions, stdio: 'pipe' });
         } catch (infoError) {
           if (infoError.message.includes('Cannot connect to Podman')) {
-            console.log('\n🔧 Initializing Podman machine...');
+            console.log('\n🔧 Initializing Podman machine in rootless mode...');
             try {
-              execSync(`"${newPodmanPath}" machine init`, { stdio: 'inherit', shell: true });
+              execSync(`"${newPodmanPath}" machine init --rootful=false`, { stdio: 'inherit', shell: true });
               execSync(`"${newPodmanPath}" machine start`, { stdio: 'inherit', shell: true });
-              console.log('\n✅ Podman machine initialized and started!');
+              console.log('\n✅ Podman machine initialized and started in rootless mode!');
             } catch (machineError) {
               console.log('\n⚠️  Podman machine initialization will be done on first use');
             }
