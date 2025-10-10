@@ -1,0 +1,31 @@
+# Build logs
+*.log
+build-*.log
+complete-build.log
+full-build.log
+npm-build-test.log
+
+# Debug files
+debug-*.js
+
+# Sandbox testing directory
+sandboxbox-sandbox/
+
+# Temporary scripts
+init-firewall.sh
+run-in-sandbox.sh
+start-container.sh
+
+# Test Dockerfile variants
+Dockerfile.test
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
