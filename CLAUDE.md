@@ -134,51 +134,37 @@ exec claude  # Changes save directly to local repo
 
 ## Command Isolation Principles
 
-### Critical Architecture Distinction
+### Unified Architecture - All Commands Use Isolation
 - **`run` command**: Creates isolated temporary environment - changes DO NOT affect host
-- **`claude` command**: Mounts local repository directly - changes DO affect host
+- **`claude` command**: Creates isolated temporary environment - changes DO NOT affect host
 - **`shell` command**: Creates isolated temporary environment - changes DO NOT affect host
 
-### Isolation Implementation (run/shell commands)
+### Isolation Workflow
+1. Copy project to temporary directory (including hidden files like .git)
+2. Mount temporary directory as /workspace in container
+3. Run commands in isolated environment
+4. Clean up temporary directory on exit
+5. Changes are persisted via git commands (commit/push) if needed
+
+### Shared Isolation Utility (utils/isolation.js)
 ```javascript
-// Creates temporary directory with copied project
-const tempDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
-const tempProjectDir = join(tempDir, projectName);
+// All commands use the same isolation pattern
+import { createIsolatedEnvironment, setupCleanupHandlers } from './utils/isolation.js';
 
-// Cross-platform file copying with hidden files (.git, etc.)
-if (process.platform === 'win32') {
-  execSync(`powershell -Command "Copy-Item -Path '${projectDir}\\*' -Destination '${tempProjectDir}' -Recurse -Force"`, {
-    stdio: 'pipe',
-    shell: true
-  });
-  // Copy hidden files separately
-  execSync(`powershell -Command "Get-ChildItem -Path '${projectDir}' -Force -Name | Where-Object { $_ -like '.*' } | ForEach-Object { Copy-Item -Path (Join-Path '${projectDir}' $_) -Destination '${tempProjectDir}' -Recurse -Force }"`, {
-    stdio: 'pipe',
-    shell: true
-  });
-} else {
-  execSync(`cp -r "${projectDir}"/.* "${tempProjectDir}/" 2>/dev/null || true`, {
-    stdio: 'pipe',
-    shell: true
-  });
-  execSync(`cp -r "${projectDir}"/* "${tempProjectDir}/"`, {
-    stdio: 'pipe',
-    shell: true
-  });
-}
+// Create isolated environment
+const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
 
-// Automatic cleanup on exit
-const cleanup = () => {
-  try {
-    rmSync(tempDir, { recursive: true, force: true });
-  } catch (cleanupError) {
-    // Ignore cleanup errors
-  }
-};
+// Set up cleanup handlers
+setupCleanupHandlers(cleanup);
 
-process.on('exit', cleanup);
-process.on('SIGINT', () => { cleanup(); process.exit(130); });
-process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+// Run command with isolated directory
+execSync(`podman run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest ${cmd}`, {
+  stdio: 'inherit',
+  shell: process.platform === 'win32'
+});
+
+// Clean up on completion
+cleanup();
 ```
 
 ### Container Naming and Cleanup
