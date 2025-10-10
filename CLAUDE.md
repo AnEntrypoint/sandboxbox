@@ -14,6 +14,9 @@ Portable containerized environments using Podman with automatic WSL management a
 - Cross-platform binary downloads from GitHub releases
 - PowerShell ZIP extraction on Windows
 - Auto-detects existing installations
+- Auto-triggers on first use if Podman not found
+- Verifies binary existence post-download
+- Auto-initializes Podman machine on Windows after download
 
 ### Container Images
 - **sandboxbox:latest**: Full development environment
