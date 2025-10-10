@@ -3,38 +3,21 @@
 /**
  * SandboxBox CLI - Portable Container Runner with Podman
  *
- * Cross-platform container runner using Podman
+ * Cross-platform container runner using Podman with Claude Code integration
  * Works on Windows, macOS, and Linux
- *
- * Simple usage:
- *   npx sandboxbox build              # Build container from Dockerfile
- *   npx sandboxbox run <project>      # Run project in container
- *   npx sandboxbox shell <project>    # Interactive shell
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
+
+import { color } from './utils/colors.js';
+import { checkPodman, getPodmanPath } from './utils/podman.js';
+import { buildClaudeContainerCommand, createClaudeDockerfile } from './utils/claude-workspace.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// Colors for output
-const colors = {
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
-  reset: '\x1b[0m'
-};
-
-function color(colorName, text) {
-  return `${colors[colorName]}${text}${colors.reset}`;
-}
 
 function showBanner() {
   console.log(color('cyan', '📦 SandboxBox - Portable Container Runner'));
@@ -47,100 +30,84 @@ function showHelp() {
   console.log('  npx sandboxbox <command> [options]');
   console.log('');
   console.log(color('yellow', 'Commands:'));
-  console.log('  build [dockerfile]            Build container from Dockerfile (default: ./Dockerfile)');
+  console.log('  build [dockerfile]            Build container from Dockerfile');
   console.log('  run <project-dir> [cmd]       Run project in container');
-  console.log('  shell <project-dir>           Start interactive shell in container');
+  console.log('  shell <project-dir>           Start interactive shell');
+  console.log('  claude <project-dir>          Start Claude Code with local repository');
   console.log('  version                       Show version information');
   console.log('');
   console.log(color('yellow', 'Examples:'));
   console.log('  npx sandboxbox build');
-  console.log('  npx sandboxbox build ./Dockerfile.custom');
-  console.log('  npx sandboxbox run ./my-project');
+  console.log('  npx sandboxbox claude ./my-project');
   console.log('  npx sandboxbox run ./my-project "npm test"');
   console.log('  npx sandboxbox shell ./my-project');
   console.log('');
   console.log(color('yellow', 'Requirements:'));
-  console.log('  - Podman (https://podman.io/getting-started/installation)');
+  console.log('  - Podman (auto-downloaded if needed)');
   console.log('  - Works on Windows, macOS, and Linux!');
   console.log('');
-  console.log(color('magenta', '🚀 Fast startup • True isolation • Cross-platform'));
+  console.log(color('magenta', '🚀 Fast startup • True isolation • Claude Code integration'));
 }
 
-function getPodmanPath() {
-  // Check for bundled podman first
-  const platform = process.platform;
-  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
-  let bundledPodman;
+function buildClaudeContainer() {
+  const dockerfilePath = resolve(__dirname, 'Dockerfile.claude');
+  const dockerfileContent = createClaudeDockerfile();
 
-  if (platform === 'win32') {
-    bundledPodman = resolve(__dirname, 'bin', 'podman.exe');
-  } else if (platform === 'darwin') {
-    bundledPodman = resolve(__dirname, 'bin', 'podman');
-  } else {
-    bundledPodman = resolve(__dirname, 'bin', `podman-remote-static-linux_${arch}`);
-  }
+  writeFileSync(dockerfilePath, dockerfileContent);
+  console.log(color('blue', '🏗️  Building Claude Code container...'));
 
-  if (existsSync(bundledPodman)) {
-    return bundledPodman;
-  }
-  // Fall back to system podman
-  return 'podman';
-}
-
-function checkPodman() {
-  const podmanPath = getPodmanPath();
-  const isBundled = podmanPath.includes('bin');
+  const podmanPath = checkPodman();
+  if (!podmanPath) return false;
 
   try {
-    const version = execSync(`"${podmanPath}" --version`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
-    console.log(color('green', `✅ ${version}${isBundled ? ' (bundled)' : ''}`));
-    return podmanPath;
+    execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox-local:latest .`, {
+      stdio: 'inherit',
+      cwd: __dirname,
+      shell: process.platform === 'win32'
+    });
+    console.log(color('green', '\n✅ Claude Code container built successfully!'));
+    return true;
   } catch (error) {
-    // If no bundled Podman and system Podman not found, try to download
-    if (!isBundled && !existsSync(podmanPath)) {
-      console.log(color('red', '❌ Podman not found'));
-      console.log(color('yellow', '\n📦 Auto-downloading Podman...'));
+    console.log(color('red', `\n❌ Build failed: ${error.message}`));
+    return false;
+  }
+}
 
-      try {
-        // Run the download script directly
-        const scriptPath = resolve(__dirname, 'scripts', 'download-podman.js');
-        execSync(`node "${scriptPath}"`, { stdio: 'inherit', cwd: __dirname });
+function runClaudeWorkspace(projectDir, command = 'claude') {
+  if (!existsSync(projectDir)) {
+    console.log(color('red', `❌ Project directory not found: ${projectDir}`));
+    return false;
+  }
 
-        // Try again with downloaded Podman
-        const newPodmanPath = getPodmanPath();
-        const version = execSync(`"${newPodmanPath}" --version`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
-        console.log(color('green', `\n✅ ${version} (auto-downloaded)`));
-        return newPodmanPath;
-      } catch (downloadError) {
-        console.log(color('red', `\n❌ Auto-download failed: ${downloadError.message}`));
-        console.log(color('yellow', '\n💡 Please install Podman manually:'));
-      }
-    } else {
-      console.log(color('red', '❌ Podman not found'));
-      console.log(color('yellow', '\n💡 Please install Podman manually:'));
-    }
+  if (!existsSync(resolve(projectDir, '.git'))) {
+    console.log(color('red', `❌ Not a git repository: ${projectDir}`));
+    console.log(color('yellow', 'Please run this command in a git repository directory'));
+    return false;
+  }
 
-    console.log('');
-    if (process.platform === 'win32') {
-      console.log(color('cyan', '   Windows:'));
-      console.log('   winget install RedHat.Podman');
-    } else if (process.platform === 'darwin') {
-      console.log(color('cyan', '   macOS:'));
-      console.log('   brew install podman');
-      console.log('   podman machine init && podman machine start');
-    } else {
-      console.log(color('cyan', '   Linux:'));
-      console.log('   sudo apt-get install podman       # Ubuntu/Debian');
-      console.log('   sudo dnf install podman           # Fedora');
-    }
-    console.log('');
-    return null;
+  console.log(color('blue', '🚀 Starting Claude Code with local repository...'));
+  console.log(color('yellow', `Project: ${projectDir}`));
+  console.log(color('yellow', `Command: ${command}\n`));
+
+  const podmanPath = checkPodman();
+  if (!podmanPath) return false;
+
+  try {
+    const containerCommand = buildClaudeContainerCommand(projectDir, podmanPath, command);
+    execSync(containerCommand, {
+      stdio: 'inherit',
+      shell: process.platform === 'win32'
+    });
+    console.log(color('green', '\n✅ Claude Code session completed!'));
+    return true;
+  } catch (error) {
+    console.log(color('red', `\n❌ Claude Code failed: ${error.message}`));
+    return false;
   }
 }
 
 async function main() {
   const args = process.argv.slice(2);
-
   showBanner();
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
@@ -167,15 +134,12 @@ async function main() {
       if (!buildPodman) process.exit(1);
 
       try {
-        console.log('');
         execSync(`"${buildPodman}" build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
           stdio: 'inherit',
-          cwd: __dirname
+          cwd: dirname(dockerfilePath),
+          shell: process.platform === 'win32'
         });
-        console.log('');
-        console.log(color('green', '✅ Container built successfully!'));
-        console.log(color('cyan', '\n💡 Next steps:'));
-        console.log('   npx sandboxbox run ./my-project');
+        console.log(color('green', '\n✅ Container built successfully!'));
       } catch (error) {
         console.log(color('red', `\n❌ Build failed: ${error.message}`));
         process.exit(1);
@@ -205,12 +169,11 @@ async function main() {
       if (!runPodman) process.exit(1);
 
       try {
-        console.log('');
         execSync(`"${runPodman}" run --rm -it -v "${projectDir}:/workspace" -w /workspace sandboxbox:latest ${cmd}`, {
-          stdio: 'inherit'
+          stdio: 'inherit',
+          shell: process.platform === 'win32'
         });
-        console.log('');
-        console.log(color('green', '✅ Container execution completed!'));
+        console.log(color('green', '\n✅ Container execution completed!'));
       } catch (error) {
         console.log(color('red', `\n❌ Run failed: ${error.message}`));
         process.exit(1);
@@ -238,12 +201,41 @@ async function main() {
       if (!shellPodman) process.exit(1);
 
       try {
-        console.log('');
         execSync(`"${shellPodman}" run --rm -it -v "${shellProjectDir}:/workspace" -w /workspace sandboxbox:latest /bin/bash`, {
-          stdio: 'inherit'
+          stdio: 'inherit',
+          shell: process.platform === 'win32'
         });
       } catch (error) {
         console.log(color('red', `\n❌ Shell failed: ${error.message}`));
+        process.exit(1);
+      }
+      break;
+
+    case 'claude':
+      if (commandArgs.length === 0) {
+        console.log(color('red', '❌ Please specify a project directory'));
+        console.log(color('yellow', 'Usage: npx sandboxbox claude <project-dir>'));
+        process.exit(1);
+      }
+
+      const claudeProjectDir = resolve(commandArgs[0]);
+      const claudeCommand = commandArgs.slice(1).join(' ') || 'claude';
+
+      // Check if Claude container exists, build if needed
+      const podmanPath = getPodmanPath();
+      try {
+        execSync(`"${podmanPath}" image inspect sandboxbox-local:latest`, {
+          stdio: 'pipe',
+          shell: process.platform === 'win32'
+        });
+      } catch {
+        console.log(color('yellow', '📦 Building Claude Code container...'));
+        if (!buildClaudeContainer()) {
+          process.exit(1);
+        }
+      }
+
+      if (!runClaudeWorkspace(claudeProjectDir, claudeCommand)) {
         process.exit(1);
       }
       break;
@@ -252,7 +244,7 @@ async function main() {
       try {
         const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
         console.log(color('green', `SandboxBox v${packageJson.version}`));
-        console.log(color('cyan', 'Portable containers with Claude Code & Playwright'));
+        console.log(color('cyan', 'Portable containers with Claude Code integration'));
         if (checkPodman()) {
           console.log('');
         }
@@ -268,7 +260,6 @@ async function main() {
   }
 }
 
-// Run if called directly
 main().catch(error => {
   console.error(color('red', '❌ SandboxBox failed:'));
   console.error(color('red', error.message));

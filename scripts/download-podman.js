@@ -5,12 +5,14 @@
  * Similar to how sqlite/playwright auto-downloads platform-specific binaries
  */
 
-import { createWriteStream, existsSync, mkdirSync, chmodSync, unlinkSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, chmodSync, unlinkSync, createReadStream, readdirSync, statSync } from 'fs';
 import { get as httpsGet } from 'https';
 import { get as httpGet } from 'http';
-import { join, dirname } from 'path';
+import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { createGunzip } from 'zlib';
+import { pipeline } from 'stream/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -67,6 +69,74 @@ function download(url, dest) {
   });
 }
 
+// Simple ZIP extraction using built-in Node.js modules
+// Basic implementation that handles standard ZIP files without compression complications
+async function extractZip(zipPath, extractTo) {
+  return new Promise((resolve, reject) => {
+    try {
+      // For Windows, we'll use PowerShell's built-in ZIP extraction capability
+      // This is more reliable than expecting external tools
+      const psCommand = `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath.replace(/'/g, "''")}', '${extractTo.replace(/'/g, "''")}')`;
+
+      execSync(`powershell -Command "${psCommand}"`, {
+        stdio: 'pipe',
+        cwd: __dirname,
+        shell: true
+      });
+
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Extract tar.gz files using Node.js built-in modules
+async function extractTarGz(tarPath, extractTo, stripComponents = 0) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // First, decompress the .gz file
+      const tarWithoutGz = tarPath.replace('.gz', '');
+      const readStream = createReadStream(tarPath);
+      const writeStream = createWriteStream(tarWithoutGz);
+      const gunzip = createGunzip();
+
+      await pipeline(readStream, gunzip, writeStream);
+
+      // For tar extraction, we need to use system tar since implementing a full tar parser is complex
+      // But we'll ensure it works across platforms by providing fallbacks
+      try {
+        execSync(`tar -xf "${tarWithoutGz}" -C "${extractTo}"${stripComponents ? ` --strip-components=${stripComponents}` : ''}`, {
+          stdio: 'pipe',
+          shell: process.platform === 'win32'
+        });
+      } catch (tarError) {
+        // If system tar fails, try with specific flags for different platforms
+        if (process.platform === 'win32') {
+          // On Windows, try with different tar implementations
+          try {
+            execSync(`bsdtar -xf "${tarWithoutGz}" -C "${extractTo}"${stripComponents ? ` --strip-components=${stripComponents}` : ''}`, {
+              stdio: 'pipe',
+              shell: true
+            });
+          } catch (bsdtarError) {
+            throw new Error(`Failed to extract tar archive. Please install tar or bsdtar: ${tarError.message}`);
+          }
+        } else {
+          throw tarError;
+        }
+      }
+
+      // Clean up the intermediate .tar file
+      unlinkSync(tarWithoutGz);
+
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 async function main() {
   const platform = process.platform;
 
@@ -98,6 +168,13 @@ async function main() {
   const archivePath = join(binDir, archiveName);
 
   try {
+    // Clean up any previous failed extractions using fs operations
+    const extractedDir = join(binDir, 'podman-4.9.3');
+    if (existsSync(extractedDir)) {
+      const fs = await import('fs/promises');
+      await fs.rm(extractedDir, { recursive: true, force: true });
+    }
+
     // Download archive
     console.log(`   Downloading from GitHub releases...`);
     await download(url, archivePath);
@@ -106,13 +183,25 @@ async function main() {
     // Extract based on platform
     console.log(`📦 Extracting...`);
     if (extract === 'tar') {
-      execSync(`tar -xzf "${archivePath}" -C "${binDir}" --strip-components=1`, {
-        stdio: 'pipe'
-      });
+      await extractTarGz(archivePath, binDir, 1);
     } else if (extract === 'unzip') {
-      execSync(`unzip -q "${archivePath}" -d "${binDir}"`, {
-        stdio: 'pipe'
-      });
+      await extractZip(archivePath, binDir);
+
+      // Windows-specific: move podman.exe from nested directory to bin/
+      if (platform === 'win32') {
+        const extractedDir = join(binDir, `podman-4.9.3`);
+        const extractedPodman = join(extractedDir, 'usr', 'bin', 'podman.exe');
+        const targetPodman = join(binDir, binary);
+
+        if (existsSync(extractedPodman)) {
+          // Use fs operations instead of shell commands for cross-platform compatibility
+          const fs = await import('fs/promises');
+          await fs.copyFile(extractedPodman, targetPodman);
+
+          // Clean up the extracted directory
+          await fs.rm(extractedDir, { recursive: true, force: true });
+        }
+      }
     }
 
     // Make executable on Unix
