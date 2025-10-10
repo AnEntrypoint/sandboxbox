@@ -1,183 +1,226 @@
 # SandboxBox
 
-Zero-privilege container runner with Claude Code and Playwright support. Run your projects in an isolated environment with a single command.
+**Cross-platform container runner with Claude Code and Playwright support**
+
+Run your projects in isolated containers using Podman. Works on **Windows, macOS, and Linux**.
 
 ## Installation
 
 No installation required! Use with `npx`:
 
 ```bash
-npx sandboxbox run-host ./my-project
+npx sandboxbox build
+npx sandboxbox run ./my-project
 ```
 
 ## Quick Start
 
-### 1. Build the Container Environment (One-time Setup)
+### 1. Install Podman (One-time)
 
-```bash
-npx sandboxbox build Dockerfile
+**Windows:**
+```powershell
+winget install RedHat.Podman
 ```
 
-This builds the container with:
+**macOS:**
+```bash
+brew install podman
+podman machine init
+podman machine start
+```
+
+**Linux:**
+```bash
+sudo apt-get install podman     # Ubuntu/Debian
+sudo dnf install podman          # Fedora
+sudo apk add podman              # Alpine
+```
+
+### 2. Build Container
+
+```bash
+npx sandboxbox build
+```
+
+This builds a container with:
 - Node.js v22
 - Claude Code CLI
-- Playwright with browser dependencies
-- Git, npm, and common build tools
+- Playwright with all browser dependencies
+- Git, npm, and essential build tools
 
-### 2. Run Your Project
+### 3. Run Your Project
 
 ```bash
-# Run with default command
-npx sandboxbox run-host ./my-project
+# Run with default shell
+npx sandboxbox run ./my-project
 
-# Run with custom command
-npx sandboxbox run-host ./my-project "npm test"
+# Run custom command
+npx sandboxbox run ./my-project "npm test"
 
 # Run Claude Code
-npx sandboxbox run-host ./my-project "claude --help"
+npx sandboxbox run ./my-project "claude --help"
 
 # Run Playwright tests
-npx sandboxbox run-host ./my-project "npx playwright test"
+npx sandboxbox run ./my-project "npx playwright test"
 ```
 
-### 3. Interactive Development
+### 4. Interactive Shell
 
 ```bash
-# Enter interactive shell
-./enter-shell.sh
-
-# Work in /workspace
-cd /workspace
-vim lib/code.js
-npm test
-git commit -am "Fix bug"
-git push origin master
-exit
+npx sandboxbox shell ./my-project
 ```
 
 ## Features
 
+### 🌍 Cross-Platform
+- **Windows** - Full support with Podman Desktop
+- **macOS** - Works with Podman machine
+- **Linux** - Native Podman support
+
 ### 🔒 Isolation
-- Container runs with zero privileges
-- Your original files are never directly modified
-- Workspace is isolated in `/workspace`
+- Complete container isolation
+- Your host system stays clean
+- Workspace mounted at `/workspace`
 
-### 🔄 Git Integration
-- Original project automatically set as git remote `origin`
-- Use regular git commands: `git push`, `git pull`, `git fetch`
-- Full git workflow support
-
-### 🚀 Claude Code + Playwright
-- Claude Code CLI pre-installed
-- Playwright with all browser dependencies
-- 300+ system packages for complete environment
+### 🚀 Pre-installed Tools
+- **Node.js v22**
+- **Claude Code CLI** - AI-powered development
+- **Playwright** - Browser automation with all dependencies
+- **Git** - Version control
+- **npm** - Package management
 
 ### 📦 NPX-First Design
 - No global installation needed
-- Single command execution: `npx sandboxbox run-host <dir>`
+- Single command execution
 - Works with any project directory
 
 ## Commands
 
 ```bash
-# Build container environment (one-time)
-npx sandboxbox build Dockerfile
+# Build container from Dockerfile
+npx sandboxbox build
+npx sandboxbox build ./Dockerfile.custom
 
 # Run project in container
-npx sandboxbox run-host <project-dir> [command]
+npx sandboxbox run <project-dir> [command]
 
-# Examples
-npx sandboxbox run-host ./my-app
-npx sandboxbox run-host ./my-app "npm test"
-npx sandboxbox run-host ./my-app "claude code --help"
+# Interactive shell
+npx sandboxbox shell <project-dir>
+
+# Show version
+npx sandboxbox version
 ```
 
 ## How It Works
 
-1. **Copies** your project files to `/workspace` in the container
-2. **Sets up git** with your original directory as remote `origin`
-3. **Runs** your command in the isolated environment
-4. **Git operations** (push/pull) work directly with your original project
+1. **Builds** a container image from the Dockerfile using Podman
+2. **Mounts** your project directory to `/workspace` in the container
+3. **Runs** your command in the isolated container environment
+4. **Removes** the container automatically when done
 
 ```
 Your Project              Container
-./my-project    ←───→     /workspace
-(git origin)              (isolated copy)
+./my-project    ━━━━━>    /workspace
+(host)                    (isolated)
 ```
-
-## Git Workflow
-
-The container automatically configures git:
-
-```bash
-# In container, your original project is the git origin
-git remote -v
-# origin  file:///path/to/your/project (fetch/push)
-
-# Make changes and commit
-git add -A
-git commit -m "Add feature"
-
-# Push directly to your original project
-git push origin master
-
-# Pull latest changes
-git pull origin main
-```
-
-See [GIT-WORKFLOW.md](GIT-WORKFLOW.md) for detailed examples.
 
 ## Use Cases
 
-### Run Claude Code in Isolation
+### Run Claude Code
 ```bash
-npx sandboxbox run-host ./my-app "claude code review lib/"
+npx sandboxbox run ./my-app "claude --version"
+npx sandboxbox run ./my-app "claude code review lib/"
 ```
 
 ### Run Playwright Tests
 ```bash
-npx sandboxbox run-host ./my-app "npx playwright test"
+npx sandboxbox run ./my-app "npx playwright test"
+npx sandboxbox run ./my-app "npx playwright test --headed"
 ```
 
 ### Development Workflow
 ```bash
-# Enter interactive mode
-./enter-shell.sh
+# Build once
+npx sandboxbox build
 
-cd /workspace
+# Interactive development
+npx sandboxbox shell ./my-app
+
+# Inside container:
 npm install
 npm test
-git commit -am "Update tests"
-git push origin master
+git commit -am "Update"
 exit
 ```
 
 ### Run npm Scripts
 ```bash
-npx sandboxbox run-host ./my-app "npm run build"
-npx sandboxbox run-host ./my-app "npm run lint"
+npx sandboxbox run ./my-app "npm run build"
+npx sandboxbox run ./my-app "npm run lint"
+npx sandboxbox run ./my-app "npm run test:e2e"
+```
+
+## Custom Dockerfile
+
+Create your own `Dockerfile`:
+
+```dockerfile
+FROM node:22-alpine
+
+# Install system dependencies
+RUN apk add --no-cache git bash curl
+
+# Install global packages
+RUN npm install -g @anthropic-ai/claude-code @playwright/test
+
+# Install Playwright browsers
+RUN npx playwright install --with-deps chromium
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
+```
+
+Then build:
+```bash
+npx sandboxbox build ./Dockerfile
 ```
 
 ## Requirements
 
-- Linux system (uses bubblewrap for sandboxing)
-- Node.js 16+ (for running npx)
-- Git (for git workflow features)
+- **Podman** (https://podman.io/getting-started/installation)
+- **Node.js 16+** (for running npx)
 
 ## Project Structure
 
 ```
 sandboxbox/
-├── cli.js              # Main CLI entry point
-├── container.js        # Container logic
-├── Dockerfile          # Container build definition
+├── cli.js              # Main CLI - Podman integration
+├── Dockerfile          # Container definition
 ├── package.json        # NPM package config
-├── bin/bwrap          # Bubblewrap binary
-├── lib/               # Core modules
-├── scripts/           # Install/build scripts
-├── enter-shell.sh     # Interactive shell helper
-└── GIT-WORKFLOW.md    # Git workflow guide
+└── README.md           # This file
 ```
+
+## Why Podman?
+
+- ✅ **Cross-platform** - Works on Windows, macOS, Linux
+- ✅ **Rootless** - No daemon, runs as regular user
+- ✅ **Docker-compatible** - Uses OCI standard containers
+- ✅ **Secure** - Better security model than Docker
+- ✅ **Fast** - Lightweight and efficient
+
+## Differences from v1.x
+
+**v1.x (bubblewrap):**
+- Linux-only
+- Required bubblewrap installation
+- Direct process isolation
+
+**v2.x (Podman):**
+- Cross-platform (Windows/macOS/Linux)
+- Uses Podman containers
+- OCI-standard container images
+- More portable and widely supported
 
 ## License
 
@@ -185,4 +228,4 @@ MIT
 
 ## Contributing
 
-Contributions welcome! This project is focused on npx-first usage with Claude Code and Playwright support.
+Contributions welcome! This project focuses on cross-platform container execution with Claude Code and Playwright support using Podman.
