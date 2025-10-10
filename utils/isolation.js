@@ -1,7 +1,29 @@
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
+
+/**
+ * Builds container volume mounts with git identity
+ * @param {string} tempProjectDir - Temporary project directory
+ * @returns {Array} - Array of volume mount strings
+ */
+export function buildContainerMounts(tempProjectDir) {
+  const mounts = [`-v "${tempProjectDir}:/workspace:rw"`];
+
+  // Add git identity mounts
+  const homeDir = process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
+
+  if (existsSync(`${homeDir}/.gitconfig`)) {
+    mounts.push(`-v "${homeDir}/.gitconfig:/root/.gitconfig:ro"`);
+  }
+
+  if (existsSync(`${homeDir}/.ssh`)) {
+    mounts.push(`-v "${homeDir}/.ssh:/root/.ssh:ro"`);
+  }
+
+  return mounts;
+}
 
 /**
  * Creates an isolated temporary environment for running commands

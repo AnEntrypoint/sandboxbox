@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import { color } from './utils/colors.js';
 import { checkPodman, getPodmanPath } from './utils/podman.js';
 import { buildClaudeContainerCommand, createClaudeDockerfile } from './utils/claude-workspace.js';
-import { createIsolatedEnvironment, setupCleanupHandlers } from './utils/isolation.js';
+import { createIsolatedEnvironment, setupCleanupHandlers, buildContainerMounts } from './utils/isolation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -189,8 +189,11 @@ async function main() {
         // Set up cleanup handlers
         setupCleanupHandlers(cleanup);
 
-        // Run the command in isolated container with temporary directory
-        execSync(`"${runPodman}" run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest ${cmd}`, {
+        // Build container mounts with git identity
+        const mounts = buildContainerMounts(tempProjectDir);
+
+        // Run the command in isolated container with temporary directory and git identity
+        execSync(`"${runPodman}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
           stdio: 'inherit',
           shell: process.platform === 'win32'
         });
@@ -233,8 +236,11 @@ async function main() {
         // Set up cleanup handlers
         setupCleanupHandlers(cleanup);
 
-        // Start interactive shell in isolated container with temporary directory
-        execSync(`"${shellPodman}" run --rm -it -v "${tempProjectDir}:/workspace:rw" -w /workspace sandboxbox:latest /bin/bash`, {
+        // Build container mounts with git identity
+        const mounts = buildContainerMounts(tempProjectDir);
+
+        // Start interactive shell in isolated container with temporary directory and git identity
+        execSync(`"${shellPodman}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
           stdio: 'inherit',
           shell: process.platform === 'win32'
         });
