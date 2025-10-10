@@ -96,9 +96,30 @@ function checkPodman() {
     console.log(color('green', `✅ ${version}${isBundled ? ' (bundled)' : ''}`));
     return podmanPath;
   } catch (error) {
-    console.log(color('red', '❌ Podman not found'));
-    console.log(color('yellow', '\n📦 Podman will be auto-downloaded on first install'));
-    console.log(color('yellow', '   Or you can install manually:'));
+    // If no bundled Podman and system Podman not found, try to download
+    if (!isBundled && !existsSync(podmanPath)) {
+      console.log(color('red', '❌ Podman not found'));
+      console.log(color('yellow', '\n📦 Auto-downloading Podman...'));
+
+      try {
+        // Run the download script directly
+        const scriptPath = resolve(__dirname, 'scripts', 'download-podman.js');
+        execSync(`node "${scriptPath}"`, { stdio: 'inherit', cwd: __dirname });
+
+        // Try again with downloaded Podman
+        const newPodmanPath = getPodmanPath();
+        const version = execSync(`"${newPodmanPath}" --version`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        console.log(color('green', `\n✅ ${version} (auto-downloaded)`));
+        return newPodmanPath;
+      } catch (downloadError) {
+        console.log(color('red', `\n❌ Auto-download failed: ${downloadError.message}`));
+        console.log(color('yellow', '\n💡 Please install Podman manually:'));
+      }
+    } else {
+      console.log(color('red', '❌ Podman not found'));
+      console.log(color('yellow', '\n💡 Please install Podman manually:'));
+    }
+
     console.log('');
     if (process.platform === 'win32') {
       console.log(color('cyan', '   Windows:'));
