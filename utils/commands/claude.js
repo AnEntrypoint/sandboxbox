@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { color } from '../colors.js';
-import { checkPodman, checkBackend, getPodmanPath } from '../podman.js';
+import { checkPodman, setupBackendNonBlocking, getPodmanPath } from '../podman.js';
 import { buildClaudeContainerCommand, createClaudeDockerfile } from '../claude-workspace.js';
 import { createIsolatedEnvironment, setupCleanupHandlers, buildContainerMounts } from '../isolation.js';
 
@@ -42,7 +42,7 @@ export function claudeCommand(projectDir, command = 'claude') {
 
   const buildPodman = checkPodman();
   if (!buildPodman) return false;
-  if (!checkBackend(buildPodman)) return false;
+  if (!setupBackendNonBlocking(buildPodman)) return false;
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
@@ -73,7 +73,7 @@ function buildClaudeContainer() {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!checkBackend(podmanPath)) return false;
+  if (!setupBackendNonBlocking(podmanPath)) return false;
 
   try {
     execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox-local:latest .`, {

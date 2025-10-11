@@ -2,7 +2,7 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import { dirname } from 'path';
 import { color } from '../colors.js';
-import { checkPodman, checkBackend } from '../podman.js';
+import { checkPodman, setupBackendNonBlocking } from '../podman.js';
 import { createIsolatedEnvironment, setupCleanupHandlers, buildContainerMounts } from '../isolation.js';
 
 export function buildCommand(dockerfilePath) {
@@ -16,7 +16,7 @@ export function buildCommand(dockerfilePath) {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!checkBackend(podmanPath)) return false;
+  if (!setupBackendNonBlocking(podmanPath)) return false;
 
   try {
     execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
@@ -45,7 +45,7 @@ export function runCommand(projectDir, cmd = 'bash') {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!checkBackend(podmanPath)) return false;
+  if (!setupBackendNonBlocking(podmanPath)) return false;
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
@@ -78,7 +78,7 @@ export function shellCommand(projectDir) {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!checkBackend(podmanPath)) return false;
+  if (!setupBackendNonBlocking(podmanPath)) return false;
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
