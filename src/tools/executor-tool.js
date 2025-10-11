@@ -257,7 +257,8 @@ export async function executeProcess(command, args = [], options = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
-      stdio: input ? 'pipe' : ['pipe', 'pipe', 'pipe']
+      stdio: input ? 'pipe' : ['ignore', 'pipe', 'pipe'],
+      shell: false
     });
 
     let stdout = '';
@@ -422,7 +423,41 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
   }
 
   
-  return executeProcess(config.command, [...config.args, codeOrCommands], {
+  let finalCode = codeOrCommands;
+
+  // Handle stdin for Node.js to prevent hanging
+  if (runtime === 'nodejs') {
+    finalCode = `
+// Prevent stdin hanging in MCP context
+try {
+  if (process.stdin) {
+    process.stdin.destroy();
+  }
+} catch (e) {
+  // Ignore errors
+}
+
+// Override process.stdin methods to prevent hanging
+const originalStdin = process.stdin;
+process.stdin = {
+  isTTY: false,
+  setEncoding: () => {},
+  on: (event, listener) => {
+    if (event === 'data' || event === 'end') {
+      // Immediately emit end to prevent hanging
+      setTimeout(() => listener(), 0);
+    }
+  },
+  resume: () => {},
+  pause: () => {},
+  destroy: () => {}
+};
+
+${codeOrCommands}
+`;
+  }
+
+  return executeProcess(config.command, [...config.args, finalCode], {
     cwd: workingDirectory,
     timeout,
     encoding: 'utf8'
