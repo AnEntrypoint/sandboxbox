@@ -74,16 +74,17 @@ export function runCommand(projectDir, cmd = 'bash') {
     return false; // Only block on Linux for rootless service
   }
 
+  // Create isolated environment once (outside retry loop)
+  const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+  setupCleanupHandlers(cleanup);
+  const mounts = buildContainerMounts(tempProjectDir, projectDir);
+
   // Retry container operation with backend readiness check
   let retries = 0;
   const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
   while (retries < maxRetries) {
     try {
-      const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
-      setupCleanupHandlers(cleanup);
-      const mounts = buildContainerMounts(tempProjectDir, projectDir);
-
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
@@ -104,6 +105,7 @@ export function runCommand(projectDir, cmd = 'bash') {
         }
         continue;
       }
+      cleanup(); // Cleanup on final failure
       console.log(color('red', `\n❌ Run failed: ${error.message}`));
       return false;
     }
@@ -129,16 +131,17 @@ export function shellCommand(projectDir) {
     return false; // Only block on Linux for rootless service
   }
 
+  // Create isolated environment once (outside retry loop)
+  const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+  setupCleanupHandlers(cleanup);
+  const mounts = buildContainerMounts(tempProjectDir, projectDir);
+
   // Retry container operation with backend readiness check
   let retries = 0;
   const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
   while (retries < maxRetries) {
     try {
-      const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
-      setupCleanupHandlers(cleanup);
-      const mounts = buildContainerMounts(tempProjectDir, projectDir);
-
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
@@ -158,6 +161,7 @@ export function shellCommand(projectDir) {
         }
         continue;
       }
+      cleanup(); // Cleanup on final failure
       console.log(color('red', `\n❌ Shell failed: ${error.message}`));
       return false;
     }

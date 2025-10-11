@@ -45,17 +45,18 @@ export function claudeCommand(projectDir, command = 'claude') {
   if (!buildPodman) return false;
   if (!setupBackendNonBlocking(buildPodman)) return false;
 
+  // Create isolated environment once (outside retry loop)
+  const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+  setupCleanupHandlers(cleanup);
+  const mounts = buildContainerMounts(tempProjectDir, projectDir);
+  const containerCommand = buildClaudeContainerCommand(tempProjectDir, buildPodman, command, mounts);
+
   // Retry container operation with backend readiness check
   let retries = 0;
   const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
   while (retries < maxRetries) {
     try {
-      const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
-      setupCleanupHandlers(cleanup);
-      const mounts = buildContainerMounts(tempProjectDir, projectDir);
-      const containerCommand = buildClaudeContainerCommand(tempProjectDir, buildPodman, command, mounts);
-
       execSync(containerCommand, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
@@ -76,6 +77,7 @@ export function claudeCommand(projectDir, command = 'claude') {
         }
         continue;
       }
+      cleanup(); // Cleanup on final failure
       console.log(color('red', `\n❌ Claude Code failed: ${error.message}`));
       return false;
     }
