@@ -27,8 +27,21 @@ export function getPodmanPath() {
 }
 
 export function setupBackendNonBlocking(podmanPath) {
-  if (process.platform === 'linux') return true;
+  if (process.platform === 'linux') {
+    // Linux can run true rootless Podman
+    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+    try {
+      execSync(`"${podmanPath}" info`, execOptions);
+      return true;
+    } catch (infoError) {
+      console.log(color('yellow', '\n🔧 Starting Podman rootless service...'));
+      console.log(color('cyan', '   Run: podman system service --time=0 &'));
+      console.log(color('yellow', '   Or use systemd: sudo systemctl enable --now podman'));
+      return false;
+    }
+  }
 
+  // Windows/macOS: Show setup instructions (VM required, no way around it)
   const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
 
   try {
@@ -39,140 +52,19 @@ export function setupBackendNonBlocking(podmanPath) {
       return false;
     }
 
-    console.log(color('yellow', '\n🔧 Initializing Podman backend (one-time setup, takes 2-3 minutes)...'));
+    console.log(color('yellow', '\n🔧 Podman machine setup required (Windows/macOS limitation)'));
+    console.log(color('cyan', process.platform === 'win32'
+      ? '   Windows requires a VM backend for Podman containers'
+      : '   macOS requires a VM backend for Podman containers'));
 
-    try {
-      // Check existing machines with shorter timeout
-      let machines = [];
-      try {
-        const machineListOutput = execSync(`"${podmanPath}" machine list --format json`, {
-          ...execOptions,
-          timeout: 3000 // 3 seconds timeout
-        });
-        machines = JSON.parse(machineListOutput || '[]');
-        console.log(color('cyan', `   Found ${machines.length} existing machine(s)`));
-      } catch (machineListError) {
-        console.log(color('yellow', '   Could not list machines quickly, checking via info command...'));
-        // Try to detect if machine exists by checking for specific error messages
-        try {
-          execSync(`"${podmanPath}" info`, {
-            ...execOptions,
-            timeout: 3000
-          });
-          console.log(color('green', '   Backend is already working!'));
-          return true;
-        } catch (infoError) {
-          if (infoError.message.includes('127.0.0.1')) {
-            console.log(color('cyan', '   Machine exists but not running, proceeding...'));
-          } else {
-            console.log(color('yellow', '   Assuming no machines exist'));
-          }
-        }
-      }
+    console.log(color('yellow', '\n📋 One-time setup (takes 2-3 minutes):'));
+    const setupCmd = process.platform === 'win32'
+      ? `podman machine init --rootful=false && podman machine start`
+      : `podman machine init && podman machine start`;
 
-      if (machines.length === 0) {
-        console.log(color('cyan', '   Creating Podman machine...'));
-        const initCmd = process.platform === 'win32'
-          ? `"${podmanPath}" machine init --rootful=false`
-          : `"${podmanPath}" machine init`;
-
-        try {
-          execSync(initCmd, {
-            stdio: ['pipe', 'pipe', 'pipe'],
-            shell: true,
-            timeout: 120000 // 2 minutes
-          });
-        } catch (initError) {
-          const errorOutput = initError.stdout?.toString() + initError.stderr?.toString();
-          if (errorOutput?.includes('already exists') ||
-              errorOutput?.includes('VM already exists') ||
-              initError.message.includes('already exists')) {
-            console.log(color('cyan', '   Machine already exists, proceeding...'));
-          } else {
-            console.log(color('red', `   Error output: ${errorOutput}`));
-            throw initError;
-          }
-        }
-      } else {
-        console.log(color('cyan', '   Using existing machine'));
-      }
-
-      console.log(color('cyan', '   Checking machine status...'));
-      try {
-        const statusOutput = execSync(`"${podmanPath}" machine list`, {
-          encoding: 'utf-8',
-          stdio: 'pipe',
-          shell: true,
-          timeout: 3000 // 3 seconds timeout
-        });
-
-        if (statusOutput.includes('Running')) {
-          console.log(color('green', '   Machine is already running'));
-        } else {
-          console.log(color('cyan', '   Starting Podman machine...'));
-          startMachineWithRetry();
-        }
-      } catch (statusError) {
-        console.log(color('cyan', '   Could not check status, attempting to start machine...'));
-        startMachineWithRetry();
-      }
-
-      // Give background process time to start, then verify once
-      console.log(color('cyan', '   Giving background process time to start...'));
-      const start = Date.now();
-      while (Date.now() - start < 15000) {
-        // Wait 15 seconds for background start
-      }
-
-      // Quick verification attempt
-      console.log(color('cyan', '   Verifying backend connection...'));
-      try {
-        execSync(`"${podmanPath}" info`, {
-          ...execOptions,
-          timeout: 5000 // 5 second timeout
-        });
-        console.log(color('green', '   Backend is ready!'));
-      } catch (verifyError) {
-        console.log(color('yellow', '   Backend still starting. This is normal for first-time setup.'));
-        console.log(color('cyan', '   If this persists, run manually:'));
-        const manualCmd = process.platform === 'win32'
-          ? `"${podmanPath}" machine init --rootful=false && "${podmanPath}" machine start`
-          : `"${podmanPath}" machine init && "${podmanPath}" machine start`;
-        console.log(color('cyan', `   ${manualCmd}`));
-        console.log(color('yellow', '   Then try sandboxbox again.'));
-        return false;
-      }
-
-      console.log(color('green', '\n✅ Podman backend setup completed!\n'));
-      return true;
-
-      function startMachineWithRetry() {
-        // Use completely silent background start
-        console.log(color('cyan', '   Starting Podman machine silently in background...'));
-
-        const startProcess = spawn(`"${podmanPath}" machine start`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
-          detached: true
-        });
-
-        startProcess.unref(); // Completely detach from parent
-        console.log(color('yellow', '   Machine start initiated in background (may take 1-2 minutes)'));
-      }
-    } catch (setupError) {
-      if (setupError.signal === 'SIGTERM') {
-        console.log(color('red', '\n❌ Setup timed out. Please run manually:'));
-      } else {
-        console.log(color('red', `\n❌ Setup failed: ${setupError.message}`));
-        console.log(color('red', `   Error details: ${setupError.stack}`));
-      }
-
-      const manualCmd = process.platform === 'win32'
-        ? `"${podmanPath}" machine init --rootful=false && "${podmanPath}" machine start`
-        : `"${podmanPath}" machine init && "${podmanPath}" machine start`;
-      console.log(color('cyan', `   Manual setup: ${manualCmd}`));
-      return false;
-    }
+    console.log(color('cyan', `   ${setupCmd}`));
+    console.log(color('yellow', '\n💡 After setup, sandboxbox will work instantly forever\n'));
+    return false;
   }
 }
 
