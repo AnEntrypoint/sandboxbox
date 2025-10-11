@@ -8,14 +8,35 @@ export async function extractZip(zipPath, extractTo) {
     try {
       const psCommand = `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath.replace(/'/g, "''")}', '${extractTo.replace(/'/g, "''")}')`;
 
-      execSync(`powershell -Command "${psCommand}"`, {
-        stdio: 'pipe',
-        shell: true,
-        windowsHide: true,
-        timeout: 120000 // ZIP extraction can take time
-      });
+      // Add retry logic for ZIP extraction (file lock issues)
+      let retries = 0;
+      const maxRetries = 3;
 
-      resolve();
+      while (retries < maxRetries) {
+        try {
+          execSync(`powershell -Command "${psCommand}"`, {
+            stdio: 'pipe',
+            shell: true,
+            windowsHide: true,
+            timeout: 120000 // ZIP extraction can take time
+          });
+          resolve();
+          return;
+        } catch (error) {
+          retries++;
+          if (retries < maxRetries && error.message.includes('being used by another process')) {
+            console.log(`   File locked, retrying extraction (${retries}/${maxRetries})...`);
+            // Wait 2 seconds before retry
+            const start = Date.now();
+            while (Date.now() - start < 2000) {
+              // Wait
+            }
+            continue;
+          }
+          reject(error);
+          return;
+        }
+      }
     } catch (error) {
       reject(error);
     }
