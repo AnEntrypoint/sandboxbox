@@ -73,22 +73,38 @@ export function runCommand(projectDir, cmd = 'bash') {
     return false; // Only block on Linux for rootless service
   }
 
-  try {
-    const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
-    setupCleanupHandlers(cleanup);
-    const mounts = buildContainerMounts(tempProjectDir, projectDir);
+  // Retry container operation with backend readiness check
+  let retries = 0;
+  const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
-    execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
-      stdio: 'inherit',
-      shell: process.platform === 'win32'
-    });
+  while (retries < maxRetries) {
+    try {
+      const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+      setupCleanupHandlers(cleanup);
+      const mounts = buildContainerMounts(tempProjectDir, projectDir);
 
-    cleanup();
-    console.log(color('green', '\n✅ Container execution completed! (Isolated - no host changes)'));
-    return true;
-  } catch (error) {
-    console.log(color('red', `\n❌ Run failed: ${error.message}`));
-    return false;
+      execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+        timeout: 30000 // 30 second timeout
+      });
+
+      cleanup();
+      console.log(color('green', '\n✅ Container execution completed! (Isolated - no host changes)'));
+      return true;
+    } catch (error) {
+      retries++;
+      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+          // Wait 15 seconds
+        }
+        continue;
+      }
+      console.log(color('red', `\n❌ Run failed: ${error.message}`));
+      return false;
+    }
   }
 }
 
@@ -111,20 +127,36 @@ export function shellCommand(projectDir) {
     return false; // Only block on Linux for rootless service
   }
 
-  try {
-    const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
-    setupCleanupHandlers(cleanup);
-    const mounts = buildContainerMounts(tempProjectDir, projectDir);
+  // Retry container operation with backend readiness check
+  let retries = 0;
+  const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
-    execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
-      stdio: 'inherit',
-      shell: process.platform === 'win32'
-    });
+  while (retries < maxRetries) {
+    try {
+      const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+      setupCleanupHandlers(cleanup);
+      const mounts = buildContainerMounts(tempProjectDir, projectDir);
 
-    cleanup();
-    return true;
-  } catch (error) {
-    console.log(color('red', `\n❌ Shell failed: ${error.message}`));
-    return false;
+      execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+        timeout: 30000 // 30 second timeout
+      });
+
+      cleanup();
+      return true;
+    } catch (error) {
+      retries++;
+      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+          // Wait 15 seconds
+        }
+        continue;
+      }
+      console.log(color('red', `\n❌ Shell failed: ${error.message}`));
+      return false;
+    }
   }
 }

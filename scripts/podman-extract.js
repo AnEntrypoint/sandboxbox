@@ -10,7 +10,9 @@ export async function extractZip(zipPath, extractTo) {
 
       execSync(`powershell -Command "${psCommand}"`, {
         stdio: 'pipe',
-        shell: true
+        shell: true,
+        windowsHide: true,
+        timeout: 120000 // ZIP extraction can take time
       });
 
       resolve();
@@ -33,14 +35,18 @@ export async function extractTarGz(tarPath, extractTo, stripComponents = 0) {
       try {
         execSync(`tar -xf "${tarWithoutGz}" -C "${extractTo}"${stripComponents ? ` --strip-components=${stripComponents}` : ''}`, {
           stdio: 'pipe',
-          shell: process.platform === 'win32'
+          shell: process.platform === 'win32',
+          windowsHide: process.platform === 'win32',
+          timeout: 120000
         });
       } catch (tarError) {
         if (process.platform === 'win32') {
           try {
             execSync(`bsdtar -xf "${tarWithoutGz}" -C "${extractTo}"${stripComponents ? ` --strip-components=${stripComponents}` : ''}`, {
               stdio: 'pipe',
-              shell: true
+              shell: true,
+              windowsHide: true,
+              timeout: 120000
             });
           } catch (bsdtarError) {
             throw new Error(`Failed to extract tar archive. Please install tar or bsdtar: ${tarError.message}`);
