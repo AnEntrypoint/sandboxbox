@@ -1,5 +1,5 @@
 import { existsSync } from 'fs';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { color } from './colors.js';
@@ -24,6 +24,63 @@ export function getPodmanPath() {
     return bundledPodman;
   }
   return 'podman';
+}
+
+export function setupBackendNonBlocking(podmanPath) {
+  if (process.platform === 'linux') return true;
+
+  const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+
+  try {
+    execSync(`"${podmanPath}" info`, execOptions);
+    return true;
+  } catch (infoError) {
+    if (!infoError.message.includes('Cannot connect to Podman')) {
+      return false;
+    }
+
+    console.log(color('yellow', '\n🔧 Initializing Podman backend (one-time setup, takes 2-3 minutes)...'));
+
+    try {
+      const machineListOutput = execSync(`"${podmanPath}" machine list --format json`, execOptions);
+      const machines = JSON.parse(machineListOutput || '[]');
+
+      if (machines.length === 0) {
+        console.log(color('cyan', '   Creating Podman machine...'));
+        const initCmd = process.platform === 'win32'
+          ? `"${podmanPath}" machine init --rootful=false`
+          : `"${podmanPath}" machine init`;
+
+        execSync(initCmd, {
+          stdio: 'inherit',
+          shell: true,
+          timeout: 120000 // 2 minutes
+        });
+      }
+
+      console.log(color('cyan', '   Starting Podman machine...'));
+      execSync(`"${podmanPath}" machine start`, {
+        stdio: 'inherit',
+        shell: true,
+        timeout: 60000 // 1 minute
+      });
+
+      console.log(color('green', '\n✅ Podman backend setup completed!\n'));
+      return true;
+    } catch (setupError) {
+      if (setupError.signal === 'SIGTERM') {
+        console.log(color('red', '\n❌ Setup timed out. Please run manually:'));
+      } else {
+        console.log(color('red', `\n❌ Setup failed: ${setupError.message}`));
+      }
+
+      const manualCmd = process.platform === 'win32'
+        ? `"${podmanPath}" machine init --rootful=false && "${podmanPath}" machine start`
+        : `"${podmanPath}" machine init && "${podmanPath}" machine start`;
+      console.log(color('cyan', `   Manual setup: ${manualCmd}`));
+      return false;
+    }
+  }
 }
 
 export function checkBackend(podmanPath) {

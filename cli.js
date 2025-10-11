@@ -10,7 +10,7 @@ import { color } from './utils/colors.js';
 import { showBanner, showHelp } from './utils/ui.js';
 import { buildCommand, runCommand, shellCommand, claudeCommand, versionCommand } from './utils/commands/index.js';
 
-async function main() {
+function main() {
   const args = process.argv.slice(2);
   showBanner();
 
@@ -71,10 +71,4 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(color('red', '❌ SandboxBox failed:'));
-  console.error(color('red', error.message));
-  console.error('');
-  console.error(color('yellow', '💡 Try: npx sandboxbox --help'));
-  process.exit(1);
-});
+main();
