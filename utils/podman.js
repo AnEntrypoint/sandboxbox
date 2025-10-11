@@ -26,6 +26,42 @@ export function getPodmanPath() {
   return 'podman';
 }
 
+export function ensureBackend(podmanPath) {
+  if (process.platform === 'linux') return true;
+
+  const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+
+  try {
+    execSync(`"${podmanPath}" info`, execOptions);
+    return true;
+  } catch (infoError) {
+    if (!infoError.message.includes('Cannot connect to Podman')) throw infoError;
+
+    console.log(color('yellow', '\n🔧 Initializing Podman backend (first run, takes 2-3 minutes)...'));
+
+    try {
+      const machineListOutput = execSync(`"${podmanPath}" machine list --format json`, execOptions);
+      const machines = JSON.parse(machineListOutput || '[]');
+
+      if (machines.length === 0) {
+        console.log(color('cyan', '   Creating Podman machine...'));
+        const initCmd = process.platform === 'win32'
+          ? `"${podmanPath}" machine init --rootful=false`
+          : `"${podmanPath}" machine init`;
+        execSync(initCmd, { stdio: 'inherit', shell: true });
+      }
+
+      console.log(color('cyan', '   Starting Podman machine...'));
+      execSync(`"${podmanPath}" machine start`, { stdio: 'inherit', shell: true });
+      console.log(color('green', '✅ Podman backend ready\n'));
+      return true;
+    } catch (backendError) {
+      console.log(color('red', `\n❌ Backend setup failed: ${backendError.message}`));
+      return false;
+    }
+  }
+}
+
 export function checkPodman() {
   const podmanPath = getPodmanPath();
   const isBundled = podmanPath.includes('bin');

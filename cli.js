@@ -8,7 +8,7 @@
 import { resolve } from 'path';
 import { color } from './utils/colors.js';
 import { showBanner, showHelp } from './utils/ui.js';
-import { buildCommand, runCommand, shellCommand, claudeCommand, versionCommand } from './utils/commands.js';
+import { buildCommand, runCommand, shellCommand, claudeCommand, versionCommand } from './utils/commands/index.js';
 
 async function main() {
   const args = process.argv.slice(2);
