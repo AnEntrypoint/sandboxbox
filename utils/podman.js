@@ -117,40 +117,38 @@ export function setupBackendNonBlocking(podmanPath) {
         startMachineWithRetry();
       }
 
-      // Verify backend is actually working with retries
+      // Give background process time to start, then verify once
+      console.log(color('cyan', '   Giving background process time to start...'));
+      const start = Date.now();
+      while (Date.now() - start < 15000) {
+        // Wait 15 seconds for background start
+      }
+
+      // Quick verification attempt
       console.log(color('cyan', '   Verifying backend connection...'));
-      let backendReady = false;
-      for (let attempt = 1; attempt <= 12; attempt++) { // Try for up to 2 minutes
-        try {
-          execSync(`"${podmanPath}" info`, {
-            ...execOptions,
-            timeout: 5000 // 5 second timeout
-          });
-          backendReady = true;
-          console.log(color('green', `   Backend ready on attempt ${attempt}`));
-          break;
-        } catch (verifyError) {
-          if (attempt < 12) {
-            console.log(color('yellow', `   Attempt ${attempt}/12: Backend not ready yet, waiting 10 seconds...`));
-            // Wait 10 seconds between attempts
-            const start = Date.now();
-            while (Date.now() - start < 10000) {
-              // Busy wait for 10 seconds
-            }
-          } else {
-            console.log(color('red', `   Backend verification failed after 12 attempts: ${verifyError.message}`));
-            console.log(color('yellow', '   Please ensure Podman machine is running manually'));
-            return false;
-          }
-        }
+      try {
+        execSync(`"${podmanPath}" info`, {
+          ...execOptions,
+          timeout: 5000 // 5 second timeout
+        });
+        console.log(color('green', '   Backend is ready!'));
+      } catch (verifyError) {
+        console.log(color('yellow', '   Backend still starting. This is normal for first-time setup.'));
+        console.log(color('cyan', '   If this persists, run manually:'));
+        const manualCmd = process.platform === 'win32'
+          ? `"${podmanPath}" machine init --rootful=false && "${podmanPath}" machine start`
+          : `"${podmanPath}" machine init && "${podmanPath}" machine start`;
+        console.log(color('cyan', `   ${manualCmd}`));
+        console.log(color('yellow', '   Then try sandboxbox again.'));
+        return false;
       }
 
       console.log(color('green', '\n✅ Podman backend setup completed!\n'));
       return true;
 
       function startMachineWithRetry() {
-        // Use spawn for non-blocking start with timeout
-        console.log(color('cyan', '   Starting Podman machine in background...'));
+        // Use completely silent background start
+        console.log(color('cyan', '   Starting Podman machine silently in background...'));
 
         const startProcess = spawn(`"${podmanPath}" machine start`, {
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -158,30 +156,8 @@ export function setupBackendNonBlocking(podmanPath) {
           detached: true
         });
 
-        let startOutput = '';
-        startProcess.stdout.on('data', (data) => {
-          startOutput += data.toString();
-        });
-
-        startProcess.stderr.on('data', (data) => {
-          startOutput += data.toString();
-        });
-
-        startProcess.on('close', (code) => {
-          if (code === 0) {
-            console.log(color('green', '   Machine start completed'));
-          } else {
-            console.log(color('yellow', `   Machine start process completed (code ${code})`));
-          }
-        });
-
-        startProcess.unref(); // Allow parent to exit
-
-        // Wait a bit for startup
-        console.log(color('yellow', '   Waiting for machine to start...'));
-        setTimeout(() => {
-          console.log(color('cyan', '   Verifying machine is running...'));
-        }, 5000);
+        startProcess.unref(); // Completely detach from parent
+        console.log(color('yellow', '   Machine start initiated in background (may take 1-2 minutes)'));
       }
     } catch (setupError) {
       if (setupError.signal === 'SIGTERM') {
