@@ -94,6 +94,14 @@ export function createIsolatedEnvironment(projectDir) {
 
     if (!existsSync(gitDirPath)) {
       // Not a git repository, skip git setup
+      // Define cleanup function early for early return
+      const cleanup = () => {
+        try {
+          rmSync(tempDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+      };
       return { tempDir, tempProjectDir, cleanup };
     }
 
@@ -104,6 +112,14 @@ export function createIsolatedEnvironment(projectDir) {
 
     if (!existsSync(tempGitDirPath)) {
       // Copy didn't preserve git, skip git setup
+      // Define cleanup function early for early return
+      const cleanup = () => {
+        try {
+          rmSync(tempDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+      };
       return { tempDir, tempProjectDir, cleanup };
     }
 
