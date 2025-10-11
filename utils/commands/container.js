@@ -40,7 +40,7 @@ export function buildCommand(dockerfilePath) {
       return true;
     } catch (error) {
       retries++;
-      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
@@ -97,7 +97,7 @@ export function runCommand(projectDir, cmd = 'bash') {
       return true;
     } catch (error) {
       retries++;
-      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
@@ -153,7 +153,7 @@ export function shellCommand(projectDir) {
       return true;
     } catch (error) {
       retries++;
-      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
