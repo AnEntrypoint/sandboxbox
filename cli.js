@@ -34,7 +34,8 @@ function main() {
         console.log(color('yellow', 'Usage: npx sandboxbox run <project-dir> [command]'));
         process.exit(1);
       }
-      const projectDir = resolve(commandArgs[0]);
+      // For NPX usage, resolve relative to current working directory, not script location
+      const projectDir = resolve(process.cwd(), commandArgs[0]);
       const cmd = commandArgs[1] || 'bash';
       if (!runCommand(projectDir, cmd)) process.exit(1);
       break;
@@ -45,7 +46,7 @@ function main() {
         console.log(color('yellow', 'Usage: npx sandboxbox shell <project-dir>'));
         process.exit(1);
       }
-      const shellProjectDir = resolve(commandArgs[0]);
+      const shellProjectDir = resolve(process.cwd(), commandArgs[0]);
       if (!shellCommand(shellProjectDir)) process.exit(1);
       break;
 
@@ -55,7 +56,7 @@ function main() {
         console.log(color('yellow', 'Usage: npx sandboxbox claude <project-dir>'));
         process.exit(1);
       }
-      const claudeProjectDir = resolve(commandArgs[0]);
+      const claudeProjectDir = resolve(process.cwd(), commandArgs[0]);
       const claudeCmd = commandArgs.slice(1).join(' ') || 'claude';
       if (!claudeCommand(claudeProjectDir, claudeCmd)) process.exit(1);
       break;

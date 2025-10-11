@@ -94,21 +94,26 @@ function setupMachineBackground(podmanPath) {
     ? `"${podmanPath}" machine init --rootful=false`
     : `"${podmanPath}" machine init`;
 
-  const initProcess = spawn(initCmd, {
-    stdio: ['pipe', 'pipe', 'pipe'],
+  // Windows-specific: Use completely hidden process execution
+  const spawnOptions = process.platform === 'win32' ? {
+    stdio: ['ignore', 'ignore', 'ignore'],
+    shell: true,
+    detached: true,
+    windowsHide: true, // Hide the console window on Windows
+    cwd: process.cwd() // Ensure working directory is set
+  } : {
+    stdio: ['ignore', 'ignore', 'ignore'],
     shell: true,
     detached: true
-  });
+  };
 
+  const initProcess = spawn(initCmd, spawnOptions);
   initProcess.unref();
 
   // Start machine after init completes (with delay)
   setTimeout(() => {
-    const startProcess = spawn(`"${podmanPath}" machine start`, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true,
-      detached: true
-    });
+    const startCmd = `"${podmanPath}" machine start`;
+    const startProcess = spawn(startCmd, spawnOptions);
     startProcess.unref();
   }, 30000); // Wait 30 seconds for init to complete
 

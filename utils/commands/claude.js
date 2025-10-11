@@ -44,23 +44,39 @@ export function claudeCommand(projectDir, command = 'claude') {
   if (!buildPodman) return false;
   if (!setupBackendNonBlocking(buildPodman)) return false;
 
-  try {
-    const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
-    setupCleanupHandlers(cleanup);
-    const mounts = buildContainerMounts(tempProjectDir, projectDir);
-    const containerCommand = buildClaudeContainerCommand(tempProjectDir, buildPodman, command, mounts);
+  // Retry container operation with backend readiness check
+  let retries = 0;
+  const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
-    execSync(containerCommand, {
-      stdio: 'inherit',
-      shell: process.platform === 'win32'
-    });
+  while (retries < maxRetries) {
+    try {
+      const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
+      setupCleanupHandlers(cleanup);
+      const mounts = buildContainerMounts(tempProjectDir, projectDir);
+      const containerCommand = buildClaudeContainerCommand(tempProjectDir, buildPodman, command, mounts);
 
-    cleanup();
-    console.log(color('green', '\n✅ Claude Code session completed! (Isolated - no host changes)'));
-    return true;
-  } catch (error) {
-    console.log(color('red', `\n❌ Claude Code failed: ${error.message}`));
-    return false;
+      execSync(containerCommand, {
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+        timeout: 30000 // 30 second timeout
+      });
+
+      cleanup();
+      console.log(color('green', '\n✅ Claude Code session completed! (Isolated - no host changes)'));
+      return true;
+    } catch (error) {
+      retries++;
+      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+          // Wait 15 seconds
+        }
+        continue;
+      }
+      console.log(color('red', `\n❌ Claude Code failed: ${error.message}`));
+      return false;
+    }
   }
 }
 
