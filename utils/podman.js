@@ -42,8 +42,18 @@ export function setupBackendNonBlocking(podmanPath) {
     console.log(color('yellow', '\n🔧 Initializing Podman backend (one-time setup, takes 2-3 minutes)...'));
 
     try {
-      const machineListOutput = execSync(`"${podmanPath}" machine list --format json`, execOptions);
-      const machines = JSON.parse(machineListOutput || '[]');
+      // Check existing machines with timeout
+      let machines = [];
+      try {
+        const machineListOutput = execSync(`"${podmanPath}" machine list --format json`, {
+          ...execOptions,
+          timeout: 10000 // 10 seconds timeout
+        });
+        machines = JSON.parse(machineListOutput || '[]');
+        console.log(color('cyan', `   Found ${machines.length} existing machine(s)`));
+      } catch (machineListError) {
+        console.log(color('yellow', '   Could not list machines, assuming no machines exist'));
+      }
 
       if (machines.length === 0) {
         console.log(color('cyan', '   Creating Podman machine...'));
@@ -51,19 +61,64 @@ export function setupBackendNonBlocking(podmanPath) {
           ? `"${podmanPath}" machine init --rootful=false`
           : `"${podmanPath}" machine init`;
 
-        execSync(initCmd, {
+        try {
+          execSync(initCmd, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: true,
+            timeout: 120000 // 2 minutes
+          });
+        } catch (initError) {
+          const errorOutput = initError.stdout?.toString() + initError.stderr?.toString();
+          if (errorOutput?.includes('already exists') ||
+              errorOutput?.includes('VM already exists') ||
+              initError.message.includes('already exists')) {
+            console.log(color('cyan', '   Machine already exists, proceeding...'));
+          } else {
+            console.log(color('red', `   Error output: ${errorOutput}`));
+            throw initError;
+          }
+        }
+      } else {
+        console.log(color('cyan', '   Using existing machine'));
+      }
+
+      console.log(color('cyan', '   Checking machine status...'));
+      try {
+        const statusOutput = execSync(`"${podmanPath}" machine list`, {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+          shell: true,
+          timeout: 10000
+        });
+
+        if (statusOutput.includes('Running')) {
+          console.log(color('green', '   Machine is already running'));
+        } else {
+          console.log(color('cyan', '   Starting Podman machine...'));
+          execSync(`"${podmanPath}" machine start`, {
+            stdio: 'inherit',
+            shell: true,
+            timeout: 180000 // 3 minutes
+          });
+        }
+      } catch (statusError) {
+        console.log(color('cyan', '   Could not check status, attempting to start machine...'));
+        execSync(`"${podmanPath}" machine start`, {
           stdio: 'inherit',
           shell: true,
-          timeout: 120000 // 2 minutes
+          timeout: 180000 // 3 minutes
         });
       }
 
-      console.log(color('cyan', '   Starting Podman machine...'));
-      execSync(`"${podmanPath}" machine start`, {
-        stdio: 'inherit',
-        shell: true,
-        timeout: 60000 // 1 minute
-      });
+      // Verify backend is actually working
+      console.log(color('cyan', '   Verifying backend connection...'));
+      try {
+        execSync(`"${podmanPath}" info`, execOptions);
+      } catch (verifyError) {
+        console.log(color('red', `   Backend verification failed: ${verifyError.message}`));
+        console.log(color('yellow', '   Please ensure Podman machine is running manually'));
+        return false;
+      }
 
       console.log(color('green', '\n✅ Podman backend setup completed!\n'));
       return true;
@@ -72,6 +127,7 @@ export function setupBackendNonBlocking(podmanPath) {
         console.log(color('red', '\n❌ Setup timed out. Please run manually:'));
       } else {
         console.log(color('red', `\n❌ Setup failed: ${setupError.message}`));
+        console.log(color('red', `   Error details: ${setupError.stack}`));
       }
 
       const manualCmd = process.platform === 'win32'
