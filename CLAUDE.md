@@ -7,8 +7,8 @@ Portable containerized environments using Podman with automatic WSL management a
 
 ### CLI (cli.js)
 - Commands: build, run, shell, claude, version
-- Auto-detects and starts Podman machine
 - Shell execution: `shell: process.platform === 'win32'`
+- Direct Podman command execution without blocking setup
 
 ### Podman Downloader (scripts/download-podman.js)
 - Cross-platform binary downloads from GitHub releases
@@ -18,7 +18,6 @@ Portable containerized environments using Podman with automatic WSL management a
 - Auto-detects existing installations
 - Auto-triggers on first use if Podman not found
 - Verifies binary existence post-download
-- Auto-initializes Podman machine on Windows after download
 
 ### Container Images
 - **sandboxbox:latest**: Full development environment
@@ -55,36 +54,26 @@ if (process.platform === 'win32') {
 }
 ```
 
-### Auto Podman Machine Start (Rootless Mode)
-```javascript
-// Initialize with explicit rootless mode for portability
-if (process.platform === 'win32' && isBundled) {
-  try {
-    execSync(`"${podmanPath}" info`, { stdio: 'pipe' });
-  } catch (infoError) {
-    if (infoError.message.includes('Cannot connect to Podman')) {
-      // Auto-initialize with rootless mode if machine doesn't exist
-      execSync(`"${podmanPath}" machine init --rootful=false`, { stdio: 'inherit' });
-      execSync(`"${podmanPath}" machine start`, { stdio: 'inherit' });
-    }
-  }
-}
+### Podman Backend Setup (One-Time)
+**Windows/macOS Only** (Linux runs natively):
+```bash
+# Windows - Rootless mode for portability
+podman machine init --rootful=false
+podman machine start
+
+# macOS - Default configuration
+podman machine init
+podman machine start
 ```
 
-### Rootless vs Rootful Mode
-- **Rootless (default)**: Runs without administrator privileges, portable across systems
-- **Configuration**: All machines initialized with `--rootful=false` flag
-- **Benefits**: No elevated permissions required, better security, true portability
-
 ### Portable Podman Architecture
-- **Direct Podman Execution**: Uses bundled Podman binary without complex machine management
-- **Rootless Operation**: Always runs in rootless mode for portability (--rootful=false)
-- **Self-Contained**: All dependencies included in the package
-- **Simple Configuration**: Minimal backend setup only when needed
-- **Auto-Download**: Downloads platform-specific binaries automatically
+- **Binary Portability**: Downloads platform-specific Podman binary automatically
+- **Rootless Operation**: Runs in rootless mode for true portability (--rootful=false)
+- **No Auto-Setup**: Backend setup is manual to avoid blocking operations
+- **Direct Execution**: Runs Podman commands directly, shows clear errors if backend needed
 - **NPX Compatible**: Works via npx without global installation
 - **Architecture Support**: Auto-detects and downloads correct binary (amd64 or arm64)
-- **Cross-Platform**: Windows, macOS, Linux - all with amd64/arm64 support
+- **Cross-Platform**: Windows (amd64/arm64), macOS (amd64/arm64), Linux (amd64/arm64)
 
 ## Isolation Architecture
 
