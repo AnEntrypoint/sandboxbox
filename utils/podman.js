@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { color } from './colors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,6 +24,42 @@ export function getPodmanPath() {
     return bundledPodman;
   }
   return 'podman';
+}
+
+export function ensureBackend(podmanPath) {
+  if (process.platform !== 'win32') return;
+
+  const execOptions = {
+    encoding: 'utf-8',
+    stdio: 'pipe',
+    shell: true
+  };
+
+  try {
+    execSync(`"${podmanPath}" info`, execOptions);
+  } catch (infoError) {
+    if (infoError.message.includes('Cannot connect to Podman')) {
+      console.log('\n🔧 Starting Podman backend (first run may take a few minutes)...');
+      try {
+        execSync(`"${podmanPath}" machine start`, {
+          stdio: 'inherit',
+          shell: true
+        });
+      } catch (startError) {
+        if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
+          console.log('🔧 Creating Podman machine (rootless mode)...');
+          execSync(`"${podmanPath}" machine init --rootful=false`, {
+            stdio: 'inherit',
+            shell: true
+          });
+          execSync(`"${podmanPath}" machine start`, {
+            stdio: 'inherit',
+            shell: true
+          });
+        }
+      }
+    }
+  }
 }
 
 export function checkPodman() {
@@ -60,49 +97,7 @@ export function checkPodman() {
 
       const newVersion = execSync(`"${newPodmanPath}" --version`, execOptions).trim();
       console.log(`\n✅ ${newVersion} (auto-downloaded)`);
-
-      // Auto-setup minimal backend for Windows portable operation
-      if (process.platform === 'win32' && isBundled) {
-        try {
-          execSync(`"${newPodmanPath}" info`, { ...execOptions, stdio: 'pipe' });
-        } catch (infoError) {
-          if (infoError.message.includes('Cannot connect to Podman')) {
-            console.log('\n🔧 Setting up portable Podman backend...');
-            try {
-              // Try to start existing machine first
-              execSync(`"${newPodmanPath}" machine start`, {
-                stdio: 'inherit',
-                shell: true,
-                cwd: __dirname
-              });
-              console.log('\n✅ Portable Podman backend started!');
-            } catch (startError) {
-              if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
-                try {
-                  // Create new machine if none exists
-                  execSync(`"${newPodmanPath}" machine init --rootful=false`, {
-                    stdio: 'inherit',
-                    shell: true,
-                    cwd: __dirname
-                  });
-                  execSync(`"${newPodmanPath}" machine start`, {
-                    stdio: 'inherit',
-                    shell: true,
-                    cwd: __dirname
-                  });
-                  console.log('\n✅ Portable Podman backend created and started!');
-                } catch (initError) {
-                  console.log('\n⚠️  Podman backend setup needed on first container run');
-                }
-              } else {
-                console.log('\n⚠️  Podman backend setup needed on first container run');
-              }
-            }
-          }
-        }
-      }
-
-      console.log('\n✅ Portable Podman ready');
+      console.log('✅ Portable Podman ready');
 
       return newPodmanPath;
     } catch (downloadError) {
