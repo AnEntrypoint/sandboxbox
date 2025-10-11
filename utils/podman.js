@@ -35,37 +35,85 @@ export function setupBackendNonBlocking(podmanPath) {
       return true;
     } catch (infoError) {
       console.log(color('yellow', '\n🔧 Starting Podman rootless service...'));
-      console.log(color('cyan', '   Run: podman system service --time=0 &'));
-      console.log(color('yellow', '   Or use systemd: sudo systemctl enable --now podman'));
-      return false;
+      // Try to start service automatically
+      try {
+        execSync('podman system service --time=0 &', { stdio: 'ignore', shell: true });
+        return true;
+      } catch (serviceError) {
+        console.log(color('cyan', '   Run: podman system service --time=0 &'));
+        return false;
+      }
     }
   }
 
-  // Windows/macOS: Show setup instructions (VM required, no way around it)
-  const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+  // Windows: Implement completely silent automated setup
+  if (process.platform === 'win32') {
+    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
 
-  try {
-    execSync(`"${podmanPath}" info`, execOptions);
-    return true;
-  } catch (infoError) {
-    if (!infoError.message.includes('Cannot connect to Podman')) {
-      return false;
+    try {
+      execSync(`"${podmanPath}" info`, execOptions);
+      return true;
+    } catch (infoError) {
+      if (!infoError.message.includes('Cannot connect to Podman')) {
+        return false;
+      }
+
+      console.log(color('yellow', '\n🔧 Setting up Podman automatically (silent mode)...'));
+
+      // Start machine setup in background without blocking
+      setupMachineBackground(podmanPath);
+      return true; // Continue even if setup is in progress
     }
-
-    console.log(color('yellow', '\n🔧 Podman machine setup required (Windows/macOS limitation)'));
-    console.log(color('cyan', process.platform === 'win32'
-      ? '   Windows requires a VM backend for Podman containers'
-      : '   macOS requires a VM backend for Podman containers'));
-
-    console.log(color('yellow', '\n📋 One-time setup (takes 2-3 minutes):'));
-    const setupCmd = process.platform === 'win32'
-      ? `podman machine init --rootful=false && podman machine start`
-      : `podman machine init && podman machine start`;
-
-    console.log(color('cyan', `   ${setupCmd}`));
-    console.log(color('yellow', '\n💡 After setup, sandboxbox will work instantly forever\n'));
-    return false;
   }
+
+  // macOS: Similar automated approach
+  if (process.platform === 'darwin') {
+    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+
+    try {
+      execSync(`"${podmanPath}" info`, execOptions);
+      return true;
+    } catch (infoError) {
+      if (!infoError.message.includes('Cannot connect to Podman')) {
+        return false;
+      }
+
+      console.log(color('yellow', '\n🔧 Setting up Podman automatically...'));
+      setupMachineBackground(podmanPath);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function setupMachineBackground(podmanPath) {
+  console.log(color('cyan', '   Starting machine setup in background...'));
+
+  const initCmd = process.platform === 'win32'
+    ? `"${podmanPath}" machine init --rootful=false`
+    : `"${podmanPath}" machine init`;
+
+  const initProcess = spawn(initCmd, {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    shell: true,
+    detached: true
+  });
+
+  initProcess.unref();
+
+  // Start machine after init completes (with delay)
+  setTimeout(() => {
+    const startProcess = spawn(`"${podmanPath}" machine start`, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true,
+      detached: true
+    });
+    startProcess.unref();
+  }, 30000); // Wait 30 seconds for init to complete
+
+  console.log(color('yellow', '   Setup initiated in background (may take 2-3 minutes)'));
+  console.log(color('cyan', '   Container operations will work when setup completes\n'));
 }
 
 export function checkBackend(podmanPath) {

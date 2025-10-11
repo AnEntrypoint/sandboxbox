@@ -16,19 +16,40 @@ export function buildCommand(dockerfilePath) {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!setupBackendNonBlocking(podmanPath)) return false;
 
-  try {
-    execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
-      stdio: 'inherit',
-      cwd: dirname(dockerfilePath),
-      shell: process.platform === 'win32'
-    });
-    console.log(color('green', '\n✅ Container built successfully!'));
-    return true;
-  } catch (error) {
-    console.log(color('red', `\n❌ Build failed: ${error.message}`));
-    return false;
+  // Start backend setup but don't block on Windows/macOS
+  const backendReady = setupBackendNonBlocking(podmanPath);
+  if (process.platform === 'linux' && !backendReady) {
+    return false; // Only block on Linux for rootless service
+  }
+
+  // Retry container operation with backend readiness check
+  let retries = 0;
+  const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
+
+  while (retries < maxRetries) {
+    try {
+      execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
+        stdio: 'inherit',
+        cwd: dirname(dockerfilePath),
+        shell: process.platform === 'win32',
+        timeout: 30000 // 30 second timeout
+      });
+      console.log(color('green', '\n✅ Container built successfully!'));
+      return true;
+    } catch (error) {
+      retries++;
+      if (retries < maxRetries && error.message.includes('Cannot connect to Podman')) {
+        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+          // Wait 15 seconds
+        }
+        continue;
+      }
+      console.log(color('red', `\n❌ Build failed: ${error.message}`));
+      return false;
+    }
   }
 }
 
@@ -45,7 +66,12 @@ export function runCommand(projectDir, cmd = 'bash') {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!setupBackendNonBlocking(podmanPath)) return false;
+
+  // Start backend setup but don't block on Windows/macOS
+  const backendReady = setupBackendNonBlocking(podmanPath);
+  if (process.platform === 'linux' && !backendReady) {
+    return false; // Only block on Linux for rootless service
+  }
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
@@ -78,7 +104,12 @@ export function shellCommand(projectDir) {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
-  if (!setupBackendNonBlocking(podmanPath)) return false;
+
+  // Start backend setup but don't block on Windows/macOS
+  const backendReady = setupBackendNonBlocking(podmanPath);
+  if (process.platform === 'linux' && !backendReady) {
+    return false; // Only block on Linux for rootless service
+  }
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
