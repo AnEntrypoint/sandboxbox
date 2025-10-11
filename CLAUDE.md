@@ -5,10 +5,11 @@ Portable containerized environments using Podman with automatic WSL management a
 
 ## Core Components
 
-### CLI (cli.js)
-- Commands: build, run, shell, claude, version
-- Shell execution: `shell: process.platform === 'win32'`
-- Direct Podman command execution without blocking setup
+### CLI Architecture
+- **Entry**: cli.js (main entry point)
+- **Commands**: utils/commands/container.js (build, run, shell), utils/commands/claude.js (claude), utils/commands/index.js (version + exports)
+- **Pattern**: Modular command structure, each file <100 lines
+- **Shell execution**: `shell: process.platform === 'win32'` for all execSync calls
 
 ### Podman Downloader (scripts/download-podman.js)
 - Cross-platform binary downloads from GitHub releases
@@ -54,25 +55,21 @@ if (process.platform === 'win32') {
 }
 ```
 
-### Podman Backend Setup (One-Time)
-**Windows/macOS Only** (Linux runs natively):
-```bash
-# Windows - Rootless mode for portability
-podman machine init --rootful=false
-podman machine start
+### Automatic Backend Setup
+**Implementation**: `ensureBackend(podmanPath)` in utils/podman.js
+- Linux: Returns immediately (native execution, no backend needed)
+- Windows/macOS: Checks `podman info` connectivity
+- Auto-initializes on first run: `podman machine init --rootful=false` (Windows) or `podman machine init` (macOS)
+- Auto-starts machine: `podman machine start`
+- Shows progress: "Initializing Podman backend (first run, takes 2-3 minutes)"
+- Detects existing machines via `podman machine list --format json`
+- Called before all container operations (build, run, shell, claude)
 
-# macOS - Default configuration
-podman machine init
-podman machine start
-```
-
-### Portable Podman Architecture
-- **Binary Portability**: Downloads platform-specific Podman binary automatically
-- **Rootless Operation**: Runs in rootless mode for true portability (--rootful=false)
-- **No Auto-Setup**: Backend setup is manual to avoid blocking operations
-- **Direct Execution**: Runs Podman commands directly, shows clear errors if backend needed
+### Portable Architecture
+- **Binary Auto-Download**: Platform-specific Podman binary (amd64/arm64) from GitHub releases
+- **Rootless Mode**: Windows uses `--rootful=false` for portability
+- **Backend Automation**: Fully automatic backend initialization on first container operation
 - **NPX Compatible**: Works via npx without global installation
-- **Architecture Support**: Auto-detects and downloads correct binary (amd64 or arm64)
 - **Cross-Platform**: Windows (amd64/arm64), macOS (amd64/arm64), Linux (amd64/arm64)
 
 ## Isolation Architecture
