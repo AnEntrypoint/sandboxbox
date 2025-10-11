@@ -26,42 +26,6 @@ export function getPodmanPath() {
   return 'podman';
 }
 
-export function ensureBackend(podmanPath) {
-  if (process.platform !== 'win32') return;
-
-  const execOptions = {
-    encoding: 'utf-8',
-    stdio: 'pipe',
-    shell: true
-  };
-
-  try {
-    execSync(`"${podmanPath}" info`, execOptions);
-  } catch (infoError) {
-    if (infoError.message.includes('Cannot connect to Podman')) {
-      console.log('\n🔧 Starting Podman backend (first run may take a few minutes)...');
-      try {
-        execSync(`"${podmanPath}" machine start`, {
-          stdio: 'inherit',
-          shell: true
-        });
-      } catch (startError) {
-        if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
-          console.log('🔧 Creating Podman machine (rootless mode)...');
-          execSync(`"${podmanPath}" machine init --rootful=false`, {
-            stdio: 'inherit',
-            shell: true
-          });
-          execSync(`"${podmanPath}" machine start`, {
-            stdio: 'inherit',
-            shell: true
-          });
-        }
-      }
-    }
-  }
-}
-
 export function checkPodman() {
   const podmanPath = getPodmanPath();
   const isBundled = podmanPath.includes('bin');
