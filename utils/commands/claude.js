@@ -26,7 +26,8 @@ export function claudeCommand(projectDir, command = 'claude') {
   try {
     execSync(`"${podmanPath}" image inspect sandboxbox-local:latest`, {
       stdio: 'pipe',
-      shell: process.platform === 'win32'
+      shell: process.platform === 'win32',
+      windowsHide: process.platform === 'win32'
     });
   } catch {
     console.log(color('yellow', '📦 Building Claude Code container...'));
@@ -58,6 +59,7 @@ export function claudeCommand(projectDir, command = 'claude') {
       execSync(containerCommand, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
+        windowsHide: process.platform === 'win32',
         timeout: 30000 // 30 second timeout
       });
 
@@ -95,7 +97,8 @@ function buildClaudeContainer() {
     execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox-local:latest .`, {
       stdio: 'inherit',
       cwd: resolve(__dirname, '..', '..'),
-      shell: process.platform === 'win32'
+      shell: process.platform === 'win32',
+      windowsHide: process.platform === 'win32'
     });
     console.log(color('green', '\n✅ Claude Code container built successfully!'));
     return true;

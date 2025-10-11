@@ -33,6 +33,7 @@ export function buildCommand(dockerfilePath) {
         stdio: 'inherit',
         cwd: dirname(dockerfilePath),
         shell: process.platform === 'win32',
+        windowsHide: process.platform === 'win32',
         timeout: 30000 // 30 second timeout
       });
       console.log(color('green', '\n✅ Container built successfully!'));
@@ -86,6 +87,7 @@ export function runCommand(projectDir, cmd = 'bash') {
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
+        windowsHide: process.platform === 'win32',
         timeout: 30000 // 30 second timeout
       });
 
@@ -140,6 +142,7 @@ export function shellCommand(projectDir) {
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
+        windowsHide: process.platform === 'win32',
         timeout: 30000 // 30 second timeout
       });
 
