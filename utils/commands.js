@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { color } from './colors.js';
-import { checkPodman, getPodmanPath } from './podman.js';
+import { checkPodman, getPodmanPath, ensureBackend } from './podman.js';
 import { buildClaudeContainerCommand, createClaudeDockerfile } from './claude-workspace.js';
 import { createIsolatedEnvironment, setupCleanupHandlers, buildContainerMounts } from './isolation.js';
 
@@ -21,6 +21,8 @@ export function buildCommand(dockerfilePath) {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
+
+  ensureBackend(podmanPath);
 
   try {
     execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox:latest .`, {
@@ -49,6 +51,8 @@ export function runCommand(projectDir, cmd = 'bash') {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
+
+  ensureBackend(podmanPath);
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
@@ -81,6 +85,8 @@ export function shellCommand(projectDir) {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
+
+  ensureBackend(podmanPath);
 
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
@@ -133,6 +139,8 @@ export function claudeCommand(projectDir, command = 'claude') {
   const buildPodman = checkPodman();
   if (!buildPodman) return false;
 
+  ensureBackend(buildPodman);
+
   try {
     const { tempProjectDir, cleanup } = createIsolatedEnvironment(projectDir);
     setupCleanupHandlers(cleanup);
@@ -177,6 +185,8 @@ function buildClaudeContainer() {
 
   const podmanPath = checkPodman();
   if (!podmanPath) return false;
+
+  ensureBackend(podmanPath);
 
   try {
     execSync(`"${podmanPath}" build -f "${dockerfilePath}" -t sandboxbox-local:latest .`, {
