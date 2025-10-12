@@ -60,8 +60,8 @@ export function claudeCommand(projectDir, command = 'claude') {
       execSync(containerCommand, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
-        windowsHide: process.platform === 'win32',
-        timeout: 30000 // 30 second timeout
+        windowsHide: process.platform === 'win32'
+        // No timeout for interactive Claude sessions
       });
 
       cleanup();
