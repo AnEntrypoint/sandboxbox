@@ -96,26 +96,53 @@ function setupMachineBackground(podmanPath) {
 
   // Windows-specific: Use completely hidden process execution
   const spawnOptions = process.platform === 'win32' ? {
-    stdio: ['ignore', 'ignore', 'ignore'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     shell: true,
     detached: true,
     windowsHide: true, // Hide the console window on Windows
     cwd: process.cwd() // Ensure working directory is set
   } : {
-    stdio: ['ignore', 'ignore', 'ignore'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     shell: true,
     detached: true
   };
 
   const initProcess = spawn(initCmd, spawnOptions);
-  initProcess.unref();
 
-  // Start machine after init completes (with delay)
-  setTimeout(() => {
-    const startCmd = `"${podmanPath}" machine start`;
-    const startProcess = spawn(startCmd, spawnOptions);
-    startProcess.unref();
-  }, 30000); // Wait 30 seconds for init to complete
+  // Handle init process completion/errors
+  initProcess.on('error', (error) => {
+    console.log(color('red', `   Init process error: ${error.message}`));
+  });
+
+  initProcess.on('exit', (code) => {
+    if (code === 0) {
+      console.log(color('green', '   Machine initialization completed, starting in 10 seconds...'));
+
+      // Start machine after init completes
+      setTimeout(() => {
+        const startCmd = `"${podmanPath}" machine start`;
+        const startProcess = spawn(startCmd, spawnOptions);
+
+        startProcess.on('error', (error) => {
+          console.log(color('red', `   Start process error: ${error.message}`));
+        });
+
+        startProcess.on('exit', (startCode) => {
+          if (startCode === 0) {
+            console.log(color('green', '   Podman machine started successfully!'));
+          } else {
+            console.log(color('red', `   Machine start failed with code: ${startCode}`));
+          }
+        });
+
+        startProcess.unref();
+      }, 10000); // Wait 10 seconds before starting
+    } else {
+      console.log(color('red', `   Machine initialization failed with code: ${code}`));
+    }
+  });
+
+  initProcess.unref();
 
   console.log(color('yellow', '   Setup initiated in background (may take 2-3 minutes)'));
   console.log(color('cyan', '   Container operations will work when setup completes\n'));

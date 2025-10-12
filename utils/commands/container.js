@@ -84,7 +84,6 @@ export function runCommand(projectDir, cmd = 'bash') {
   const maxRetries = process.platform === 'linux' ? 3 : 12; // More retries for Windows/macOS
 
   while (retries < maxRetries) {
-      console.log(color('cyan', `   Debug: Attempt ${retries + 1}/${maxRetries} - running container command...`));
     try {
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
         stdio: 'inherit',
@@ -98,10 +97,6 @@ export function runCommand(projectDir, cmd = 'bash') {
       return true;
     } catch (error) {
       retries++;
-      // Debug: Log the actual error message
-      console.log(color('cyan', `   Debug: Error message: "${error.message}"`));
-      console.log(color('cyan', `   Debug: Checking retry patterns...`));
-
       if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused') || error.message.includes('Command failed'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
