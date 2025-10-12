@@ -93,10 +93,14 @@ export function runCommand(projectDir, cmd = 'bash') {
         timeout: 30000 // 30 second timeout
       };
 
-      // For echo command, use non-interactive mode
+      // For echo command, capture and display output
       if (cmd === 'echo' || cmd.startsWith('echo ')) {
         const echoCmd = cmd.replace('echo ', '');
-        execSync(`"${podmanPath}" run --rm ${mounts.join(' ')} -w /workspace sandboxbox:latest echo ${echoCmd}`, containerOptions);
+        const output = execSync(`"${podmanPath}" run --rm ${mounts.join(' ')} -w /workspace sandboxbox:latest echo ${echoCmd}`, {
+          ...containerOptions,
+          encoding: 'utf8'
+        }).trim();
+        console.log(output);
       } else {
         execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, containerOptions);
       }
