@@ -132,7 +132,7 @@ export function createIsolatedEnvironment(projectDir) {
       stdio: 'pipe',
       shell: true,
       windowsHide: process.platform === 'win32',
-      timeout: 10000
+      timeout: 60000 // 1 minute for git operations
     });
 
     // Configure host repository to accept pushes to checked-out branch
@@ -142,7 +142,7 @@ export function createIsolatedEnvironment(projectDir) {
           stdio: 'pipe',
           shell: true,
           windowsHide: true,
-          timeout: 10000
+          timeout: 60000 // 1 minute for git operations
         });
       } catch (e) {
         // Ignore if git config fails
@@ -151,7 +151,7 @@ export function createIsolatedEnvironment(projectDir) {
       execSync(`cd "${normalizedOriginalDir}" && git config receive.denyCurrentBranch ignore`, {
         stdio: 'pipe',
         shell: true,
-        timeout: 10000
+        timeout: 60000 // 1 minute for git operations
       });
     }
 
@@ -162,7 +162,7 @@ export function createIsolatedEnvironment(projectDir) {
           stdio: 'pipe',
           shell: true,
           windowsHide: true,
-          timeout: 10000
+          timeout: 60000 // 1 minute for git operations
         });
       } catch (e) {
         // Ignore if origin doesn't exist
@@ -171,7 +171,7 @@ export function createIsolatedEnvironment(projectDir) {
       execSync(`cd "${normalizedTempDir}" && git remote remove origin 2>/dev/null || true`, {
         stdio: 'pipe',
         shell: true,
-        timeout: 10000
+        timeout: 60000 // 1 minute for git operations
       });
     }
 
@@ -180,7 +180,7 @@ export function createIsolatedEnvironment(projectDir) {
       stdio: 'pipe',
       shell: true,
       windowsHide: process.platform === 'win32',
-      timeout: 10000
+      timeout: 60000 // 1 minute for git operations
     });
 
     // Set up upstream tracking for current branch (use push -u to set upstream)
@@ -188,7 +188,7 @@ export function createIsolatedEnvironment(projectDir) {
       encoding: 'utf8',
       stdio: 'pipe',
       windowsHide: process.platform === 'win32',
-      timeout: 10000
+      timeout: 60000 // 1 minute for git operations
     }).trim();
 
     // Note: Upstream will be set automatically on first push with -u flag
