@@ -85,6 +85,7 @@ export function runCommand(projectDir, cmd = 'bash') {
 
   while (retries < maxRetries) {
     try {
+      // Try container operation first
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
@@ -98,7 +99,36 @@ export function runCommand(projectDir, cmd = 'bash') {
     } catch (error) {
       retries++;
       if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused') || error.message.includes('Command failed'))) {
-        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
+        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), initializing machine...`));
+
+        // Actually initialize the machine instead of just waiting
+        if (process.platform === 'win32') {
+          try {
+            console.log(color('cyan', '   Initializing Podman machine...'));
+            execSync(`"${podmanPath}" machine init --rootful=false`, {
+              stdio: 'pipe',
+              shell: true,
+              windowsHide: true,
+              timeout: 180000 // 3 minutes for machine init
+            });
+
+            console.log(color('cyan', '   Starting Podman machine...'));
+            execSync(`"${podmanPath}" machine start`, {
+              stdio: 'pipe',
+              shell: true,
+              windowsHide: true,
+              timeout: 60000 // 1 minute for machine start
+            });
+
+            console.log(color('green', '   ✅ Podman machine ready!'));
+            continue; // Try container again immediately
+          } catch (machineError) {
+            console.log(color('red', `   Machine setup failed: ${machineError.message}`));
+          }
+        }
+
+        // If machine setup failed or not Windows, wait and retry
+        console.log(color('yellow', `   Waiting 15 seconds before retry...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
           // Wait 15 seconds
@@ -154,7 +184,36 @@ export function shellCommand(projectDir) {
     } catch (error) {
       retries++;
       if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused') || error.message.includes('Command failed'))) {
-        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
+        console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), initializing machine...`));
+
+        // Actually initialize the machine instead of just waiting
+        if (process.platform === 'win32') {
+          try {
+            console.log(color('cyan', '   Initializing Podman machine...'));
+            execSync(`"${podmanPath}" machine init --rootful=false`, {
+              stdio: 'pipe',
+              shell: true,
+              windowsHide: true,
+              timeout: 180000 // 3 minutes for machine init
+            });
+
+            console.log(color('cyan', '   Starting Podman machine...'));
+            execSync(`"${podmanPath}" machine start`, {
+              stdio: 'pipe',
+              shell: true,
+              windowsHide: true,
+              timeout: 60000 // 1 minute for machine start
+            });
+
+            console.log(color('green', '   ✅ Podman machine ready!'));
+            continue; // Try container again immediately
+          } catch (machineError) {
+            console.log(color('red', `   Machine setup failed: ${machineError.message}`));
+          }
+        }
+
+        // If machine setup failed or not Windows, wait and retry
+        console.log(color('yellow', `   Waiting 15 seconds before retry...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
           // Wait 15 seconds
