@@ -104,14 +104,7 @@ export function runCommand(projectDir, cmd = 'bash') {
         // Actually initialize the machine instead of just waiting
         if (process.platform === 'win32') {
           try {
-            console.log(color('cyan', '   Initializing Podman machine...'));
-            execSync(`"${podmanPath}" machine init --rootful=false`, {
-              stdio: 'pipe',
-              shell: true,
-              windowsHide: true,
-              timeout: 180000 // 3 minutes for machine init
-            });
-
+            // First try to start existing machine
             console.log(color('cyan', '   Starting Podman machine...'));
             execSync(`"${podmanPath}" machine start`, {
               stdio: 'pipe',
@@ -120,10 +113,36 @@ export function runCommand(projectDir, cmd = 'bash') {
               timeout: 60000 // 1 minute for machine start
             });
 
-            console.log(color('green', '   ✅ Podman machine ready!'));
+            console.log(color('green', '   ✅ Podman machine started!'));
             continue; // Try container again immediately
-          } catch (machineError) {
-            console.log(color('red', `   Machine setup failed: ${machineError.message}`));
+          } catch (startError) {
+            // Machine doesn't exist or failed to start, try initializing it
+            if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
+              try {
+                console.log(color('cyan', '   Initializing new Podman machine...'));
+                execSync(`"${podmanPath}" machine init --rootful=false`, {
+                  stdio: 'pipe',
+                  shell: true,
+                  windowsHide: true,
+                  timeout: 180000 // 3 minutes for machine init
+                });
+
+                console.log(color('cyan', '   Starting new Podman machine...'));
+                execSync(`"${podmanPath}" machine start`, {
+                  stdio: 'pipe',
+                  shell: true,
+                  windowsHide: true,
+                  timeout: 60000 // 1 minute for machine start
+                });
+
+                console.log(color('green', '   ✅ Podman machine ready!'));
+                continue; // Try container again immediately
+              } catch (initError) {
+                console.log(color('red', `   Machine init failed: ${initError.message}`));
+              }
+            } else {
+              console.log(color('red', `   Machine start failed: ${startError.message}`));
+            }
           }
         }
 
@@ -189,14 +208,7 @@ export function shellCommand(projectDir) {
         // Actually initialize the machine instead of just waiting
         if (process.platform === 'win32') {
           try {
-            console.log(color('cyan', '   Initializing Podman machine...'));
-            execSync(`"${podmanPath}" machine init --rootful=false`, {
-              stdio: 'pipe',
-              shell: true,
-              windowsHide: true,
-              timeout: 180000 // 3 minutes for machine init
-            });
-
+            // First try to start existing machine
             console.log(color('cyan', '   Starting Podman machine...'));
             execSync(`"${podmanPath}" machine start`, {
               stdio: 'pipe',
@@ -205,10 +217,36 @@ export function shellCommand(projectDir) {
               timeout: 60000 // 1 minute for machine start
             });
 
-            console.log(color('green', '   ✅ Podman machine ready!'));
+            console.log(color('green', '   ✅ Podman machine started!'));
             continue; // Try container again immediately
-          } catch (machineError) {
-            console.log(color('red', `   Machine setup failed: ${machineError.message}`));
+          } catch (startError) {
+            // Machine doesn't exist or failed to start, try initializing it
+            if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
+              try {
+                console.log(color('cyan', '   Initializing new Podman machine...'));
+                execSync(`"${podmanPath}" machine init --rootful=false`, {
+                  stdio: 'pipe',
+                  shell: true,
+                  windowsHide: true,
+                  timeout: 180000 // 3 minutes for machine init
+                });
+
+                console.log(color('cyan', '   Starting new Podman machine...'));
+                execSync(`"${podmanPath}" machine start`, {
+                  stdio: 'pipe',
+                  shell: true,
+                  windowsHide: true,
+                  timeout: 60000 // 1 minute for machine start
+                });
+
+                console.log(color('green', '   ✅ Podman machine ready!'));
+                continue; // Try container again immediately
+              } catch (initError) {
+                console.log(color('red', `   Machine init failed: ${initError.message}`));
+              }
+            } else {
+              console.log(color('red', `   Machine start failed: ${startError.message}`));
+            }
           }
         }
 
