@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "execute",
+    "arguments": {
+      "workingDirectory": "/config/workspace/mcp-repl",
+      "code": "const fs = require('fs');\n\n// Read the shows that made the cut\nconst shows = JSON.parse(fs.readFileSync('shows_that_made_the_cut.json', 'utf8'));\n\n// Extract unique show titles\nconst showTitles = [...new Set(shows.map(s => s.title))].sort();\n\nconsole.log('=== ALL SHOWS THAT MADE THE CUT ===\\n');\n\nshowTitles.forEach((title, i) => {\n  console.log(`${(i+1).toString().padStart(4)}. ${title}`);\n});\n\nconsole.log(`\\n=== TOTAL: ${showTitles.length} unique shows ===`);\n",
+      "runtime": "nodejs"
+    }
+  }
+}

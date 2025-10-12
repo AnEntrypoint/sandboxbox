@@ -440,6 +440,28 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
 
     finalCode = `
 // Note: Running in MCP context with limited stdin access
+// Enhanced require() handling for CommonJS compatibility
+(function() {
+  const originalRequire = globalThis.require;
+  if (originalRequire && !globalThis._enhancedRequire) {
+    globalThis.require = function(module) {
+      try {
+        return originalRequire(module);
+      } catch (error) {
+        // For CommonJS modules that fail, provide helpful error
+        if (error.code === 'MODULE_NOT_FOUND') {
+          console.error(\`❌ CommonJS require() failed for '\${module}'\`);
+          console.error(\`💡 Try ESM import instead: import '\${module}' from '\${module}'\`);
+          console.error(\`💡 Or dynamic import: const mod = await import('\${module}')\`);
+          throw new Error(\`Module '\${module}' not available. Use ESM syntax instead of require().\`);
+        }
+        throw error;
+      }
+    };
+    globalThis._enhancedRequire = true;
+  }
+})();
+
 ${guidance}
 
 ${codeOrCommands}
