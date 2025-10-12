@@ -40,7 +40,7 @@ export function buildCommand(dockerfilePath) {
       return true;
     } catch (error) {
       retries++;
-      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused'))) {
+      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused') || error.message.includes('Command failed'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
@@ -102,7 +102,7 @@ export function runCommand(projectDir, cmd = 'bash') {
       console.log(color('cyan', `   Debug: Error message: "${error.message}"`));
       console.log(color('cyan', `   Debug: Checking retry patterns...`));
 
-      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused'))) {
+      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused') || error.message.includes('Command failed'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
@@ -158,7 +158,7 @@ export function shellCommand(projectDir) {
       return true;
     } catch (error) {
       retries++;
-      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused'))) {
+      if (retries < maxRetries && (error.message.includes('Cannot connect to Podman') || error.message.includes('connectex') || error.message.includes('No connection could be made') || error.message.includes('actively refused') || error.message.includes('Command failed'))) {
         console.log(color('yellow', `   Backend not ready yet (${retries}/${maxRetries}), waiting 15 seconds...`));
         const start = Date.now();
         while (Date.now() - start < 15000) {
