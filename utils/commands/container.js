@@ -34,7 +34,7 @@ export function buildCommand(dockerfilePath) {
         cwd: dirname(dockerfilePath),
         shell: process.platform === 'win32',
         windowsHide: process.platform === 'win32',
-        timeout: 30000 // 30 second timeout
+        timeout: 300000 // 5 minutes for container builds
       });
       console.log(color('green', '\n✅ Container built successfully!'));
       return true;
@@ -102,7 +102,12 @@ export function runCommand(projectDir, cmd = 'bash') {
         }).trim();
         console.log(output);
       } else {
-        execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, containerOptions);
+        // For longer-running commands, use extended timeout
+        const longRunningOptions = {
+          ...containerOptions,
+          timeout: 600000 // 10 minutes for longer operations
+        };
+        execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, longRunningOptions);
       }
 
       cleanup();
@@ -213,7 +218,7 @@ export function shellCommand(projectDir) {
         stdio: process.platform === 'win32' ? ['pipe', 'pipe', 'pipe'] : 'inherit',
         shell: process.platform === 'win32',
         windowsHide: process.platform === 'win32',
-        timeout: 30000 // 30 second timeout
+        timeout: 600000 // 10 minutes for interactive shell sessions
       });
 
       cleanup();
