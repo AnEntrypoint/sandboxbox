@@ -439,31 +439,7 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
 ` : '';
 
     finalCode = `
-// Prevent stdin hanging in MCP context
-try {
-  if (process.stdin) {
-    process.stdin.destroy();
-  }
-} catch (e) {
-  // Ignore errors
-}
-
-// Override process.stdin methods to prevent hanging
-const originalStdin = process.stdin;
-process.stdin = {
-  isTTY: false,
-  setEncoding: () => {},
-  on: (event, listener) => {
-    if (event === 'data' || event === 'end') {
-      // Immediately emit end to prevent hanging
-      setTimeout(() => listener(), 0);
-    }
-  },
-  resume: () => {},
-  pause: () => {},
-  destroy: () => {}
-};
-
+// Note: Running in MCP context with limited stdin access
 ${guidance}
 
 ${codeOrCommands}
