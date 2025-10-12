@@ -86,12 +86,20 @@ export function runCommand(projectDir, cmd = 'bash') {
   while (retries < maxRetries) {
     try {
       // Try container operation first
-      execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, {
-        stdio: 'inherit',
+      const containerOptions = {
+        stdio: process.platform === 'win32' ? ['pipe', 'pipe', 'pipe'] : 'inherit',
         shell: process.platform === 'win32',
         windowsHide: process.platform === 'win32',
         timeout: 30000 // 30 second timeout
-      });
+      };
+
+      // For echo command, use non-interactive mode
+      if (cmd === 'echo' || cmd.startsWith('echo ')) {
+        const echoCmd = cmd.replace('echo ', '');
+        execSync(`"${podmanPath}" run --rm ${mounts.join(' ')} -w /workspace sandboxbox:latest echo ${echoCmd}`, containerOptions);
+      } else {
+        execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest ${cmd}`, containerOptions);
+      }
 
       cleanup();
       console.log(color('green', '\n✅ Container execution completed! (Isolated - no host changes)'));
@@ -114,7 +122,13 @@ export function runCommand(projectDir, cmd = 'bash') {
             });
 
             console.log(color('green', '   ✅ Podman machine started!'));
-            continue; // Try container again immediately
+            // Wait a bit more for machine to be fully ready
+            console.log(color('cyan', '   Waiting 5 seconds for machine to fully initialize...'));
+            const readyStart = Date.now();
+            while (Date.now() - readyStart < 5000) {
+              // Wait 5 seconds
+            }
+            continue; // Try container again
           } catch (startError) {
             // Machine doesn't exist or failed to start, try initializing it
             if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
@@ -192,7 +206,7 @@ export function shellCommand(projectDir) {
   while (retries < maxRetries) {
     try {
       execSync(`"${podmanPath}" run --rm -it ${mounts.join(' ')} -w /workspace sandboxbox:latest /bin/bash`, {
-        stdio: 'inherit',
+        stdio: process.platform === 'win32' ? ['pipe', 'pipe', 'pipe'] : 'inherit',
         shell: process.platform === 'win32',
         windowsHide: process.platform === 'win32',
         timeout: 30000 // 30 second timeout
@@ -218,7 +232,13 @@ export function shellCommand(projectDir) {
             });
 
             console.log(color('green', '   ✅ Podman machine started!'));
-            continue; // Try container again immediately
+            // Wait a bit more for machine to be fully ready
+            console.log(color('cyan', '   Waiting 5 seconds for machine to fully initialize...'));
+            const readyStart = Date.now();
+            while (Date.now() - readyStart < 5000) {
+              // Wait 5 seconds
+            }
+            continue; // Try container again
           } catch (startError) {
             // Machine doesn't exist or failed to start, try initializing it
             if (startError.message.includes('does not exist') || startError.message.includes('not found')) {
