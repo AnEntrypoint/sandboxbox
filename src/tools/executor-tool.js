@@ -425,8 +425,19 @@ export async function executeWithRuntime(codeOrCommands, runtime, options = {}) 
   
   let finalCode = codeOrCommands;
 
-  // Handle stdin for Node.js to prevent hanging
+  // Handle stdin and provide ESM guidance for Node.js
   if (runtime === 'nodejs') {
+    // Check if code uses CommonJS require() and provide guidance
+    const usesRequire = codeOrCommands.includes('require(');
+    const guidance = usesRequire ? `
+// Note: This code uses require() which is CommonJS syntax.
+// In ESM mode (which MCP glootie uses), use:
+//   const fs = require('fs');           // ❌ CommonJS (won't work)
+//   import fs from 'fs';               // ✅ ESM (works)
+//   const fs = await import('fs');     // ✅ ESM dynamic import (works)
+
+` : '';
+
     finalCode = `
 // Prevent stdin hanging in MCP context
 try {
@@ -452,6 +463,8 @@ process.stdin = {
   pause: () => {},
   destroy: () => {}
 };
+
+${guidance}
 
 ${codeOrCommands}
 `;
