@@ -29,7 +29,7 @@ export function getPodmanPath() {
 export function setupBackendNonBlocking(podmanPath) {
   if (process.platform === 'linux') {
     // Linux can run true rootless Podman
-    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true, windowsHide: process.platform === 'win32' };
     try {
       execSync(`"${podmanPath}" info`, execOptions);
       return true;
@@ -48,7 +48,7 @@ export function setupBackendNonBlocking(podmanPath) {
 
   // Windows: Implement completely silent automated setup
   if (process.platform === 'win32') {
-    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true, windowsHide: process.platform === 'win32' };
 
     try {
       execSync(`"${podmanPath}" info`, execOptions);
@@ -68,7 +68,7 @@ export function setupBackendNonBlocking(podmanPath) {
 
   // macOS: Similar automated approach
   if (process.platform === 'darwin') {
-    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+    const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true, windowsHide: process.platform === 'win32' };
 
     try {
       execSync(`"${podmanPath}" info`, execOptions);
@@ -124,7 +124,7 @@ function setupMachineBackground(podmanPath) {
 export function checkBackend(podmanPath) {
   if (process.platform === 'linux') return true;
 
-  const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true };
+  const execOptions = { encoding: 'utf-8', stdio: 'pipe', shell: true, windowsHide: process.platform === 'win32' };
 
   try {
     execSync(`"${podmanPath}" info`, execOptions);
@@ -154,7 +154,7 @@ export function checkPodman() {
       shell: process.platform === 'win32'
     };
 
-    const version = execSync(`"${podmanPath}" --version`, execOptions).trim();
+    const version = execSync(`"${podmanPath}" --version`, { encoding: 'utf-8', stdio: 'pipe', shell: process.platform === 'win32', windowsHide: process.platform === 'win32' }).trim();
     console.log(color('green', `✅ ${version}${isBundled ? ' (bundled)' : ''}`));
     return podmanPath;
   } catch (error) {
@@ -163,7 +163,7 @@ export function checkPodman() {
 
     try {
       const scriptPath = resolve(__dirname, '..', 'scripts', 'download-podman.js');
-      execSync(`node "${scriptPath}"`, { stdio: 'inherit', cwd: __dirname, shell: process.platform === 'win32' });
+      execSync(`node "${scriptPath}"`, { stdio: 'inherit', cwd: __dirname, shell: process.platform === 'win32', windowsHide: process.platform === 'win32' });
 
       const newPodmanPath = getPodmanPath();
       if (!existsSync(newPodmanPath) && newPodmanPath !== 'podman') {
@@ -176,7 +176,7 @@ export function checkPodman() {
         shell: process.platform === 'win32'
       };
 
-      const newVersion = execSync(`"${newPodmanPath}" --version`, execOptions).trim();
+      const newVersion = execSync(`"${newPodmanPath}" --version`, { encoding: 'utf-8', stdio: 'pipe', shell: process.platform === 'win32', windowsHide: process.platform === 'win32' }).trim();
       console.log(`\n✅ ${newVersion} (auto-downloaded)`);
       console.log('✅ Portable Podman ready');
 
