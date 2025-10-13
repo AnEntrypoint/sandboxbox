@@ -1,28 +1,29 @@
 {
   "name": "sandboxbox",
-  "version": "2.5.5",
-  "description": "Portable container runner with Podman - Claude Code & Playwright support. Works on Windows, macOS, and Linux.",
+  "version": "3.0.0",
+  "description": "Lightweight process containment sandbox for CLI tools - Playwright, Claude Code, and more. Pure Node.js, no dependencies.",
   "type": "module",
   "main": "cli.js",
   "bin": {
     "sandboxbox": "cli.js"
   },
   "scripts": {
-    "start": "node cli.js",
-    "postinstall": "node scripts/download-podman.js"
+    "start": "node cli.js"
   },
   "keywords": [
-    "containers",
-    "podman",
+    "sandbox",
+    "process-isolation",
     "playwright",
     "claude-code",
-    "sandbox",
-    "isolation",
+    "cli-tools",
+    "environment-isolation",
     "cross-platform",
     "windows",
     "macos",
     "linux",
-    "portable"
+    "portable",
+    "npm",
+    "npx"
   ],
   "author": "",
   "license": "MIT",
