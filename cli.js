@@ -53,12 +53,12 @@ async function main() {
       case 'claude':
         if (commandArgs.length === 0) {
           console.log(color('red', '❌ Please specify a project directory'));
-          console.log(color('yellow', 'Usage: npx sandboxbox claude <project-dir>'));
+          console.log(color('yellow', 'Usage: npx sandboxbox claude <project-dir> [prompt]'));
           process.exit(1);
         }
         const claudeProjectDir = resolve(process.cwd(), commandArgs[0]);
-        const claudeCmd = commandArgs.slice(1).join(' ') || 'claude';
-        if (!(await claudeCommand(claudeProjectDir, claudeCmd))) process.exit(1);
+        const claudePrompt = commandArgs.slice(1).join(' ');
+        if (!(await claudeCommand(claudeProjectDir, claudePrompt))) process.exit(1);
         break;
 
       case 'version':

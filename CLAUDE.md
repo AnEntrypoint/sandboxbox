@@ -161,12 +161,15 @@ GPG_AGENT_INFO: process.env.GPG_AGENT_INFO
 ## Claude Code Integration
 
 ### Authentication
-Automatically transfers Claude credentials to sandbox via `.claude` directory copy or symlink.
+Uses host HOME directory for Claude Code authentication. Workspace is isolated in sandbox but credentials remain on host.
 
-### MCP Servers
-- glootie: Code execution and AST manipulation
-- vexify: Semantic code search
-- playwright: Browser automation with persistent profile
+### Tool Allow List
+Automatically configured with 25 allowed tools:
+- Core: Task, Bash, Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, TodoWrite, WebSearch, BashOutput, KillShell, SlashCommand, ExitPlanMode
+- MCP: glootie (execute, ast_tool, caveat), playwright (navigate, snapshot, click, type, evaluate, close), vexify (search_code)
+
+### Streaming Output
+Uses `--verbose -p --output-format stream-json` for real-time JSON streaming. Output parser extracts text content, tool usage, session info, and cost metrics from JSON stream.
 
 ### Playwright MCP Profile Transfer
 Automatically copies persistent MCP profiles from host to sandbox:
