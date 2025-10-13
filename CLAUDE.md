@@ -100,35 +100,23 @@ cleanup();
 ## Git Integration
 
 ### Git Identity Transfer
-```bash
--v "$HOME/.gitconfig:/root/.gitconfig:ro"
--v "$HOME/.ssh:/root/.ssh:ro"
+Automatically transfers host git identity to sandbox after cloning:
+```javascript
+const userName = execSync('git config --global user.name', { encoding: 'utf8' }).trim();
+const userEmail = execSync('git config --global user.email', { encoding: 'utf8' }).trim();
+const colorUi = execSync('git config --global color.ui', { encoding: 'utf8' }).trim();
+
+execSync(`git config user.name "${userName}"`, { cwd: workspaceDir });
+execSync(`git config user.email "${userEmail}"`, { cwd: workspaceDir });
+execSync(`git config color.ui "${colorUi}"`, { cwd: workspaceDir });
 ```
 
-### Git Remote Setup
-```bash
-# Mount host repository as accessible remote
--v "/path/to/host/repo:/host-repo:rw"
-
-# Configure remote in container
-git remote add origin /host-repo
-```
+Git identity and color config auto-inherit from ~/.gitconfig (user.name, user.email, color.ui).
 
 ### Git Safe Directory Configuration
-```bash
-git config --global --add safe.directory /workspace
-git config --global --add safe.directory /host-repo
-git config --global --add safe.directory /host-repo/.git
-```
-
-### Git Push Configuration
-```bash
-# Host repository - allow pushes to checked-out branch
-git config receive.denyCurrentBranch ignore
-
-# Container - set git identity
-git config --global user.email "user@example.com"
-git config --global user.name "User Name"
+```javascript
+execSync(`git config --global --add safe.directory "${projectDir}"`);
+execSync(`git config --global --add safe.directory "${projectDir}/.git"`);
 ```
 
 ### Windows Path Normalization
@@ -136,21 +124,37 @@ git config --global user.name "User Name"
 const normalizedTempDir = tempProjectDir.replace(/\\/g, '/');
 ```
 
+### Terminal Color Support
+Environment variables (TERM, LS_COLORS) carry through to all sandboxes:
+```javascript
+TERM: process.env.TERM || 'xterm-256color',
+LS_COLORS: process.env.LS_COLORS
+```
+
 ## Claude Code Integration
 
 ### Authentication
-```bash
--v "$HOME/.claude:/root/.claude"
--e "ANTHROPIC_AUTH_TOKEN=..."
--e "CLAUDECODE=1"
-```
+Automatically transfers Claude credentials to sandbox via `.claude` directory copy or symlink.
 
 ### MCP Servers
-```dockerfile
-RUN claude mcp add glootie -- npx -y mcp-glootie@latest
-RUN claude mcp add vexify -- npx -y mcp-vexify@latest
-RUN claude mcp add playwright -- npx @playwright/mcp@latest
+- glootie: Code execution and AST manipulation
+- vexify: Semantic code search
+- playwright: Browser automation with persistent profile
+
+### Playwright MCP Profile Transfer
+Automatically copies persistent MCP profiles from host to sandbox:
+```javascript
+const playwrightCacheDir = platform() === 'darwin'
+  ? join(homedir(), 'Library', 'Caches', 'ms-playwright')
+  : platform() === 'win32'
+  ? join(homedir(), 'AppData', 'Local', 'ms-playwright')
+  : join(homedir(), '.cache', 'ms-playwright');
+
+// Copies mcp-chrome-profile, mcp-chromium-profile, mcp-firefox-profile, mcp-webkit-profile
+cpSync(hostProfile, join(sandboxDir, '.cache', 'ms-playwright', profileName), { recursive: true });
 ```
+
+Environment variable `XDG_CACHE_HOME` set to `${sandboxDir}/.cache` for Playwright profile access.
 
 ## Cleanup
 
