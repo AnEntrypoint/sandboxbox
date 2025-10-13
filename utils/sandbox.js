@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync } from 'fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
 import { join, resolve } from 'path';
 import { spawn, execSync } from 'child_process';
@@ -30,6 +30,17 @@ export function createSandbox(projectDir) {
         shell: true,
         windowsHide: true
       });
+
+      // Create custom settings file without hooks to preserve user prompt
+      const workspaceSettingsFile = join(workspaceDir, 'claude-settings.json');
+      const customSettings = {
+        hooks: {},  // Disable all hooks to preserve user prompt
+        alwaysThinkingEnabled: false,
+        permissions: {
+          allow: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Exec"]
+        }
+      };
+      writeFileSync(workspaceSettingsFile, JSON.stringify(customSettings, null, 2));
 
       // Configure host repo to accept pushes
       try {
@@ -159,14 +170,21 @@ export function createSandbox(projectDir) {
 }
 
 export function createSandboxEnv(sandboxDir, options = {}) {
+  const sandboxClaudeDir = join(sandboxDir, '.claude');
+
   const env = {
     ...process.env,
+    HOME: sandboxClaudeDir,
+    USERPROFILE: sandboxClaudeDir,
+    XDG_CONFIG_HOME: sandboxClaudeDir,
+    XDG_DATA_HOME: join(sandboxClaudeDir, '.local', 'share'),
     TMPDIR: join(sandboxDir, 'tmp'),
     TEMP: join(sandboxDir, 'tmp'),
     TMP: join(sandboxDir, 'tmp'),
     XDG_CACHE_HOME: join(sandboxDir, '.cache'),
     PLAYWRIGHT_BROWSERS_PATH: join(sandboxDir, 'browsers'),
     PLAYWRIGHT_STORAGE_STATE: join(sandboxDir, '.playwright', 'storage-state.json'),
+    CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT,
     ...options
   };
 
