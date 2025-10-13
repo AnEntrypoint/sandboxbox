@@ -1,64 +1,49 @@
 import { existsSync } from 'fs';
-import { execSync } from 'child_process';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { resolve, join } from 'path';
 import { color } from '../colors.js';
-import { checkQemu, getDiskImagePath, buildQemuCommand } from '../qemu.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { createSandbox, createSandboxEnv, runInSandbox } from '../sandbox.js';
 
 export function buildCommand(dockerfilePath) {
-  console.log(color('yellow', '⚠️  Build command not yet implemented for QEMU'));
-  console.log(color('cyan', 'Will create disk image from Dockerfile'));
+  console.log(color('yellow', '⚠️  Build command not yet implemented'));
   return false;
 }
 
-export function runCommand(projectDir, cmd = 'bash') {
+export async function runCommand(projectDir, cmd = 'bash') {
   if (!existsSync(projectDir)) {
     console.log(color('red', `❌ Project directory not found: ${projectDir}`));
     return false;
   }
 
-  console.log(color('blue', '🚀 Starting QEMU virtual machine...'));
+  console.log(color('blue', '🚀 Creating sandbox environment...'));
   console.log(color('yellow', `Project: ${projectDir}`));
   console.log(color('yellow', `Command: ${cmd}\n`));
 
-  const qemuPath = checkQemu();
-  if (!qemuPath) {
-    console.log(color('red', '❌ QEMU not found'));
-    console.log(color('yellow', '📦 Auto-downloading QEMU...'));
-    return false;
-  }
+  const { sandboxDir, cleanup } = createSandbox(projectDir);
 
-  const diskImage = getDiskImagePath();
-  if (!existsSync(diskImage)) {
-    console.log(color('red', '❌ Disk image not found'));
-    console.log(color('yellow', '📦 Downloading Playwright disk image...'));
-    return false;
-  }
-
-  console.log(color('green', `✅ QEMU ready: ${qemuPath}`));
-  console.log(color('green', `✅ Disk image: ${diskImage}`));
-
-  const qemuCmd = buildQemuCommand(diskImage, projectDir);
-  console.log(color('cyan', '\n🖥️  Booting Linux VM...\n'));
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 
   try {
-    execSync(qemuCmd, {
-      stdio: 'inherit',
-      shell: true
+    const env = createSandboxEnv(sandboxDir, {
+      PLAYWRIGHT_BROWSERS_PATH: join(sandboxDir, 'browsers')
     });
 
-    console.log(color('green', '\n✅ VM session completed!'));
+    console.log(color('green', `✅ Sandbox created: ${sandboxDir}`));
+    console.log(color('cyan', '📦 Running in isolated environment...\n'));
+
+    await runInSandbox('bash', ['-c', cmd], sandboxDir, env);
+
+    console.log(color('green', '\n✅ Command completed!'));
+    cleanup();
     return true;
   } catch (error) {
-    console.log(color('red', `\n❌ VM failed: ${error.message}`));
+    console.log(color('red', `\n❌ Command failed: ${error.message}`));
+    cleanup();
     return false;
   }
 }
 
-export function shellCommand(projectDir) {
+export async function shellCommand(projectDir) {
   if (!existsSync(projectDir)) {
     console.log(color('red', `❌ Project directory not found: ${projectDir}`));
     return false;
@@ -69,21 +54,7 @@ export function shellCommand(projectDir) {
 }
 
 export function versionCommand() {
-  const qemuPath = checkQemu();
-  if (!qemuPath) {
-    console.log(color('red', '❌ QEMU not found'));
-    return false;
-  }
-
-  try {
-    const version = execSync(`${qemuPath} --version`, {
-      encoding: 'utf8',
-      stdio: 'pipe'
-    });
-    console.log(color('green', version.trim()));
-    return true;
-  } catch (error) {
-    console.log(color('red', `❌ Version check failed: ${error.message}`));
-    return false;
-  }
+  console.log(color('green', 'SandboxBox - Process Containment Sandbox'));
+  console.log(color('cyan', 'Using Node.js process isolation'));
+  return true;
 }
