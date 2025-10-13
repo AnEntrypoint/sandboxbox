@@ -25,9 +25,8 @@ export function createSandbox(projectDir) {
   }
 
   const claudeDir = join(sandboxDir, '.claude');
-  mkdirSync(claudeDir, { recursive: true });
-
   const hostClaudeDir = join(homedir(), '.claude');
+
   if (existsSync(hostClaudeDir)) {
     try {
       cpSync(hostClaudeDir, claudeDir, {
@@ -40,7 +39,10 @@ export function createSandbox(projectDir) {
         }
       });
     } catch (e) {
+      console.error('Warning: Failed to copy Claude config:', e.message);
     }
+  } else {
+    mkdirSync(claudeDir, { recursive: true });
   }
 
   const playwrightDir = join(sandboxDir, '.playwright');
