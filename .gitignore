@@ -1,3 +1,6 @@
+# Dependencies
+node_modules/
+
 # Downloaded Podman binaries
 bin/podman
 bin/podman.exe
@@ -18,6 +21,13 @@ debug-*.js
 
 # Sandbox testing directory
 sandboxbox-sandbox/
+
+# Test directories
+test-*/
+npx-test*/
+testproject/
+**/test-*.txt
+**/test-*.sh
 
 # Temporary scripts
 init-firewall.sh

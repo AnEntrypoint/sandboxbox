@@ -179,6 +179,22 @@ export function createSandboxEnv(sandboxDir, options = {}) {
     NODE_ENV: process.env.NODE_ENV,
     TERM: process.env.TERM || 'xterm-256color',
     LS_COLORS: process.env.LS_COLORS,
+    LANG: process.env.LANG,
+    LC_ALL: process.env.LC_ALL,
+    SHELL: process.env.SHELL,
+    USER: process.env.USER,
+    LOGNAME: process.env.LOGNAME,
+    EDITOR: process.env.EDITOR,
+    VISUAL: process.env.VISUAL,
+    PAGER: process.env.PAGER,
+    LESS: process.env.LESS,
+    LESSOPEN: process.env.LESSOPEN,
+    LESSCLOSE: process.env.LESSCLOSE,
+    DISPLAY: process.env.DISPLAY,
+    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
+    SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
+    SSH_AGENT_PID: process.env.SSH_AGENT_PID,
+    GPG_AGENT_INFO: process.env.GPG_AGENT_INFO,
     ...options
   };
 
