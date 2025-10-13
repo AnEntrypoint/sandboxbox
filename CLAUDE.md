@@ -111,7 +111,7 @@ execSync(`git config user.email "${userEmail}"`, { cwd: workspaceDir });
 execSync(`git config color.ui "${colorUi}"`, { cwd: workspaceDir });
 ```
 
-Git identity and color config auto-inherit from ~/.gitconfig (user.name, user.email, color.ui).
+Git identity and color config auto-inherit from ~/.gitconfig (user.name, user.email, color.ui). For sandbox-to-host workflows, host repo needs `receive.denyCurrentBranch=updateInstead` and clean working directory.
 
 ### Git Safe Directory Configuration
 ```javascript
@@ -124,11 +124,38 @@ execSync(`git config --global --add safe.directory "${projectDir}/.git"`);
 const normalizedTempDir = tempProjectDir.replace(/\\/g, '/');
 ```
 
-### Terminal Color Support
-Environment variables (TERM, LS_COLORS) carry through to all sandboxes:
+### Environment Variable Transfer
+Host bash session environment variables automatically carry through to sandboxes:
 ```javascript
+// Terminal
 TERM: process.env.TERM || 'xterm-256color',
-LS_COLORS: process.env.LS_COLORS
+LS_COLORS: process.env.LS_COLORS,
+
+// Locale
+LANG: process.env.LANG,
+LC_ALL: process.env.LC_ALL,
+
+// User
+SHELL: process.env.SHELL,
+USER: process.env.USER,
+LOGNAME: process.env.LOGNAME,
+
+// Tools
+EDITOR: process.env.EDITOR,
+VISUAL: process.env.VISUAL,
+PAGER: process.env.PAGER,
+LESS: process.env.LESS,
+LESSOPEN: process.env.LESSOPEN,
+LESSCLOSE: process.env.LESSCLOSE,
+
+// Display
+DISPLAY: process.env.DISPLAY,
+WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY,
+
+// Authentication
+SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK,
+SSH_AGENT_PID: process.env.SSH_AGENT_PID,
+GPG_AGENT_INFO: process.env.GPG_AGENT_INFO
 ```
 
 ## Claude Code Integration
