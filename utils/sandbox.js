@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync } from 'fs';
-import { tmpdir, homedir } from 'os';
-import { join } from 'path';
+import { tmpdir, homedir, platform } from 'os';
+import { join, resolve } from 'path';
 import { spawn, execSync } from 'child_process';
 
 export function createSandbox(projectDir) {
@@ -27,23 +27,8 @@ export function createSandbox(projectDir) {
   const claudeDir = join(sandboxDir, '.claude');
   const hostClaudeDir = join(homedir(), '.claude');
 
-  if (existsSync(hostClaudeDir)) {
-    try {
-      cpSync(hostClaudeDir, claudeDir, {
-        recursive: true,
-        filter: (src) => {
-          return !src.includes('shell-snapshots') &&
-                 !src.includes('logs') &&
-                 !src.includes('debug') &&
-                 !src.includes('.log');
-        }
-      });
-    } catch (e) {
-      console.error('Warning: Failed to copy Claude config:', e.message);
-    }
-  } else {
-    mkdirSync(claudeDir, { recursive: true });
-  }
+  // Don't copy Claude files - use host directory directly
+  // This avoids permission issues with locked debug files
 
   const playwrightDir = join(sandboxDir, '.playwright');
   mkdirSync(playwrightDir, { recursive: true });
@@ -61,6 +46,12 @@ export function createSandbox(projectDir) {
 
 export function createSandboxEnv(sandboxDir, options = {}) {
   const hostHome = homedir();
+  let hostClaudeDir = join(hostHome, '.claude');
+
+  // Convert Windows path to Unix style for shell commands
+  if (platform() === 'win32') {
+    hostClaudeDir = hostClaudeDir.replace(/^([A-Z]):/, '/$1').replace(/\\/g, '/');
+  }
 
   const env = {
     PATH: process.env.PATH,
@@ -75,6 +66,8 @@ export function createSandboxEnv(sandboxDir, options = {}) {
     CLAUDECODE: '1',
     NPM_CONFIG_CACHE: process.env.NPM_CONFIG_CACHE || join(hostHome, '.npm'),
     npm_config_cache: process.env.npm_config_cache || join(hostHome, '.npm'),
+    // Set Claude config directory for access
+    CLAUDE_CONFIG_DIR: hostClaudeDir,
     ...options
   };
 

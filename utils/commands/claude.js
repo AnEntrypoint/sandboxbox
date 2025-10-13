@@ -1,6 +1,6 @@
-import { existsSync, cpSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { resolve, join } from 'path';
-import { homedir } from 'os';
+import { homedir, platform } from 'os';
 import { color } from '../colors.js';
 import { createSandbox, createSandboxEnv, runInSandbox } from '../sandbox.js';
 
@@ -26,21 +26,20 @@ export async function claudeCommand(projectDir, command = 'claude') {
   process.on('SIGTERM', cleanup);
 
   try {
-    const claudeDir = join(sandboxDir, '.claude');
-    mkdirSync(claudeDir, { recursive: true });
-
-    const hostClaudeDir = join(homedir(), '.claude');
-    if (existsSync(hostClaudeDir)) {
-      cpSync(hostClaudeDir, claudeDir, { recursive: true });
+    let hostClaudeDir = join(homedir(), '.claude');
+    if (platform() === 'win32') {
+      // Convert Windows path to Unix style for bash
+      hostClaudeDir = hostClaudeDir.replace(/^([A-Z]):/, '/$1').replace(/\\/g, '/');
     }
 
     const env = createSandboxEnv(sandboxDir, {
       ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
-      CLAUDECODE: '1'
+      CLAUDECODE: '1',
+      HOME: hostClaudeDir // Set HOME to host Claude directory for Claude Code
     });
 
     console.log(color('green', `✅ Sandbox created: ${sandboxDir}`));
-    console.log(color('cyan', '📦 Claude Code running in isolated environment...\n'));
+    console.log(color('cyan', `📦 Claude Code using host config: ${hostClaudeDir}\n`));
 
     await runInSandbox(`claude ${command}`, [], sandboxDir, env);
 
