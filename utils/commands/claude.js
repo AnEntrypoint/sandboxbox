@@ -42,7 +42,7 @@ export async function claudeCommand(projectDir, command = 'claude') {
     console.log(color('green', `✅ Sandbox created: ${sandboxDir}`));
     console.log(color('cyan', '📦 Claude Code running in isolated environment...\n'));
 
-    await runInSandbox('claude', [command], sandboxDir, env);
+    await runInSandbox(`claude ${command}`, [], sandboxDir, env);
 
     console.log(color('green', '\n✅ Claude Code session completed!'));
     cleanup();

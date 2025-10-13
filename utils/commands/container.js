@@ -31,7 +31,7 @@ export async function runCommand(projectDir, cmd = 'bash') {
     console.log(color('green', `✅ Sandbox created: ${sandboxDir}`));
     console.log(color('cyan', '📦 Running in isolated environment...\n'));
 
-    await runInSandbox('bash', ['-c', cmd], sandboxDir, env);
+    await runInSandbox(cmd, [], sandboxDir, env);
 
     console.log(color('green', '\n✅ Command completed!'));
     cleanup();

@@ -38,13 +38,16 @@ export function createSandboxEnv(sandboxDir, options = {}) {
   return env;
 }
 
-export function runInSandbox(command, args, sandboxDir, env) {
+export function runInSandbox(commandStr, args, sandboxDir, env) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
+    const fullCommand = args.length > 0 ? `${commandStr} ${args.join(' ')}` : commandStr;
+
+    const proc = spawn(fullCommand, [], {
       cwd: join(sandboxDir, 'workspace'),
       env,
       stdio: 'inherit',
-      shell: true
+      shell: true,
+      windowsHide: false
     });
 
     proc.on('close', (code) => {
