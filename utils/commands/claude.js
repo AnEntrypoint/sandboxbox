@@ -1,14 +1,10 @@
-import { existsSync } from 'fs';
-import { execSync } from 'child_process';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync, cpSync, mkdirSync } from 'fs';
+import { resolve, join } from 'path';
+import { homedir } from 'os';
 import { color } from '../colors.js';
-import { checkQemu, getDiskImagePath, buildQemuCommand } from '../qemu.js';
+import { createSandbox, createSandboxEnv, runInSandbox } from '../sandbox.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-export function claudeCommand(projectDir, command = 'claude') {
+export async function claudeCommand(projectDir, command = 'claude') {
   if (!existsSync(projectDir)) {
     console.log(color('red', `❌ Project directory not found: ${projectDir}`));
     return false;
@@ -20,34 +16,40 @@ export function claudeCommand(projectDir, command = 'claude') {
     return false;
   }
 
-  console.log(color('blue', '🚀 Starting Claude Code in QEMU VM...'));
+  console.log(color('blue', '🚀 Starting Claude Code in sandbox...'));
   console.log(color('yellow', `Project: ${projectDir}`));
   console.log(color('yellow', `Command: ${command}\n`));
 
-  const qemuPath = checkQemu();
-  if (!qemuPath) {
-    console.log(color('red', '❌ QEMU not found'));
-    return false;
-  }
+  const { sandboxDir, cleanup } = createSandbox(projectDir);
 
-  const diskImage = getDiskImagePath();
-  if (!existsSync(diskImage)) {
-    console.log(color('red', '❌ Disk image not found'));
-    return false;
-  }
-
-  const qemuCmd = buildQemuCommand(diskImage, projectDir, '4G', 4);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 
   try {
-    execSync(qemuCmd, {
-      stdio: 'inherit',
-      shell: true
+    const claudeDir = join(sandboxDir, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
+
+    const hostClaudeDir = join(homedir(), '.claude');
+    if (existsSync(hostClaudeDir)) {
+      cpSync(hostClaudeDir, claudeDir, { recursive: true });
+    }
+
+    const env = createSandboxEnv(sandboxDir, {
+      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
+      CLAUDECODE: '1'
     });
 
+    console.log(color('green', `✅ Sandbox created: ${sandboxDir}`));
+    console.log(color('cyan', '📦 Claude Code running in isolated environment...\n'));
+
+    await runInSandbox('claude', [command], sandboxDir, env);
+
     console.log(color('green', '\n✅ Claude Code session completed!'));
+    cleanup();
     return true;
   } catch (error) {
     console.log(color('red', `\n❌ Claude Code failed: ${error.message}`));
+    cleanup();
     return false;
   }
 }
