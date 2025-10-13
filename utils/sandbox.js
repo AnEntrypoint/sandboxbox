@@ -1,17 +1,50 @@
-import { mkdtempSync, rmSync, cpSync, existsSync } from 'fs';
-import { tmpdir } from 'os';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync } from 'fs';
+import { tmpdir, homedir } from 'os';
 import { join } from 'path';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 
 export function createSandbox(projectDir) {
   const sandboxDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
+  const workspaceDir = join(sandboxDir, 'workspace');
 
   if (projectDir && existsSync(projectDir)) {
-    cpSync(projectDir, join(sandboxDir, 'workspace'), {
-      recursive: true,
-      filter: (src) => !src.includes('node_modules')
-    });
+    const isGitRepo = existsSync(join(projectDir, '.git'));
+
+    if (isGitRepo) {
+      execSync(`git clone "${projectDir}" "${workspaceDir}"`, {
+        stdio: 'pipe',
+        shell: true,
+        windowsHide: true
+      });
+    } else {
+      cpSync(projectDir, workspaceDir, {
+        recursive: true,
+        filter: (src) => !src.includes('node_modules')
+      });
+    }
   }
+
+  const claudeDir = join(sandboxDir, '.claude');
+  mkdirSync(claudeDir, { recursive: true });
+
+  const hostClaudeDir = join(homedir(), '.claude');
+  if (existsSync(hostClaudeDir)) {
+    try {
+      cpSync(hostClaudeDir, claudeDir, {
+        recursive: true,
+        filter: (src) => {
+          return !src.includes('shell-snapshots') &&
+                 !src.includes('logs') &&
+                 !src.includes('debug') &&
+                 !src.includes('.log');
+        }
+      });
+    } catch (e) {
+    }
+  }
+
+  const playwrightDir = join(sandboxDir, '.playwright');
+  mkdirSync(playwrightDir, { recursive: true });
 
   const cleanup = () => {
     try {
@@ -25,6 +58,8 @@ export function createSandbox(projectDir) {
 }
 
 export function createSandboxEnv(sandboxDir, options = {}) {
+  const hostHome = homedir();
+
   const env = {
     PATH: process.env.PATH,
     HOME: sandboxDir,
@@ -32,6 +67,12 @@ export function createSandboxEnv(sandboxDir, options = {}) {
     TMPDIR: join(sandboxDir, 'tmp'),
     TEMP: join(sandboxDir, 'tmp'),
     TMP: join(sandboxDir, 'tmp'),
+    PLAYWRIGHT_BROWSERS_PATH: join(sandboxDir, 'browsers'),
+    PLAYWRIGHT_STORAGE_STATE: join(sandboxDir, '.playwright', 'storage-state.json'),
+    ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
+    CLAUDECODE: '1',
+    NPM_CONFIG_CACHE: process.env.NPM_CONFIG_CACHE || join(hostHome, '.npm'),
+    npm_config_cache: process.env.npm_config_cache || join(hostHome, '.npm'),
     ...options
   };
 
