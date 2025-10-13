@@ -25,7 +25,7 @@ async function main() {
   try {
     switch (command) {
       case 'build':
-        const dockerfilePath = commandArgs[0] || './Dockerfile';
+        const dockerfilePath = commandArgs[0];
         if (!buildCommand(dockerfilePath)) process.exit(1);
         break;
 
@@ -36,7 +36,7 @@ async function main() {
           process.exit(1);
         }
         const projectDir = resolve(process.cwd(), commandArgs[0]);
-        const cmd = commandArgs.slice(1).join(' ') || 'bash';
+        const cmd = commandArgs.slice(1).join(' ');
         if (!(await runCommand(projectDir, cmd))) process.exit(1);
         break;
 

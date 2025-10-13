@@ -8,7 +8,7 @@ export function buildCommand(dockerfilePath) {
   return false;
 }
 
-export async function runCommand(projectDir, cmd = 'bash') {
+export async function runCommand(projectDir, cmd) {
   if (!existsSync(projectDir)) {
     console.log(color('red', `❌ Project directory not found: ${projectDir}`));
     return false;
