@@ -68,7 +68,7 @@ export async function claudeCommand(projectDir, prompt) {
       const proc = spawn('sh', ['-c', `cd "${join(sandboxDir, 'workspace')}" && claude ${claudeArgs.join(' ')}`], {
         env: env,  // Use the environment directly without modification
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false,  // Don't use nested shell
+        shell: true,  // Use shell for proper directory handling
         detached: false
       });
 
