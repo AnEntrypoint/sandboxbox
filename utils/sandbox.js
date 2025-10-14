@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, readFileSync, appendFileSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -243,8 +243,7 @@ node_modules/
         console.log(`🔍 Debug: Bundled settings not found at ${bundledSettingsPath}`);
       }
     }
-
-  // No host settings fallback - only bundled settings used
+  }
 
   // Optimize cache directory handling - use symlinks instead of copying
   const hostCacheDir = join(homedir(), '.cache');
