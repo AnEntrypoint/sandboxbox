@@ -27,7 +27,7 @@ export function showHelp() {
   console.log('  npx sandboxbox shell ./my-project');
   console.log('');
   console.log(color('yellow', 'Requirements:'));
-  console.log('  - Podman (auto-downloaded if needed)');
+  console.log('  - Docker/Podman runtime');
   console.log('  - Works on Windows, macOS, and Linux!');
   console.log('');
   console.log(color('magenta', '🚀 Fast startup • True isolation • Claude Code integration'));
