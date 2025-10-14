@@ -104,6 +104,11 @@ export async function claudeCommand(projectDir, prompt) {
         const lines = data.toString().split('\n').filter(line => line.trim());
 
         for (const line of lines) {
+          // Skip empty lines or lines that don't look like JSON
+          if (!line.trim() || !line.trim().startsWith('{')) {
+            continue;
+          }
+
           try {
             const event = JSON.parse(line);
 
@@ -146,7 +151,11 @@ export async function claudeCommand(projectDir, prompt) {
             }
           } catch (jsonError) {
             // Skip malformed JSON lines - might be incomplete chunks
-            // Silently continue to avoid breaking the stream
+            // Only log debug info in development mode
+            if (process.env.DEBUG) {
+              console.log(color('yellow', `🔍 JSON parse error: ${jsonError.message.substring(0, 50)}...`));
+              console.log(color('yellow', `🔍 Problematic line: ${line.substring(0, 100)}...`));
+            }
           }
         }
       }

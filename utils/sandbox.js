@@ -84,6 +84,20 @@ export function createSandbox(projectDir) {
       stdio: 'pipe'
     }).trim();
 
+    // Ensure the branch exists on the host side
+    try {
+      execSync(`cd "${projectDir}" && git checkout ${currentBranch}`, {
+        stdio: 'pipe',
+        shell: true
+      });
+    } catch (e) {
+      // Branch doesn't exist on host, create it
+      execSync(`cd "${projectDir}" && git checkout -b ${currentBranch}`, {
+        stdio: 'pipe',
+        shell: true
+      });
+    }
+
     execSync(`git branch --set-upstream-to=origin/${currentBranch} ${currentBranch}`, {
       cwd: workspaceDir,
       stdio: 'pipe',
@@ -91,6 +105,7 @@ export function createSandbox(projectDir) {
     });
   } catch (e) {
     // Upstream may not exist yet, ignore error
+    console.log(`⚠️  Warning: Could not set up upstream tracking: ${e.message}`);
   }
 
   // Batch fetch git identity settings for efficiency
@@ -169,7 +184,32 @@ export function createSandbox(projectDir) {
   }
 
   const cleanup = () => {
-    rmSync(sandboxDir, { recursive: true, force: true });
+    try {
+      // Sync changes back to host directory before cleanup
+      if (existsSync(workspaceDir)) {
+        // Check if there are any commits to push
+        const result = execSync('git log origin..HEAD --oneline', {
+          cwd: workspaceDir,
+          encoding: 'utf8',
+          stdio: 'pipe'
+        }).trim();
+
+        if (result) {
+          console.log('🔄 Syncing changes back to host directory...');
+          execSync('git push origin HEAD', {
+            cwd: workspaceDir,
+            stdio: 'pipe',
+            shell: true
+          });
+          console.log('✅ Changes synced to host directory');
+        }
+      }
+    } catch (error) {
+      // Don't fail cleanup if sync fails
+      console.log(`⚠️  Warning: Could not sync changes: ${error.message}`);
+    } finally {
+      rmSync(sandboxDir, { recursive: true, force: true });
+    }
   };
 
   return { sandboxDir, cleanup };
