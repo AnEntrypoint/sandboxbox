@@ -27,6 +27,18 @@
           {
             "type": "command",
             "command": "echo 'GIT_INTEGRATION: Review modified files, stage appropriate changes, and create an intelligent commit message that describes the work accomplished. Push to host repository if changes are ready.'"
+          },
+          {
+            "type": "command",
+            "command": "git status --porcelain"
+          },
+          {
+            "type": "command",
+            "command": "if [ -n \"$(git status --porcelain)\" ]; then echo 'Changes detected - preparing intelligent Git operations...'; git add -A; echo 'Changes staged. Ready for intelligent commit analysis.'; else echo 'No changes detected in working directory.'; fi"
+          },
+          {
+            "type": "command",
+            "command": "echo 'Please intelligently analyze the staged changes and create an appropriate commit message, then commit and push if the changes are ready.'"
           }
         ]
       }
