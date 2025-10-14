@@ -199,7 +199,7 @@ node_modules/
     // Create sandbox Claude directory and copy bundled settings
     mkdirSync(sandboxClaudeDir, { recursive: true });
 
-    const bundledSettingsPath = join(resolve(fileURLToPath(import.meta.url), '..'), '..', 'sandboxbox-settings.json');
+    const bundledSettingsPath = join(resolve(fileURLToPath(import.meta.url), '..'), 'sandboxbox-settings.json');
     const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
 
     // Copy bundled settings to sandbox
