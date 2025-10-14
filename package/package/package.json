@@ -1,0 +1,39 @@
+{
+  "name": "sandboxbox",
+  "version": "3.0.46",
+  "description": "Lightweight process containment sandbox for CLI tools - Playwright, Claude Code, and more. Pure Node.js, no dependencies.",
+  "type": "module",
+  "main": "cli.js",
+  "bin": {
+    "sandboxbox": "cli.js"
+  },
+  "scripts": {
+    "start": "node cli.js"
+  },
+  "keywords": [
+    "sandbox",
+    "process-isolation",
+    "playwright",
+    "claude-code",
+    "cli-tools",
+    "environment-isolation",
+    "cross-platform",
+    "windows",
+    "macos",
+    "linux",
+    "portable",
+    "npm",
+    "npx"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnEntrypoint/sandboxbox.git"
+  },
+  "homepage": "https://github.com/AnEntrypoint/sandboxbox#readme",
+  "bugs": {
+    "url": "https://github.com/AnEntrypoint/sandboxbox/issues"
+  }
+}

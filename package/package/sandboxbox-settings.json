@@ -17,7 +17,7 @@
     }
   },
   "hooks": {
-    "UserPromptSubmit": [
+    "SessionStart": [
       {
         "matcher": "*",
         "hooks": [
