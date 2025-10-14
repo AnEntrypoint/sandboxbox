@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
 import { join, resolve } from 'path';
 import { spawn, execSync } from 'child_process';
@@ -83,43 +83,43 @@ export function createSandbox(projectDir) {
     shell: true
   });
 
-  // Copy essential Claude settings files to ensure MCP servers work
+  // Create symbolic link to host's .claude directory instead of copying
+  // This ensures access to the latest credentials and settings
   const hostClaudeDir = join(homedir(), '.claude');
+  const sandboxClaudeDir = join(sandboxDir, '.claude');
+
   if (existsSync(hostClaudeDir)) {
-    const sandboxClaudeDir = join(sandboxDir, '.claude');
-    mkdirSync(sandboxClaudeDir, { recursive: true });
+    try {
+      // Create symbolic link to host .claude directory
+      symlinkSync(hostClaudeDir, sandboxClaudeDir, 'dir');
+      console.log('✅ Linked to host Claude settings directory');
+    } catch (error) {
+      // Fallback to copying if symlink fails
+      console.log('⚠️  Could not create symlink, copying Claude settings instead');
+      mkdirSync(sandboxClaudeDir, { recursive: true });
 
-    // Copy only essential files (avoid large files like history)
-    const essentialFiles = [
-      'settings.json',
-      '.credentials.json'
-    ];
+      // Copy only essential files (avoid large files like history)
+      const essentialFiles = [
+        'settings.json',
+        '.credentials.json'
+      ];
 
-    // Copy files efficiently
-    for (const file of essentialFiles) {
-      const hostFile = join(hostClaudeDir, file);
-      const sandboxFile = join(sandboxClaudeDir, file);
+      // Copy files efficiently
+      for (const file of essentialFiles) {
+        const hostFile = join(hostClaudeDir, file);
+        const sandboxFile = join(sandboxClaudeDir, file);
 
-      if (existsSync(hostFile)) {
-        cpSync(hostFile, sandboxFile);
+        if (existsSync(hostFile)) {
+          cpSync(hostFile, sandboxFile);
+        }
       }
-    }
 
-    // Copy plugins directory if it exists (but skip large cache files)
-    const pluginsDir = join(hostClaudeDir, 'plugins');
-    if (existsSync(pluginsDir)) {
-      const sandboxPluginsDir = join(sandboxClaudeDir, 'plugins');
-      cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
-
-      // Verify the marketplace plugin was copied
-      const marketplacePlugin = join(sandboxPluginsDir, 'marketplaces', 'anentrypoint-plugins');
-      if (existsSync(marketplacePlugin)) {
-        console.error('DEBUG: Marketplace plugin copied successfully');
-      } else {
-        console.error('DEBUG: Marketplace plugin copy failed');
+      // Copy plugins directory if it exists (but skip large cache files)
+      const pluginsDir = join(hostClaudeDir, 'plugins');
+      if (existsSync(pluginsDir)) {
+        const sandboxPluginsDir = join(sandboxClaudeDir, 'plugins');
+        cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
       }
-    } else {
-      console.error('DEBUG: No plugins directory found at:', pluginsDir);
     }
   }
 
@@ -152,9 +152,10 @@ export function createSandboxEnv(sandboxDir, options = {}) {
     ...process.env,
   };
 
-  // Override with sandbox-specific values
-  env.HOME = sandboxClaudeDir;
-  env.USERPROFILE = sandboxClaudeDir;
+  // Keep host HOME directory for Claude credentials access
+  // but add sandbox directories for other XDG paths
+  // env.HOME = process.env.HOME; // Already inherited from process.env
+  env.USERPROFILE = process.env.USERPROFILE || process.env.HOME;
   env.XDG_CONFIG_HOME = sandboxClaudeDir;
   env.XDG_DATA_HOME = join(sandboxClaudeDir, '.local', 'share');
   env.XDG_CACHE_HOME = sandboxCacheDir;

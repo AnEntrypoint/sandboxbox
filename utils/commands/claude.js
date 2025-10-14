@@ -46,7 +46,6 @@ export async function claudeCommand(projectDir, prompt) {
     const envStartTime = Date.now();
     console.log(color('cyan', '⏱️  Stage 2: Setting up environment...'));
     const env = createSandboxEnv(sandboxDir, {
-      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
       CLAUDECODE: '1'
     });
     const envCreateTime = Date.now() - envStartTime;
@@ -160,52 +159,6 @@ export async function claudeCommand(projectDir, prompt) {
         const sessionEndTime = Date.now();
         const totalTime = sessionEndTime - startTime;
         console.log(color('cyan', `\n⏱️  Stage 4: Session completed in ${totalTime}ms`));
-
-        // Push changes to host repository before cleanup
-        try {
-          console.log(color('cyan', '📤 Pushing changes to host repository...'));
-          const pushStartTime = Date.now();
-
-          // Add all changes
-          execSync('git add -A', {
-            cwd: join(sandboxDir, 'workspace'),
-            stdio: 'pipe',
-            shell: true
-          });
-
-          // Commit changes if there are any
-          try {
-            const status = execSync('git status --porcelain', {
-              cwd: join(sandboxDir, 'workspace'),
-              stdio: 'pipe',
-              shell: true,
-              encoding: 'utf8'
-            }).trim();
-
-            if (status) {
-              execSync('git commit -m "SandboxBox: Update files from sandbox session"', {
-                cwd: join(sandboxDir, 'workspace'),
-                stdio: 'pipe',
-                shell: true
-              });
-            }
-          } catch (e) {
-            // No changes to commit
-          }
-
-          // Push to host repository
-          execSync('git push origin HEAD', {
-            cwd: join(sandboxDir, 'workspace'),
-            stdio: 'pipe',
-            shell: true
-          });
-
-          const pushTime = Date.now() - pushStartTime;
-          console.log(color('green', `✅ Changes pushed to host repository in ${pushTime}ms`));
-        } catch (pushError) {
-          console.log(color('yellow', `⚠️  Push failed: ${pushError.message}`));
-          console.log(color('yellow', 'Changes are committed locally in the sandbox'));
-        }
 
         // Performance summary
         console.log(color('cyan', `\n📊 Performance Summary:`));
