@@ -253,10 +253,10 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
     const envStartTime = Date.now();
     if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 2: Setting up environment...'));
 
-    // Apply Claude optimizations
-    const claudeOptimizer = new ClaudeOptimizer(sandboxDir);
-    claudeOptimizer.optimizeSettings();
-    await claudeOptimizer.prewarmPlugins();
+    // Apply Claude optimizations (disabled to preserve bundled hooks)
+    // const claudeOptimizer = new ClaudeOptimizer(sandboxDir);
+    // claudeOptimizer.optimizeSettings();
+    // await claudeOptimizer.prewarmPlugins();
 
     // Apply system optimizations (with sudo access)
     const systemOptimizer = new SystemOptimizer();
@@ -269,7 +269,7 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
 
     const env = systemOptimizationsApplied
       ? { ...baseEnv, ...systemOptimizer.createOptimizedContainerEnv() }
-      : claudeOptimizer.createOptimizedEnv(baseEnv);
+      : baseEnv; // Use base environment when optimizer is disabled
 
     const envCreateTime = Date.now() - envStartTime;
     if (VERBOSE_OUTPUT) console.log(color('green', `✅ Environment configured in ${envCreateTime}ms`));
