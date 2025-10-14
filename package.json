@@ -1,6 +1,6 @@
 {
   "name": "sandboxbox",
-  "version": "3.0.37",
+  "version": "3.0.38",
   "description": "Lightweight process containment sandbox for CLI tools - Playwright, Claude Code, and more. Pure Node.js, no dependencies.",
   "type": "module",
   "main": "cli.js",
