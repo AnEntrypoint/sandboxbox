@@ -255,7 +255,22 @@ export function createSandbox(projectDir) {
       const pluginsDir = join(hostClaudeDir, 'plugins');
       if (existsSync(pluginsDir)) {
         const sandboxPluginsDir = join(sandboxClaudeDir, 'plugins');
-        cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
+
+        // Check real paths to avoid copying directory to itself
+        let shouldCopyPlugins = true;
+        try {
+          const pluginsRealPath = realpathSync(pluginsDir);
+          const sandboxPluginsRealPath = realpathSync(sandboxPluginsDir);
+          if (pluginsRealPath === sandboxPluginsRealPath) {
+            shouldCopyPlugins = false;
+          }
+        } catch (e) {
+          // If we can't resolve real paths, proceed with copy attempt
+        }
+
+        if (shouldCopyPlugins) {
+          cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
+        }
       }
     }
   }
