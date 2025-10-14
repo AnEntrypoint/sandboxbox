@@ -53,12 +53,23 @@ async function main() {
       case 'claude':
         if (commandArgs.length === 0) {
           console.log(color('red', '❌ Please specify a project directory'));
-          console.log(color('yellow', 'Usage: npx sandboxbox claude <project-dir> [prompt]'));
+          console.log(color('yellow', 'Usage: npx sandboxbox claude <project-dir> [prompt] [--host] [--headless]'));
           process.exit(1);
         }
+
+        // Parse flags from command args
+        const claudeArgs = commandArgs.slice(1);
+        const flags = {
+          useHostSettings: claudeArgs.includes('--host'),
+          headlessMode: claudeArgs.includes('--headless')
+        };
+
+        // Remove flags from prompt
+        const promptArgs = claudeArgs.filter(arg => arg !== '--host' && arg !== '--headless');
         const claudeProjectDir = resolve(process.cwd(), commandArgs[0]);
-        const claudePrompt = commandArgs.slice(1).join(' ');
-        if (!(await claudeCommand(claudeProjectDir, claudePrompt))) process.exit(1);
+        const claudePrompt = promptArgs.join(' ');
+
+        if (!(await claudeCommand(claudeProjectDir, claudePrompt, flags))) process.exit(1);
         break;
 
       case 'version':

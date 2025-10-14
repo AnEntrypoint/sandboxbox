@@ -228,7 +228,7 @@ function displayRecentToolCalls() {
 }
 
 
-export async function claudeCommand(projectDir, prompt) {
+export async function claudeCommand(projectDir, prompt, flags = {}) {
   if (!existsSync(projectDir)) {
     console.log(color('red', `❌ Project directory not found: ${projectDir}`));
     return false;
@@ -241,7 +241,8 @@ export async function claudeCommand(projectDir, prompt) {
   const startTime = Date.now();
   if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 1: Creating sandbox...'));
 
-  const { sandboxDir, cleanup } = createSandbox(projectDir);
+  const { useHostSettings, headlessMode } = flags;
+  const { sandboxDir, cleanup } = createSandbox(projectDir, { useHostSettings, headlessMode });
   const sandboxCreateTime = Date.now() - startTime;
   if (VERBOSE_OUTPUT) console.log(color('green', `✅ Sandbox created in ${sandboxCreateTime}ms`));
 
@@ -289,6 +290,35 @@ export async function claudeCommand(projectDir, prompt) {
       if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 3: Starting Claude Code...'));
 
       const workspacePath = join(sandboxDir, 'workspace');
+
+      // Handle headless mode Playwright MCP reconfiguration
+      if (headlessMode) {
+        if (VERBOSE_OUTPUT) console.log(color('yellow', '🎭 Configuring headless Playwright MCP...'));
+
+        try {
+          // Remove existing Playwright MCP (ignoring failures)
+          execSync('claude mcp remove playwright', {
+            cwd: workspacePath,
+            stdio: 'pipe',
+            shell: true
+          });
+        } catch (e) {
+          // Ignore removal failures
+        }
+
+        try {
+          // Add headless Playwright MCP
+          execSync('claude mcp add --headless --no-sandbox --scope=user playwright npx u/playwright/mcp@latest', {
+            cwd: workspacePath,
+            stdio: VERBOSE_OUTPUT ? 'inherit' : 'pipe',
+            shell: true
+          });
+
+          if (VERBOSE_OUTPUT) console.log(color('green', '✅ Headless Playwright MCP configured'));
+        } catch (e) {
+          console.log(color('red', `❌ Failed to configure headless Playwright MCP: ${e.message}`));
+        }
+      }
 
       // Modify the prompt to include directory change instruction
       const modifiedPrompt = `You are working in a sandboxed environment. Your working directory is "${workspacePath}". All operations should be performed in this directory. ${prompt}`;
