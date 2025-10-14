@@ -213,8 +213,8 @@ node_modules/
       }
 
       if (VERBOSE_OUTPUT) {
-        console.log('✅ Using bundled SandboxBox settings with Git integration hooks');
-        // Show hook information
+        console.log('✅ Using bundled SandboxBox settings with Git integration hooks and MCP servers');
+        // Show hook and MCP information
         const settings = JSON.parse(readFileSync(bundledSettingsPath, 'utf8'));
         if (settings.hooks) {
           console.log('📋 Bundled hooks configured:');
@@ -225,6 +225,13 @@ node_modules/
               const commandCount = hook.hooks ? hook.hooks.length : 0;
               console.log(`     ${index + 1}. ${hook.matcher || '*'} (${commandCount} commands)`);
             });
+          });
+        }
+        if (settings.mcpServers) {
+          console.log('🔧 MCP servers configured:');
+          Object.keys(settings.mcpServers).forEach(serverName => {
+            const server = settings.mcpServers[serverName];
+            console.log(`   ${serverName}: ${server.command} ${server.args.join(' ')}`);
           });
         }
       }
@@ -346,36 +353,7 @@ node_modules/
         }
       }
 
-      // Create minimal settings.json with enforced MCP servers (don't copy host settings)
-      const minimalSettings = {
-        "$schema": "https://schemas.modelcontextprotocol.io/0.1.0/mcp.json",
-        "mcpServers": {
-          "glootie": {
-            "command": "npx",
-            "args": ["-y", "mcp-glootie@latest"]
-          },
-          "playwright": {
-            "command": "npx",
-            "args": ["-y", "@playwright/mcp@latest"]
-          },
-          "vexify": {
-            "command": "npx",
-            "args": ["-y", "vexify@latest", "mcp"]
-          }
-        }
-      };
-
-      const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
-      writeFileSync(sandboxSettingsPath, JSON.stringify(minimalSettings, null, 2));
-
-      if (VERBOSE_OUTPUT) {
-        console.log('✅ Created minimal settings.json with enforced MCP servers');
-        console.log('📋 MCP servers configured:');
-        Object.keys(minimalSettings.mcpServers).forEach(serverName => {
-          const server = minimalSettings.mcpServers[serverName];
-          console.log(`   ${serverName}: ${server.command} ${server.args.join(' ')}`);
-        });
-      }
+      // Bundled settings already contain both MCP servers and hooks - no need to create minimal settings
 
       // Copy the glootie-cc plugin from host if it exists
       const hostPluginDir = join(dirname(projectDir), 'plugin');
