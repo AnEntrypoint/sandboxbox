@@ -17,8 +17,12 @@ export function showHelp() {
   console.log('  build [dockerfile]            Build container from Dockerfile');
   console.log('  run <project-dir> [cmd]       Run project in container');
   console.log('  shell <project-dir>           Start interactive shell');
-  console.log('  claude <project-dir>          Start Claude Code with local repository');
+  console.log('  claude <project-dir> [prompt] [--host] [--headless]  Start Claude Code with Git integration');
   console.log('  version                       Show version information');
+  console.log('');
+  console.log(color('yellow', 'Claude Command Options:'));
+  console.log('  --host                        Use host Claude settings instead of bundled');
+  console.log('  --headless                    Configure headless Playwright MCP (runs before Claude)');
   console.log('');
   console.log(color('yellow', 'Examples:'));
   console.log('  npx sandboxbox build');

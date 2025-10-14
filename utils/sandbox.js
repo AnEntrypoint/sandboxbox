@@ -1,9 +1,10 @@
 import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
-import { join, resolve } from 'path';
+import { join, resolve, fileURLToPath } from 'path';
 import { spawn, execSync } from 'child_process';
 
-export function createSandbox(projectDir) {
+export function createSandbox(projectDir, options = {}) {
+  const { useHostSettings = false, headlessMode = false } = options;
   const sandboxDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
   const workspaceDir = join(sandboxDir, 'workspace');
 
@@ -128,12 +129,47 @@ export function createSandbox(projectDir) {
     shell: true
   });
 
-  // Create symbolic link to host's .claude directory instead of copying
-  // This ensures access to the latest credentials and settings
+  // Setup Claude settings in sandbox
   const hostClaudeDir = join(homedir(), '.claude');
   const sandboxClaudeDir = join(sandboxDir, '.claude');
+  const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
 
-  if (existsSync(hostClaudeDir)) {
+  // Always use bundled SandboxBox settings unless host settings are requested
+  if (!useHostSettings) {
+    // Create sandbox Claude directory and copy bundled settings
+    mkdirSync(sandboxClaudeDir, { recursive: true });
+
+    const bundledSettingsPath = join(resolve(), 'sandboxbox-settings.json');
+    const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
+
+    // Copy bundled settings to sandbox
+    if (existsSync(bundledSettingsPath)) {
+      cpSync(bundledSettingsPath, sandboxSettingsPath);
+
+      // Also copy credentials from host if available
+      const hostCredentialsPath = join(hostClaudeDir, '.credentials.json');
+      if (existsSync(hostCredentialsPath)) {
+        cpSync(hostCredentialsPath, join(sandboxClaudeDir, '.credentials.json'));
+      }
+
+      if (VERBOSE_OUTPUT) {
+        console.log('✅ Using bundled SandboxBox settings with Git integration hooks');
+        // Show hook information
+        const settings = JSON.parse(readFileSync(bundledSettingsPath, 'utf8'));
+        if (settings.hooks) {
+          console.log('📋 Bundled hooks configured:');
+          Object.keys(settings.hooks).forEach(hookType => {
+            const hookCount = settings.hooks[hookType].length;
+            console.log(`   ${hookType}: ${hookCount} hook(s)`);
+            settings.hooks[hookType].forEach((hook, index) => {
+              const commandCount = hook.hooks ? hook.hooks.length : 0;
+              console.log(`     ${index + 1}. ${hook.matcher || '*'} (${commandCount} commands)`);
+            });
+          });
+        }
+      }
+    }
+  } else if (existsSync(hostClaudeDir)) {
     try {
       // Create symbolic link to host .claude directory
       symlinkSync(hostClaudeDir, sandboxClaudeDir, 'dir');

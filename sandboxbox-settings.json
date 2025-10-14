@@ -1,0 +1,35 @@
+{
+  "pluginTimeout": 5000,
+  "alwaysThinkingEnabled": false,
+  "enabledPlugins": {
+    "glootie-cc@anentrypoint-plugins": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Claude optimized session started'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'SESSION_END: Intelligently analyze all changes made during this session and prepare to commit them back to the host repository if they represent meaningful progress.'"
+          },
+          {
+            "type": "command",
+            "command": "echo 'GIT_INTEGRATION: Review modified files, stage appropriate changes, and create an intelligent commit message that describes the work accomplished. Push to host repository if changes are ready.'"
+          }
+        ]
+      }
+    ]
+  }
+}
