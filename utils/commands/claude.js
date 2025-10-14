@@ -19,35 +19,201 @@ const ALLOWED_TOOLS = [
 
 // Console output configuration
 const MAX_CONSOLE_LINES = parseInt(process.env.SANDBOX_MAX_CONSOLE_LINES) || 5;
+const MAX_LOG_ENTRY_LENGTH = parseInt(process.env.SANDBOX_MAX_LOG_LENGTH) || 200;
 const ENABLE_FILE_LOGGING = process.env.SANDBOX_ENABLE_FILE_LOGGING === 'true';
+const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
 global.toolCallLog = [];
 global.logFileHandle = null;
+global.pendingToolCalls = new Map(); // Track tool calls by ID for result matching
+global.conversationalBuffer = ''; // Track conversational text between tool calls
 
-// Helper function to log tool calls
-function logToolCall(toolName, action = 'call') {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] Tool ${action}: ${toolName}`;
+// Helper function to extract tool metadata without showing actual content
+function extractToolMetadata(toolUse) {
+  const metadata = {
+    name: toolUse.name || 'unknown',
+    id: toolUse.id || 'no-id',
+    inputCount: 0,
+    inputTypes: {},
+    inputSizes: {},
+    totalInputSize: 0
+  };
 
-  global.toolCallLog.push(logEntry);
+  if (toolUse.input && typeof toolUse.input === 'object') {
+    metadata.inputCount = Object.keys(toolUse.input).length;
+
+    for (const [key, value] of Object.entries(toolUse.input)) {
+      const type = Array.isArray(value) ? 'array' : typeof value;
+      metadata.inputTypes[key] = type;
+
+      // Calculate sizes without exposing content
+      if (type === 'string') {
+        metadata.inputSizes[key] = `${value.length} chars`;
+        metadata.totalInputSize += value.length;
+      } else if (type === 'array') {
+        metadata.inputSizes[key] = `${value.length} items`;
+        metadata.totalInputSize += JSON.stringify(value).length;
+      } else if (type === 'object' && value !== null) {
+        const objSize = JSON.stringify(value).length;
+        metadata.inputSizes[key] = `${objSize} chars`;
+        metadata.totalInputSize += objSize;
+      } else {
+        metadata.inputSizes[key] = `${type}`;
+      }
+    }
+  }
+
+  return metadata;
+}
+
+// Helper function to extract tool result metadata
+function extractResultMetadata(result) {
+  const metadata = {
+    type: 'unknown',
+    size: 0,
+    hasContent: false,
+    isToolResult: false,
+    isError: false
+  };
+
+  if (result && typeof result === 'object') {
+    metadata.isToolResult = result.type === 'tool_result';
+    metadata.isError = result.is_error || false;
+
+    if (result.content) {
+      metadata.hasContent = true;
+
+      if (typeof result.content === 'string') {
+        metadata.type = 'text';
+        metadata.size = result.content.length;
+      } else if (Array.isArray(result.content)) {
+        metadata.type = 'array';
+        metadata.size = result.content.length;
+        // Count items by type without showing content
+        const typeCounts = {};
+        result.content.forEach(item => {
+          const itemType = item?.type || 'unknown';
+          typeCounts[itemType] = (typeCounts[itemType] || 0) + 1;
+        });
+        metadata.itemTypes = typeCounts;
+      } else if (typeof result.content === 'object') {
+        metadata.type = 'object';
+        metadata.size = Object.keys(result.content).length;
+      }
+    }
+  }
+
+  return metadata;
+}
+
+
+// Helper function to truncate text to a sensible length
+function truncateText(text, maxLength = MAX_LOG_ENTRY_LENGTH) {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+// Enhanced tool logging with detailed metadata and length limiting
+function logToolCall(toolName, action = 'call', toolUse = null, result = null) {
+  const shortTime = new Date().toLocaleTimeString();
+  let logEntry = `Tool: ${toolName}`;
+
+  // Add conversational text if available
+  if (global.conversationalBuffer.trim()) {
+    const truncatedText = truncateText(global.conversationalBuffer.trim(), 80);
+    logEntry += ` - "${truncatedText}"`;
+    global.conversationalBuffer = ''; // Clear buffer after using
+  }
+
+  // Add compact metadata
+  if (toolUse && action === 'call') {
+    const metadata = extractToolMetadata(toolUse);
+    const metaInfo = [];
+
+    if (metadata.inputCount > 0) {
+      metaInfo.push(`${metadata.inputCount} inputs`);
+    }
+
+    if (metadata.totalInputSize > 0) {
+      metaInfo.push(`${metadata.totalInputSize} chars`);
+    }
+
+    if (metaInfo.length > 0) {
+      logEntry += ` (${metaInfo.join(', ')})`;
+    }
+  }
+
+  // Add result metadata
+  if (result && action === 'result') {
+    const metadata = extractResultMetadata(result);
+    const resultInfo = [];
+
+    if (metadata.hasContent) {
+      if (metadata.size > 0) {
+        if (metadata.type === 'text') {
+          resultInfo.push(`${metadata.size} chars`);
+        } else if (metadata.type === 'array') {
+          resultInfo.push(`${metadata.size} items`);
+        }
+      }
+
+      if (metadata.isError) {
+        resultInfo.push('ERROR');
+      }
+    }
+
+    if (resultInfo.length > 0) {
+      logEntry += ` → ${resultInfo.join(', ')}`;
+    }
+  }
+
+  const finalLogEntry = `[${shortTime}] ${truncateText(logEntry)}`;
+
+  global.toolCallLog.push(finalLogEntry);
 
   // Keep only the last MAX_CONSOLE_LINES for console display
   if (global.toolCallLog.length > MAX_CONSOLE_LINES) {
     global.toolCallLog = global.toolCallLog.slice(-MAX_CONSOLE_LINES);
   }
 
-  // Optionally log to file
+  // Optionally log to file with full metadata
   if (ENABLE_FILE_LOGGING) {
     try {
       if (!global.logFileHandle) {
+        const timestamp = new Date().toISOString();
         const logFileName = `sandboxbox-tool-calls-${Date.now()}.log`;
-        writeFileSync(logFileName, `# SandboxBox Tool Calls Log\n# Started: ${timestamp}\n\n`);
+        writeFileSync(logFileName, `# SandboxBox Tool Calls Log\n# Started: ${timestamp}\n# Format: [timestamp] Tool: name - "text" (metadata)\n\n`);
         global.logFileHandle = logFileName;
       }
-      appendFileSync(global.logFileHandle, logEntry + '\n');
+
+      const timestamp = new Date().toISOString();
+      let fileLogEntry = `[${timestamp}] Tool: ${toolName}`;
+
+      if (global.conversationalBuffer.trim()) {
+        fileLogEntry += ` - "${global.conversationalBuffer.trim()}"`;
+      }
+
+      if (toolUse && action === 'call') {
+        const metadata = extractToolMetadata(toolUse);
+        fileLogEntry += `\n    Input details: ${JSON.stringify(metadata.inputSizes, null, 2)}`;
+      }
+
+      if (result && action === 'result') {
+        const metadata = extractResultMetadata(result);
+        fileLogEntry += `\n    Result details: ${JSON.stringify(metadata, null, 2)}`;
+      }
+
+      appendFileSync(global.logFileHandle, fileLogEntry + '\n');
     } catch (error) {
       // Don't fail if logging fails
       console.log(color('yellow', `⚠️  Could not write to log file: ${error.message}`));
     }
+  }
+}
+
+// Function to log conversational text
+function logConversationalText(text) {
+  if (text && text.trim()) {
+    global.conversationalBuffer += text + ' ';
   }
 }
 
@@ -76,18 +242,18 @@ export async function claudeCommand(projectDir, prompt) {
   console.log('');
 
   const startTime = Date.now();
-  console.log(color('cyan', '⏱️  Stage 1: Creating sandbox...'));
+  if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 1: Creating sandbox...'));
 
   const { sandboxDir, cleanup } = createSandbox(projectDir);
   const sandboxCreateTime = Date.now() - startTime;
-  console.log(color('green', `✅ Sandbox created in ${sandboxCreateTime}ms`));
+  if (VERBOSE_OUTPUT) console.log(color('green', `✅ Sandbox created in ${sandboxCreateTime}ms`));
 
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
 
   try {
     const envStartTime = Date.now();
-    console.log(color('cyan', '⏱️  Stage 2: Setting up environment...'));
+    if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 2: Setting up environment...'));
 
     // Apply Claude optimizations
     const claudeOptimizer = new ClaudeOptimizer(sandboxDir);
@@ -108,13 +274,13 @@ export async function claudeCommand(projectDir, prompt) {
       : claudeOptimizer.createOptimizedEnv(baseEnv);
 
     const envCreateTime = Date.now() - envStartTime;
-    console.log(color('green', `✅ Environment configured in ${envCreateTime}ms`));
+    if (VERBOSE_OUTPUT) console.log(color('green', `✅ Environment configured in ${envCreateTime}ms`));
 
-    if (systemOptimizationsApplied) {
+    if (systemOptimizationsApplied && VERBOSE_OUTPUT) {
       console.log(color('yellow', `🚀 System-level optimizations applied`));
     }
 
-    console.log(color('cyan', `📦 Using host Claude settings with all available tools\n`));
+    if (VERBOSE_OUTPUT) console.log(color('cyan', `📦 Using host Claude settings with all available tools\n`));
 
     const claudeArgs = [
       '--verbose',
@@ -123,7 +289,7 @@ export async function claudeCommand(projectDir, prompt) {
       '--allowed-tools', ALLOWED_TOOLS.join(',')
     ];
 
-    console.log(color('blue', `📝 Running Claude Code with host settings\n`));
+    if (VERBOSE_OUTPUT) console.log(color('blue', `📝 Running Claude Code with host settings\n`));
 
     return new Promise((resolve, reject) => {
       const claudeStartTime = Date.now();
@@ -168,10 +334,37 @@ export async function claudeCommand(projectDir, prompt) {
           if (Array.isArray(content)) {
             for (const block of content) {
               if (block.type === 'text') {
-                process.stdout.write(block.text);
+                // Capture conversational text and display if verbose
+                if (VERBOSE_OUTPUT) {
+                  process.stdout.write(block.text);
+                } else {
+                  logConversationalText(block.text);
+                }
               } else if (block.type === 'tool_use') {
-                logToolCall(block.name);
-                console.log(color('cyan', `\n🔧 Using tool: ${block.name}`));
+                // Track the tool call for later result matching
+                if (block.id) {
+                  global.pendingToolCalls.set(block.id, block.name);
+                }
+                logToolCall(block.name, 'call', block);
+                if (VERBOSE_OUTPUT) {
+                  console.log(color('cyan', `\n🔧 Using tool: ${block.name}`));
+                }
+              }
+            }
+          }
+        } else if (event.type === 'user' && event.message) {
+          const content = event.message.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === 'tool_result' && block.tool_use_id) {
+                // Match the result with the original tool call
+                const toolUseId = block.tool_use_id;
+                const toolName = global.pendingToolCalls.get(toolUseId) || `unknown_tool_${toolUseId}`;
+
+                logToolCall(toolName, 'result', null, block);
+
+                // Remove from pending calls after matching
+                global.pendingToolCalls.delete(toolUseId);
               }
             }
           }
