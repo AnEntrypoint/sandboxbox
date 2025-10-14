@@ -8,6 +8,7 @@ export function createSandbox(projectDir, options = {}) {
   const { useHostSettings = false, headlessMode = false } = options;
   const sandboxDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
   const workspaceDir = join(sandboxDir, 'workspace');
+  const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
 
   // Ensure host directory is a git repository
   if (!existsSync(join(projectDir, '.git'))) {
@@ -192,7 +193,6 @@ node_modules/
   // Setup Claude settings in sandbox
   const hostClaudeDir = join(homedir(), '.claude');
   const sandboxClaudeDir = join(sandboxDir, '.claude');
-  const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
 
   // Always use bundled SandboxBox settings unless host settings are requested
   if (!useHostSettings) {
