@@ -4,6 +4,9 @@
   "enabledPlugins": {
     "glootie-cc@anentrypoint-plugins": true
   },
+  "pluginPaths": [
+    "../plugin"
+  ],
   "hooks": {
     "SessionStart": [
       {
