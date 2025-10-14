@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, readFileSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
 
@@ -268,7 +268,6 @@ node_modules/
 
       // Copy only essential files (avoid large files like history)
       const essentialFiles = [
-        'settings.json',
         '.credentials.json'
       ];
 
@@ -347,26 +346,35 @@ node_modules/
         }
       }
 
-      // Copy plugins directory if it exists (but skip large cache files)
-      const pluginsDir = join(hostClaudeDir, 'plugins');
-      if (existsSync(pluginsDir)) {
-        const sandboxPluginsDir = join(sandboxClaudeDir, 'plugins');
-
-        // Check real paths to avoid copying directory to itself
-        let shouldCopyPlugins = true;
-        try {
-          const pluginsRealPath = realpathSync(pluginsDir);
-          const sandboxPluginsRealPath = realpathSync(sandboxPluginsDir);
-          if (pluginsRealPath === sandboxPluginsRealPath) {
-            shouldCopyPlugins = false;
+      // Create minimal settings.json with enforced MCP servers (don't copy host settings)
+      const minimalSettings = {
+        "$schema": "https://schemas.modelcontextprotocol.io/0.1.0/mcp.json",
+        "mcpServers": {
+          "glootie": {
+            "command": "npx",
+            "args": ["-y", "mcp-glootie@latest"]
+          },
+          "playwright": {
+            "command": "npx",
+            "args": ["-y", "@playwright/mcp@latest"]
+          },
+          "vexify": {
+            "command": "npx",
+            "args": ["-y", "vexify@latest", "mcp"]
           }
-        } catch (e) {
-          // If we can't resolve real paths, proceed with copy attempt
         }
+      };
 
-        if (shouldCopyPlugins) {
-          cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
-        }
+      const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
+      writeFileSync(sandboxSettingsPath, JSON.stringify(minimalSettings, null, 2));
+
+      if (VERBOSE_OUTPUT) {
+        console.log('✅ Created minimal settings.json with enforced MCP servers');
+        console.log('📋 MCP servers configured:');
+        Object.keys(minimalSettings.mcpServers).forEach(serverName => {
+          const server = minimalSettings.mcpServers[serverName];
+          console.log(`   ${serverName}: ${server.command} ${server.args.join(' ')}`);
+        });
       }
 
       // Copy the glootie-cc plugin from host if it exists

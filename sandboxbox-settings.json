@@ -1,12 +1,21 @@
 {
+  "$schema": "https://schemas.modelcontextprotocol.io/0.1.0/mcp.json",
   "pluginTimeout": 5000,
   "alwaysThinkingEnabled": false,
-  "enabledPlugins": {
-    "glootie-cc@anentrypoint-plugins": true
+  "mcpServers": {
+    "glootie": {
+      "command": "npx",
+      "args": ["-y", "mcp-glootie@latest"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "vexify": {
+      "command": "npx",
+      "args": ["-y", "vexify@latest", "mcp"]
+    }
   },
-  "pluginPaths": [
-    "../plugin"
-  ],
   "hooks": {
     "SessionStart": [
       {
