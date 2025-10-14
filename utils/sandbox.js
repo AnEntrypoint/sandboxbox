@@ -66,6 +66,25 @@ export function createSandbox(projectDir, options = {}) {
     });
   }
 
+  // Ensure .claude is in .gitignore in the sandbox workspace
+  const gitignorePath = join(workspaceDir, '.gitignore');
+  if (!existsSync(gitignorePath)) {
+    writeFileSync(gitignorePath, `# Claude Code settings (project-specific, not to be committed)
+.claude/
+
+# Dependencies
+node_modules/
+*.log
+.DS_Store
+`);
+  } else {
+    // Add .claude to existing .gitignore if not already present
+    const gitignoreContent = readFileSync(gitignorePath, 'utf8');
+    if (!gitignoreContent.includes('.claude/')) {
+      writeFileSync(gitignorePath, gitignoreContent + '\n# Claude Code settings (project-specific, not to be committed)\n.claude/\n');
+    }
+  }
+
   // Set up host repo as origin in sandbox (pointing to host directory)
   try {
     execSync(`git remote add origin "${projectDir}"`, {
@@ -114,6 +133,18 @@ export function createSandbox(projectDir, options = {}) {
     // Upstream may not exist yet, ignore error
   }
 
+  // Copy project's .claude/settings.json if it exists (project-level Claude settings)
+  const projectClaudeSettingsPath = join(projectDir, '.claude', 'settings.json');
+  if (existsSync(projectClaudeSettingsPath)) {
+    const sandboxClaudeSettingsPath = join(workspaceDir, '.claude', 'settings.json');
+    mkdirSync(join(workspaceDir, '.claude'), { recursive: true });
+    cpSync(projectClaudeSettingsPath, sandboxClaudeSettingsPath);
+
+    if (VERBOSE_OUTPUT) {
+      console.log('✅ Copied project Claude settings to sandbox');
+    }
+  }
+
   // Batch fetch git identity settings for efficiency
   const gitSettings = execSync(`git config --global --get user.name && git config --global --get user.email && git config --global --get color.ui`, {
     stdio: 'pipe',
@@ -129,6 +160,34 @@ export function createSandbox(projectDir, options = {}) {
     stdio: 'pipe',
     shell: true
   });
+
+  // Configure Git remote to host for bidirectional synchronization
+  try {
+    execSync(`cd "${workspaceDir}" && git remote add host "${projectDir}"`, {
+      stdio: 'pipe',
+      shell: true
+    });
+
+    if (VERBOSE_OUTPUT) {
+      console.log('✅ Configured Git remote to host repository');
+    }
+  } catch (error) {
+    // Remote might already exist, try to update it
+    try {
+      execSync(`cd "${workspaceDir}" && git remote set-url host "${projectDir}"`, {
+        stdio: 'pipe',
+        shell: true
+      });
+
+      if (VERBOSE_OUTPUT) {
+        console.log('✅ Updated Git remote to host repository');
+      }
+    } catch (updateError) {
+      if (VERBOSE_OUTPUT) {
+        console.log('⚠️  Could not configure Git remote to host');
+      }
+    }
+  }
 
   // Setup Claude settings in sandbox
   const hostClaudeDir = join(homedir(), '.claude');
