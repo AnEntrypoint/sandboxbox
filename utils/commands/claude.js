@@ -315,12 +315,18 @@ export async function claudeCommand(projectDir, prompt) {
         if (event.type === 'system' && event.subtype === 'init') {
           if (!claudeStarted) {
             const claudeCreateTime = Date.now() - claudeStartTime;
-            console.log(color('green', `✅ Claude Code started in ${claudeCreateTime}ms`));
+            if (VERBOSE_OUTPUT) console.log(color('green', `✅ Claude Code started in ${claudeCreateTime}ms`));
             claudeStarted = true;
           }
-          console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
-          console.log(color('cyan', `📦 Model: ${event.model}`));
+          if (VERBOSE_OUTPUT) console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
+          if (VERBOSE_OUTPUT) console.log(color('cyan', `📦 Model: ${event.model}`));
           console.log(color('cyan', `🔧 Tools: ${event.tools.length} available`));
+
+          // Warning if only default tools (15) are available instead of host tools (39)
+          if (event.tools.length === 15) {
+            console.log(color('yellow', `⚠️  Warning: No added tools found - using default tool set (15 tools)`));
+            console.log(color('yellow', `⚠️  Host settings should provide 39 tools with MCP plugins`));
+          }
 
           // List available tools
           if (event.tools && event.tools.length > 0) {
