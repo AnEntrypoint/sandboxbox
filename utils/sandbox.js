@@ -12,10 +12,15 @@ export function createSandbox(projectDir) {
     `git config --global --add safe.directory "${projectDir}"`,
     `git config --global --add safe.directory "${projectDir}/.git"`,
     // Use shallow clone for faster checkout (depth 1 = current commit only)
-    `git clone --depth 1 --no-tags "${projectDir}" "${workspaceDir}"`,
-    // Configure host repo to accept pushes
-    `git config receive.denyCurrentBranch updateInstead`
+    `git clone --depth 1 --no-tags "${projectDir}" "${workspaceDir}"`
   ];
+
+  // Configure host repo to accept pushes (run in project directory)
+  execSync(`cd "${projectDir}" && git config receive.denyCurrentBranch updateInstead`, {
+    stdio: 'pipe',
+    shell: true,
+    windowsHide: true
+  });
 
   // Execute git commands in parallel where possible
   gitCommands.forEach(cmd => {
@@ -133,10 +138,12 @@ export function createSandboxEnv(sandboxDir, options = {}) {
     ...process.env,
   };
 
-  // Keep host HOME directory for Claude credentials access
-  // but add sandbox directories for other XDG paths
-  // env.HOME = process.env.HOME; // Already inherited from process.env
-  env.USERPROFILE = process.env.USERPROFILE || process.env.HOME;
+  // IMPORTANT: Set HOME to sandbox directory for Claude to find settings
+  // but preserve access to host credentials via symlink
+  env.HOME = sandboxDir;
+  env.USERPROFILE = sandboxDir;
+
+  // Set XDG paths to use sandbox Claude directory
   env.XDG_CONFIG_HOME = sandboxClaudeDir;
   env.XDG_DATA_HOME = join(sandboxClaudeDir, '.local', 'share');
   env.XDG_CACHE_HOME = sandboxCacheDir;
