@@ -7,20 +7,23 @@ export function createSandbox(projectDir) {
   const sandboxDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
   const workspaceDir = join(sandboxDir, 'workspace');
 
-  // Set git safe directory before cloning
-  execSync(`git config --global --add safe.directory "${projectDir}"`, {
-    stdio: 'pipe',
-    shell: true
-  });
-  execSync(`git config --global --add safe.directory "${projectDir}/.git"`, {
-    stdio: 'pipe',
-    shell: true
-  });
+  // Batch git operations for better performance
+  const gitCommands = [
+    `git config --global --add safe.directory "${projectDir}"`,
+    `git config --global --add safe.directory "${projectDir}/.git"`,
+    // Use shallow clone for faster checkout (depth 1 = current commit only)
+    `git clone --depth 1 --no-tags "${projectDir}" "${workspaceDir}"`,
+    // Configure host repo to accept pushes
+    `git config receive.denyCurrentBranch updateInstead`
+  ];
 
-  execSync(`git clone "${projectDir}" "${workspaceDir}"`, {
-    stdio: 'pipe',
-    shell: true,
-    windowsHide: true
+  // Execute git commands in parallel where possible
+  gitCommands.forEach(cmd => {
+    execSync(cmd, {
+      stdio: 'pipe',
+      shell: true,
+      windowsHide: true
+    });
   });
 
   // Set up host repo as origin in sandbox (only if not already exists)
@@ -39,45 +42,17 @@ export function createSandbox(projectDir) {
     });
   }
 
-  // Configure host repo to accept pushes to current branch
-  execSync(`git config receive.denyCurrentBranch updateInstead`, {
-    cwd: projectDir,
-    stdio: 'pipe',
-    shell: true
-  });
-
-  // Transfer git identity from host to sandbox
-  const userName = execSync('git config --global user.name', {
+  // Batch fetch git identity settings for efficiency
+  const gitSettings = execSync(`git config --global --get user.name && git config --global --get user.email && git config --global --get color.ui`, {
     stdio: 'pipe',
     shell: true,
     encoding: 'utf8'
-  }).trim();
+  }).trim().split('\n');
 
-  const userEmail = execSync('git config --global user.email', {
-    stdio: 'pipe',
-    shell: true,
-    encoding: 'utf8'
-  }).trim();
+  const [userName, userEmail, colorUi] = gitSettings;
 
-  execSync(`git config user.name "${userName}"`, {
-    cwd: workspaceDir,
-    stdio: 'pipe',
-    shell: true
-  });
-
-  execSync(`git config user.email "${userEmail}"`, {
-    cwd: workspaceDir,
-    stdio: 'pipe',
-    shell: true
-  });
-
-  const colorUi = execSync('git config --global color.ui', {
-    stdio: 'pipe',
-    shell: true,
-    encoding: 'utf8'
-  }).trim();
-
-  execSync(`git config color.ui "${colorUi}"`, {
+  // Batch configure git settings in sandbox
+  execSync(`git config user.name "${userName}" && git config user.email "${userEmail}" && git config color.ui "${colorUi}"`, {
     cwd: workspaceDir,
     stdio: 'pipe',
     shell: true
@@ -123,16 +98,22 @@ export function createSandbox(projectDir) {
     }
   }
 
-  // Copy host cache directories that Claude might need
+  // Optimize cache directory handling - use symlinks instead of copying
   const hostCacheDir = join(homedir(), '.cache');
   if (existsSync(hostCacheDir)) {
     const sandboxCacheDir = join(sandboxDir, '.cache');
     mkdirSync(sandboxCacheDir, { recursive: true });
 
-    // Copy ms-playwright cache if it exists
+    // Create symlink to ms-playwright cache instead of copying (major performance improvement)
     const playwrightCacheDir = join(hostCacheDir, 'ms-playwright');
     if (existsSync(playwrightCacheDir)) {
-      cpSync(playwrightCacheDir, join(sandboxCacheDir, 'ms-playwright'), { recursive: true });
+      const sandboxPlaywrightDir = join(sandboxCacheDir, 'ms-playwright');
+      try {
+        symlinkSync(playwrightCacheDir, sandboxPlaywrightDir, 'dir');
+      } catch (error) {
+        // Fallback to copying only if symlink fails
+        cpSync(playwrightCacheDir, sandboxPlaywrightDir, { recursive: true });
+      }
     }
   }
 

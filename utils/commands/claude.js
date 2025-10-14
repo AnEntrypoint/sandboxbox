@@ -35,6 +35,7 @@ export async function claudeCommand(projectDir, prompt) {
 
   const startTime = Date.now();
   console.log(color('cyan', '⏱️  Stage 1: Creating sandbox...'));
+
   const { sandboxDir, cleanup } = createSandbox(projectDir);
   const sandboxCreateTime = Date.now() - startTime;
   console.log(color('green', `✅ Sandbox created in ${sandboxCreateTime}ms`));
@@ -45,6 +46,7 @@ export async function claudeCommand(projectDir, prompt) {
   try {
     const envStartTime = Date.now();
     console.log(color('cyan', '⏱️  Stage 2: Setting up environment...'));
+
     const env = createSandboxEnv(sandboxDir, {
       CLAUDECODE: '1'
     });
