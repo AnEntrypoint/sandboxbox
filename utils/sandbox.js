@@ -190,6 +190,15 @@ export function createSandbox(projectDir) {
   }
 
   const cleanup = () => {
+    // Close any log files that might be open
+    if (global.logFileHandle) {
+      try {
+        appendFileSync(global.logFileHandle, `\n# Session ended: ${new Date().toISOString()}\n`);
+        global.logFileHandle = null;
+      } catch (error) {
+        // Don't fail on log cleanup
+      }
+    }
     rmSync(sandboxDir, { recursive: true, force: true });
   };
 
