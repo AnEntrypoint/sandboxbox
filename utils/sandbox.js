@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync } from 'fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
 import { join, resolve } from 'path';
 import { spawn, execSync } from 'child_process';
@@ -182,13 +182,38 @@ export function createSandbox(projectDir) {
         const sandboxFile = join(sandboxClaudeDir, file);
 
         if (existsSync(hostFile) && hostFile !== sandboxFile) {
+          // Additional check using real paths to detect symlink/bind mount issues
+          let shouldCopy = true;
+          try {
+            const hostRealPath = realpathSync(hostFile);
+            const sandboxRealPath = realpathSync(sandboxFile);
+            if (hostRealPath === sandboxRealPath) {
+              shouldCopy = false;
+            }
+          } catch (e) {
+            // If we can't resolve real paths, proceed with copy attempt
+          }
+
           if (VERBOSE_OUTPUT) {
             console.log(`   Copying ${file}: ${hostFile} -> ${sandboxFile}`);
             console.log(`   Path comparison: hostFile === sandboxFile = ${hostFile === sandboxFile}`);
             console.log(`   Host file exists: ${existsSync(hostFile)}`);
             console.log(`   Sandbox file exists: ${existsSync(sandboxFile)}`);
+            try {
+              const hostRealPath = realpathSync(hostFile);
+              const sandboxRealPath = realpathSync(sandboxFile);
+              console.log(`   Real paths: host=${hostRealPath}, sandbox=${sandboxRealPath}`);
+              console.log(`   Real path comparison: hostRealPath === sandboxRealPath = ${hostRealPath === sandboxRealPath}`);
+            } catch (e) {
+              console.log(`   Real path check failed: ${e.message}`);
+            }
           }
-          cpSync(hostFile, sandboxFile);
+
+          if (shouldCopy) {
+            cpSync(hostFile, sandboxFile);
+          } else if (VERBOSE_OUTPUT) {
+            console.log(`   Skipping copy - real paths are the same`);
+          }
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for copied settings
             // const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
