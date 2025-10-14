@@ -75,7 +75,8 @@ export async function claudeCommand(projectDir, prompt) {
     const claudeArgs = [
       '--verbose',
       '--output-format', 'stream-json',
-      '--permission-mode', 'bypassPermissions'
+      '--permission-mode', 'bypassPermissions',
+      '--allowed-tools', ALLOWED_TOOLS.join(',')
     ];
 
     console.log(color('blue', `📝 Running Claude Code with host settings\n`));
