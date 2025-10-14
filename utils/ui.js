@@ -1,9 +1,12 @@
 import { color } from './colors.js';
 
 export function showBanner() {
-  console.log(color('cyan', '📦 SandboxBox - Portable Container Runner'));
-  console.log(color('cyan', '═════════════════════════════════════════════════'));
-  console.log('');
+  const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
+  if (VERBOSE_OUTPUT) {
+    console.log(color('cyan', '📦 SandboxBox - Portable Container Runner'));
+    console.log(color('cyan', '═════════════════════════════════════════════════'));
+    console.log('');
+  }
 }
 
 export function showHelp() {
