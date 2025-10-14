@@ -15,43 +15,6 @@ const ALLOWED_TOOLS = [
   'mcp__vexify__search_code'
 ];
 
-function handleStreamingOutput(data) {
-  const lines = data.toString().split('\n').filter(line => line.trim());
-
-  for (const line of lines) {
-    const event = JSON.parse(line);
-
-    if (event.type === 'system' && event.subtype === 'init') {
-      if (!claudeStarted) {
-        const claudeCreateTime = Date.now() - claudeStartTime;
-        console.log(color('green', `✅ Claude Code started in ${claudeCreateTime}ms`));
-        claudeStarted = true;
-      }
-      console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
-      console.log(color('cyan', `📦 Model: ${event.model}`));
-      console.log(color('cyan', `🔧 Tools: ${event.tools.length} available\n`));
-    } else if (event.type === 'assistant' && event.message) {
-      const content = event.message.content;
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === 'text') {
-            process.stdout.write(block.text);
-          } else if (block.type === 'tool_use') {
-            console.log(color('cyan', `\n🔧 Using tool: ${block.name}`));
-          }
-        }
-      }
-    } else if (event.type === 'result') {
-      const usage = event.usage || {};
-      const cost = event.total_cost_usd || 0;
-      console.log(color('green', `\n\n✅ Completed in ${event.duration_ms}ms`));
-      console.log(color('yellow', `💰 Cost: $${cost.toFixed(4)}`));
-      if (usage.input_tokens) {
-        console.log(color('cyan', `📊 Tokens: ${usage.input_tokens} in, ${usage.output_tokens} out`));
-      }
-    }
-  }
-}
 
 export async function claudeCommand(projectDir, prompt) {
   if (!existsSync(projectDir)) {
@@ -111,6 +74,44 @@ export async function claudeCommand(projectDir, prompt) {
       });
 
       let claudeStarted = false;
+
+      function handleStreamingOutput(data) {
+        const lines = data.toString().split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          const event = JSON.parse(line);
+
+          if (event.type === 'system' && event.subtype === 'init') {
+            if (!claudeStarted) {
+              const claudeCreateTime = Date.now() - claudeStartTime;
+              console.log(color('green', `✅ Claude Code started in ${claudeCreateTime}ms`));
+              claudeStarted = true;
+            }
+            console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
+            console.log(color('cyan', `📦 Model: ${event.model}`));
+            console.log(color('cyan', `🔧 Tools: ${event.tools.length} available\n`));
+          } else if (event.type === 'assistant' && event.message) {
+            const content = event.message.content;
+            if (Array.isArray(content)) {
+              for (const block of content) {
+                if (block.type === 'text') {
+                  process.stdout.write(block.text);
+                } else if (block.type === 'tool_use') {
+                  console.log(color('cyan', `\n🔧 Using tool: ${block.name}`));
+                }
+              }
+            }
+          } else if (event.type === 'result') {
+            const usage = event.usage || {};
+            const cost = event.total_cost_usd || 0;
+            console.log(color('green', `\n\n✅ Completed in ${event.duration_ms}ms`));
+            console.log(color('yellow', `💰 Cost: $${cost.toFixed(4)}`));
+            if (usage.input_tokens) {
+              console.log(color('cyan', `📊 Tokens: ${usage.input_tokens} in, ${usage.output_tokens} out`));
+            }
+          }
+        }
+      }
 
       // Add error handling
       proc.on('error', (error) => {
