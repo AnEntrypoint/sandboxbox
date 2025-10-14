@@ -112,7 +112,15 @@ export async function claudeCommand(projectDir, prompt) {
               }
               console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
               console.log(color('cyan', `📦 Model: ${event.model}`));
-              console.log(color('cyan', `🔧 Tools: ${event.tools.length} available\n`));
+              console.log(color('cyan', `🔧 Tools: ${event.tools.length} available`));
+
+              // List available tools
+              if (event.tools && event.tools.length > 0) {
+                const toolNames = event.tools.map(tool => tool.name || tool).sort();
+                console.log(color('yellow', `   Available: ${toolNames.join(', ')}\n`));
+              } else {
+                console.log('');
+              }
             } else if (event.type === 'assistant' && event.message) {
               const content = event.message.content;
               if (Array.isArray(content)) {
