@@ -137,9 +137,37 @@ export function createSandbox(projectDir) {
     try {
       // Create symbolic link to host .claude directory
       symlinkSync(hostClaudeDir, sandboxClaudeDir, 'dir');
+
+      const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
+      if (VERBOSE_OUTPUT) {
+        // Show hook information in verbose mode
+        const settingsPath = join(hostClaudeDir, 'settings.json');
+        if (existsSync(settingsPath)) {
+          const settings = JSON.parse(require('fs').readFileSync(settingsPath, 'utf8'));
+          if (settings.hooks) {
+            console.log('✅ Linked to host Claude settings directory');
+            console.log('📋 Hooks configured:');
+            Object.keys(settings.hooks).forEach(hookType => {
+              const hookCount = settings.hooks[hookType].length;
+              console.log(`   ${hookType}: ${hookCount} hook(s)`);
+              settings.hooks[hookType].forEach((hook, index) => {
+                const commandCount = hook.hooks ? hook.hooks.length : 0;
+                console.log(`     ${index + 1}. ${hook.matcher || '*'} (${commandCount} commands)`);
+              });
+            });
+          } else {
+            console.log('✅ Linked to host Claude settings directory (no hooks configured)');
+          }
+        }
+      }
     } catch (error) {
       // Fallback to copying if symlink fails
       mkdirSync(sandboxClaudeDir, { recursive: true });
+
+      const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
+      if (VERBOSE_OUTPUT) {
+        console.log('⚠️  Could not create symlink, copying Claude settings instead');
+      }
 
       // Copy only essential files (avoid large files like history)
       const essentialFiles = [
@@ -154,6 +182,21 @@ export function createSandbox(projectDir) {
 
         if (existsSync(hostFile)) {
           cpSync(hostFile, sandboxFile);
+          if (VERBOSE_OUTPUT && file === 'settings.json') {
+            // Show hook information for copied settings
+            const settings = JSON.parse(require('fs').readFileSync(hostFile, 'utf8'));
+            if (settings.hooks) {
+              console.log('📋 Hooks configured in copied settings:');
+              Object.keys(settings.hooks).forEach(hookType => {
+                const hookCount = settings.hooks[hookType].length;
+                console.log(`   ${hookType}: ${hookCount} hook(s)`);
+                settings.hooks[hookType].forEach((hook, index) => {
+                  const commandCount = hook.hooks ? hook.hooks.length : 0;
+                  console.log(`     ${index + 1}. ${hook.matcher || '*'} (${commandCount} commands)`);
+                });
+              });
+            }
+          }
         }
       }
 
