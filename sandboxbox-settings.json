@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schemas.modelcontextprotocol.io/0.1.0/mcp.json",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "pluginTimeout": 5000,
   "alwaysThinkingEnabled": false,
   "mcpServers": {
