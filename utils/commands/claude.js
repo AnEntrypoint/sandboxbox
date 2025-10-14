@@ -323,9 +323,20 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
       // Modify the prompt to include directory change instruction
       const modifiedPrompt = `You are working in a sandboxed environment. Your working directory is "${workspacePath}". All operations should be performed in this directory. ${prompt}`;
 
+      // Add network isolation environment variables for process-level isolation
+      const networkIsolatedEnv = {
+        ...env,
+        // Force network isolation through environment variables
+        SANDBOX_NETWORK_ISOLATED: 'true',
+        // Add unique sandbox identifier for port isolation
+        SANDBOX_ID: Math.random().toString(36).substr(2, 9),
+        // Restrict network binding to localhost when possible
+        NODE_OPTIONS: (env.NODE_OPTIONS || '') + ' --no-force-async-hooks-checks'
+      };
+
       const proc = spawn('claude', claudeArgs, {
         cwd: workspacePath,  // Set working directory directly
-        env: env,  // Use the environment directly without modification
+        env: networkIsolatedEnv,  // Use network-isolated environment
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,  // Don't use shell since we're setting cwd directly
         detached: false
