@@ -236,10 +236,7 @@ export async function claudeCommand(projectDir, prompt) {
 
   // Note: We don't require git repository anymore - the sandbox will initialize it if needed
 
-  console.log(color('blue', '🚀 Starting Claude Code in sandbox...'));
-  console.log(color('yellow', `Project: ${projectDir}`));
-  console.log(color('yellow', `Prompt: ${prompt}`));
-  console.log('');
+  // Silent start - only show conversation unless verbose
 
   const startTime = Date.now();
   if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 1: Creating sandbox...'));
@@ -280,8 +277,6 @@ export async function claudeCommand(projectDir, prompt) {
       console.log(color('yellow', `🚀 System-level optimizations applied`));
     }
 
-    if (VERBOSE_OUTPUT) console.log(color('cyan', `📦 Using host Claude settings with all available tools\n`));
-
     const claudeArgs = [
       '--verbose',
       '--output-format', 'stream-json',
@@ -289,11 +284,9 @@ export async function claudeCommand(projectDir, prompt) {
       '--allowed-tools', ALLOWED_TOOLS.join(',')
     ];
 
-    if (VERBOSE_OUTPUT) console.log(color('blue', `📝 Running Claude Code with host settings\n`));
-
     return new Promise((resolve, reject) => {
       const claudeStartTime = Date.now();
-      console.log(color('cyan', '⏱️  Stage 3: Starting Claude Code...'));
+      if (VERBOSE_OUTPUT) console.log(color('cyan', '⏱️  Stage 3: Starting Claude Code...'));
 
       const workspacePath = join(sandboxDir, 'workspace');
 
@@ -320,32 +313,18 @@ export async function claudeCommand(projectDir, prompt) {
           }
           if (VERBOSE_OUTPUT) console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
           if (VERBOSE_OUTPUT) console.log(color('cyan', `📦 Model: ${event.model}`));
-          console.log(color('cyan', `🔧 Tools: ${event.tools.length} available`));
 
-          // Warning if only default tools (15) are available instead of host tools (39)
-          if (event.tools.length === 15) {
-            console.log(color('yellow', `⚠️  Warning: No added tools found - using default tool set (15 tools)`));
-            console.log(color('yellow', `⚠️  Host settings should provide 39 tools with MCP plugins`));
-          }
-
-          // List available tools
-          if (event.tools && event.tools.length > 0) {
-            const toolNames = event.tools.map(tool => tool.name || tool).sort();
-            console.log(color('yellow', `   Available: ${toolNames.join(', ')}\n`));
-          } else {
-            console.log('');
+          // Simple tool count warning only if less than 15 tools
+          if (event.tools.length < 15) {
+            console.log(color('yellow', `⚠️  Only ${event.tools.length} tools available`));
           }
         } else if (event.type === 'assistant' && event.message) {
           const content = event.message.content;
           if (Array.isArray(content)) {
             for (const block of content) {
               if (block.type === 'text') {
-                // Capture conversational text and display if verbose
-                if (VERBOSE_OUTPUT) {
-                  process.stdout.write(block.text);
-                } else {
-                  logConversationalText(block.text);
-                }
+                // Always show conversational text immediately
+                process.stdout.write(block.text);
               } else if (block.type === 'tool_use') {
                 // Track the tool call for later result matching
                 if (block.id) {
@@ -377,10 +356,12 @@ export async function claudeCommand(projectDir, prompt) {
         } else if (event.type === 'result') {
           const usage = event.usage || {};
           const cost = event.total_cost_usd || 0;
-          console.log(color('green', `\n\n✅ Completed in ${event.duration_ms}ms`));
-          console.log(color('yellow', `💰 Cost: $${cost.toFixed(4)}`));
-          if (usage.input_tokens) {
-            console.log(color('cyan', `📊 Tokens: ${usage.input_tokens} in, ${usage.output_tokens} out`));
+          if (VERBOSE_OUTPUT) {
+            console.log(color('green', `\n\n✅ Completed in ${event.duration_ms}ms`));
+            console.log(color('yellow', `💰 Cost: $${cost.toFixed(4)}`));
+            if (usage.input_tokens) {
+              console.log(color('cyan', `📊 Tokens: ${usage.input_tokens} in, ${usage.output_tokens} out`));
+            }
           }
         }
       }
@@ -439,7 +420,7 @@ export async function claudeCommand(projectDir, prompt) {
       proc.on('close', (code) => {
         const sessionEndTime = Date.now();
         const totalTime = sessionEndTime - startTime;
-        console.log(color('cyan', `\n⏱️  Stage 4: Session completed in ${totalTime}ms`));
+        if (VERBOSE_OUTPUT) console.log(color('cyan', `\n⏱️  Stage 4: Session completed in ${totalTime}ms`));
 
         // Try to parse any remaining data in buffer
         if (jsonBuffer.trim()) {
@@ -452,19 +433,19 @@ export async function claudeCommand(projectDir, prompt) {
           }
         }
 
-        // Display recent tool calls
-        displayRecentToolCalls();
+        // Display recent tool calls and performance summary only if verbose
+        if (VERBOSE_OUTPUT) {
+          displayRecentToolCalls();
+          console.log(color('cyan', `\n📊 Performance Summary:`));
+          console.log(color('cyan', `  • Sandbox creation: ${sandboxCreateTime}ms`));
+          console.log(color('cyan', `  • Environment setup: ${envCreateTime}ms`));
+          console.log(color('cyan', `  • Claude Code session: ${totalTime - sandboxCreateTime - envCreateTime}ms`));
+          console.log(color('cyan', `  • Total time: ${totalTime}ms`));
 
-        // Performance summary
-        console.log(color('cyan', `\n📊 Performance Summary:`));
-        console.log(color('cyan', `  • Sandbox creation: ${sandboxCreateTime}ms`));
-        console.log(color('cyan', `  • Environment setup: ${envCreateTime}ms`));
-        console.log(color('cyan', `  • Claude Code session: ${totalTime - sandboxCreateTime - envCreateTime}ms`));
-        console.log(color('cyan', `  • Total time: ${totalTime}ms`));
-
-        // Log file information if enabled
-        if (ENABLE_FILE_LOGGING && global.logFileHandle) {
-          console.log(color('yellow', `📝 Tool calls logged to: ${global.logFileHandle}`));
+          // Log file information if enabled
+          if (ENABLE_FILE_LOGGING && global.logFileHandle) {
+            console.log(color('yellow', `📝 Tool calls logged to: ${global.logFileHandle}`));
+          }
         }
 
         cleanup();

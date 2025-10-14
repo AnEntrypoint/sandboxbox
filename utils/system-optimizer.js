@@ -18,10 +18,7 @@ export class SystemOptimizer {
 
   // Optimize system for Claude Code performance
   async optimizeSystem() {
-    console.log('🚀 Applying system-level optimizations...');
-
     if (!this.hasSudo) {
-      console.log('⚠️  No sudo access, skipping system optimizations');
       return false;
     }
 
@@ -36,7 +33,6 @@ export class SystemOptimizer {
     const results = await Promise.allSettled(optimizations);
     const successCount = results.filter(r => r.status === 'fulfilled').length;
 
-    console.log(`✅ Applied ${successCount}/${optimizations.length} system optimizations`);
     return successCount > 0;
   }
 
@@ -59,10 +55,9 @@ export class SystemOptimizer {
         execSync(`sudo ${tweak}`, { stdio: 'pipe' });
       }
 
-      console.log('✅ Optimized kernel parameters');
       return true;
     } catch (error) {
-      console.log('⚠️  Could not optimize kernel parameters:', error.message);
+      // Silently skip optimization if it fails
       return false;
     }
   }
@@ -97,10 +92,9 @@ echo "Preloading complete"
       // Execute preload script with elevated privileges if needed
       execSync(preloadPath, { stdio: 'pipe' });
 
-      console.log('✅ Preloaded common libraries');
       return true;
     } catch (error) {
-      console.log('⚠️  Could not preload libraries:', error.message);
+      // Silently skip optimization if it fails
       return false;
     }
   }
@@ -121,10 +115,9 @@ echo "Preloading complete"
         execSync(`sudo ${opt}`, { stdio: 'pipe' });
       }
 
-      console.log('✅ Optimized filesystem for Claude');
       return true;
     } catch (error) {
-      console.log('⚠️  Could not optimize filesystem:', error.message);
+      // Silently skip optimization if it fails
       return false;
     }
   }
@@ -180,10 +173,9 @@ echo "Claude pre-warm service ready"
       execSync('sudo systemctl enable claude-prewarm.service', { stdio: 'pipe' });
       execSync('sudo systemctl start claude-prewarm.service', { stdio: 'pipe' });
 
-      console.log('✅ Setup Claude pre-warm service');
       return true;
     } catch (error) {
-      console.log('⚠️  Could not setup Claude service:', error.message);
+      // Silently skip optimization if it fails
       return false;
     }
   }
@@ -205,10 +197,9 @@ echo "Claude pre-warm service ready"
         execSync(`sudo ${opt}`, { stdio: 'pipe' });
       }
 
-      console.log('✅ Optimized network stack');
       return true;
     } catch (error) {
-      console.log('⚠️  Could not optimize network:', error.message);
+      // Silently skip optimization if it fails
       return false;
     }
   }

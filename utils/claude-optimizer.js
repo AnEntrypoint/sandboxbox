@@ -17,7 +17,7 @@ export class ClaudeOptimizer {
       try {
         settings = JSON.parse(require('fs').readFileSync(settingsPath, 'utf8'));
       } catch (e) {
-        console.log('⚠️  Could not read existing settings, creating optimized defaults');
+        // Silently create default settings
       }
     }
 
@@ -56,14 +56,12 @@ export class ClaudeOptimizer {
 
     // Write optimized settings
     writeFileSync(settingsPath, JSON.stringify(optimizedSettings, null, 2));
-    console.log('✅ Applied Claude startup optimizations');
 
     return optimizedSettings;
   }
 
   // Pre-warm plugin connections
   async prewarmPlugins() {
-    console.log('🔥 Pre-warming Claude plugins...');
 
     const prewarmScript = `
 # Pre-warm script for Claude plugins
