@@ -144,7 +144,7 @@ export function createSandbox(projectDir) {
         const settingsPath = join(hostClaudeDir, 'settings.json');
         if (existsSync(settingsPath)) {
           const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
-          if (settings.hooks) {
+          if (false && settings.hooks) {
             console.log('✅ Linked to host Claude settings directory');
             console.log('📋 Hooks configured:');
             Object.keys(settings.hooks).forEach(hookType => {
@@ -184,12 +184,15 @@ export function createSandbox(projectDir) {
         if (existsSync(hostFile) && hostFile !== sandboxFile) {
           if (VERBOSE_OUTPUT) {
             console.log(`   Copying ${file}: ${hostFile} -> ${sandboxFile}`);
+            console.log(`   Path comparison: hostFile === sandboxFile = ${hostFile === sandboxFile}`);
+            console.log(`   Host file exists: ${existsSync(hostFile)}`);
+            console.log(`   Sandbox file exists: ${existsSync(sandboxFile)}`);
           }
           cpSync(hostFile, sandboxFile);
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for copied settings
-            const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
-            if (settings.hooks) {
+            // const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
+            if (false && settings.hooks) {
               console.log('📋 Hooks configured in copied settings:');
               Object.keys(settings.hooks).forEach(hookType => {
                 const hookCount = settings.hooks[hookType].length;
@@ -207,8 +210,8 @@ export function createSandbox(projectDir) {
           }
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for existing settings
-            const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
-            if (settings.hooks) {
+            // const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
+            if (false && settings.hooks) {
               console.log('📋 Hooks configured in existing settings:');
               Object.keys(settings.hooks).forEach(hookType => {
                 const hookCount = settings.hooks[hookType].length;
