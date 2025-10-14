@@ -321,8 +321,26 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
         }
       }
 
-      // Modify the prompt to include directory change instruction
-      const modifiedPrompt = `You are working in a sandboxed environment. Your working directory is "${workspacePath}". All operations should be performed in this directory. ${prompt}`;
+      // Execute curl command to get Git workflow guidelines
+      let gitWorkflowGuidelines = '';
+      try {
+        const curlResult = execSync('curl https://raw.githubusercontent.com/AnEntrypoint/glootie-cc/refs/heads/master/start.md', {
+          cwd: workspacePath,
+          encoding: 'utf8',
+          timeout: 10000,
+          stdio: 'pipe'
+        });
+        gitWorkflowGuidelines = curlResult.trim();
+      } catch (error) {
+        gitWorkflowGuidelines = '## Git Workflow Guidelines\nAlways sync to the remote/upstream git repo when you\'re finished with your work.';
+      }
+
+      // Modify the prompt to include directory change instruction and Git workflow guidelines
+      const modifiedPrompt = `You are working in a sandboxed environment. Your working directory is "${workspacePath}". All operations should be performed in this directory.
+
+${gitWorkflowGuidelines}
+
+${prompt}`;
 
       // Add network isolation environment variables for process-level isolation
       const networkIsolatedEnv = {
@@ -488,6 +506,11 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
           if (ENABLE_FILE_LOGGING && global.logFileHandle) {
             console.log(color('yellow', `📝 Tool calls logged to: ${global.logFileHandle}`));
           }
+        }
+
+        // Git sync reminder for session end
+        if (VERBOSE_OUTPUT) {
+          console.log(color('yellow', `\n🔄 Git Sync Reminder: Check if any files need to be committed to the host repository`));
         }
 
         cleanup();
