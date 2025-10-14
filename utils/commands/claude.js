@@ -24,11 +24,7 @@ export async function claudeCommand(projectDir, prompt) {
     return false;
   }
 
-  if (!existsSync(resolve(projectDir, '.git'))) {
-    console.log(color('red', `❌ Not a git repository: ${projectDir}`));
-    console.log(color('yellow', 'Please run this command in a git repository directory'));
-    return false;
-  }
+  // Note: We don't require git repository anymore - the sandbox will initialize it if needed
 
   console.log(color('blue', '🚀 Starting Claude Code in sandbox...'));
   console.log(color('yellow', `Project: ${projectDir}`));
