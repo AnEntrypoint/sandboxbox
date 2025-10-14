@@ -197,3 +197,4 @@ Environment variable `XDG_CACHE_HOME` set to `${sandboxDir}/.cache` for Playwrig
 - All temporary directories auto-cleanup on exit
 - Error handling for cleanup failures (ignore errors)
 - Signal handlers ensure cleanup on interrupts
+- the only git operations we want is setting up the project, there should be no explicit git operations to end or merge the project work in the sandbox, the agent must have a hook as part of the plugin in ../plugin (which must be up to date) that is set up correctly to make it call a curl statement that will instruct it to do a git merge intelligently at the end, only claude must be doing the git merge there should be no automation around that
