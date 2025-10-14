@@ -30,11 +30,15 @@ export function createSandbox(projectDir) {
   });
 
   // Configure host repository to accept pushes to current branch
-  execSync(`cd "${projectDir}" && git config receive.denyCurrentBranch updateInstead`, {
-    stdio: 'pipe',
-    shell: true,
-    windowsHide: true
-  });
+  try {
+    execSync(`cd "${projectDir}" && git config receive.denyCurrentBranch updateInstead`, {
+      stdio: 'pipe',
+      shell: true,
+      windowsHide: true
+    });
+  } catch (error) {
+    console.log(`⚠️  Warning: Could not configure host repository: ${error.message}`);
+  }
 
   // Copy/clone the project to workspace
   if (existsSync(join(projectDir, '.git'))) {
@@ -67,6 +71,7 @@ export function createSandbox(projectDir) {
       stdio: 'pipe',
       shell: true
     });
+    console.log(`✅ Configured host directory as remote 'origin': ${projectDir}`);
   } catch (e) {
     // Remote already exists, update it
     execSync(`git remote set-url origin "${projectDir}"`, {
@@ -74,6 +79,7 @@ export function createSandbox(projectDir) {
       stdio: 'pipe',
       shell: true
     });
+    console.log(`✅ Updated remote 'origin' to host directory: ${projectDir}`);
   }
 
   // Set up upstream tracking for current branch
@@ -184,32 +190,7 @@ export function createSandbox(projectDir) {
   }
 
   const cleanup = () => {
-    try {
-      // Sync changes back to host directory before cleanup
-      if (existsSync(workspaceDir)) {
-        // Check if there are any commits to push
-        const result = execSync('git log origin..HEAD --oneline', {
-          cwd: workspaceDir,
-          encoding: 'utf8',
-          stdio: 'pipe'
-        }).trim();
-
-        if (result) {
-          console.log('🔄 Syncing changes back to host directory...');
-          execSync('git push origin HEAD', {
-            cwd: workspaceDir,
-            stdio: 'pipe',
-            shell: true
-          });
-          console.log('✅ Changes synced to host directory');
-        }
-      }
-    } catch (error) {
-      // Don't fail cleanup if sync fails
-      console.log(`⚠️  Warning: Could not sync changes: ${error.message}`);
-    } finally {
-      rmSync(sandboxDir, { recursive: true, force: true });
-    }
+    rmSync(sandboxDir, { recursive: true, force: true });
   };
 
   return { sandboxDir, cleanup };
