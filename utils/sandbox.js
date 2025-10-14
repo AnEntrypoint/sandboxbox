@@ -7,31 +7,60 @@ export function createSandbox(projectDir) {
   const sandboxDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
   const workspaceDir = join(sandboxDir, 'workspace');
 
-  // Batch git operations for better performance
-  const gitCommands = [
-    `git config --global --add safe.directory "${projectDir}"`,
-    `git config --global --add safe.directory "${projectDir}/.git"`,
-    // Use shallow clone for faster checkout (depth 1 = current commit only)
-    `git clone --depth 1 --no-tags "${projectDir}" "${workspaceDir}"`
-  ];
+  // Ensure host directory is a git repository
+  if (!existsSync(join(projectDir, '.git'))) {
+    // Initialize git repository in host directory if it doesn't exist
+    execSync(`git init "${projectDir}"`, {
+      stdio: 'pipe',
+      shell: true,
+      windowsHide: true
+    });
+  }
 
-  // Configure host repo to accept pushes (run in project directory)
+  // Configure global git safe directories
+  execSync(`git config --global --add safe.directory "${projectDir}"`, {
+    stdio: 'pipe',
+    shell: true,
+    windowsHide: true
+  });
+  execSync(`git config --global --add safe.directory "${projectDir}/.git"`, {
+    stdio: 'pipe',
+    shell: true,
+    windowsHide: true
+  });
+
+  // Configure host repository to accept pushes to current branch
   execSync(`cd "${projectDir}" && git config receive.denyCurrentBranch updateInstead`, {
     stdio: 'pipe',
     shell: true,
     windowsHide: true
   });
 
-  // Execute git commands in parallel where possible
-  gitCommands.forEach(cmd => {
-    execSync(cmd, {
+  // Copy/clone the project to workspace
+  if (existsSync(join(projectDir, '.git'))) {
+    // If it's a git repo, do a shallow clone
+    execSync(`git clone --depth 1 --no-tags "${projectDir}" "${workspaceDir}"`, {
       stdio: 'pipe',
       shell: true,
       windowsHide: true
     });
-  });
+  } else {
+    // If not a git repo, just copy the files
+    mkdirSync(workspaceDir, { recursive: true });
+    execSync(`cp -r "${projectDir}"/* "${workspaceDir}/"`, {
+      stdio: 'pipe',
+      shell: true,
+      windowsHide: true
+    });
+    // Initialize git in workspace
+    execSync(`git init "${workspaceDir}"`, {
+      stdio: 'pipe',
+      shell: true,
+      windowsHide: true
+    });
+  }
 
-  // Set up host repo as origin in sandbox (only if not already exists)
+  // Set up host repo as origin in sandbox (pointing to host directory)
   try {
     execSync(`git remote add origin "${projectDir}"`, {
       cwd: workspaceDir,
@@ -45,6 +74,23 @@ export function createSandbox(projectDir) {
       stdio: 'pipe',
       shell: true
     });
+  }
+
+  // Set up upstream tracking for current branch
+  try {
+    const currentBranch = execSync(`git branch --show-current`, {
+      cwd: workspaceDir,
+      encoding: 'utf8',
+      stdio: 'pipe'
+    }).trim();
+
+    execSync(`git branch --set-upstream-to=origin/${currentBranch} ${currentBranch}`, {
+      cwd: workspaceDir,
+      stdio: 'pipe',
+      shell: true
+    });
+  } catch (e) {
+    // Upstream may not exist yet, ignore error
   }
 
   // Batch fetch git identity settings for efficiency
