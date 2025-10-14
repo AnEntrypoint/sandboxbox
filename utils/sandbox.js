@@ -167,6 +167,7 @@ export function createSandbox(projectDir) {
       const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
       if (VERBOSE_OUTPUT) {
         console.log('⚠️  Could not create symlink, copying Claude settings instead');
+        console.log(`   Symlink error: ${error.code} - ${error.message}`);
       }
 
       // Copy only essential files (avoid large files like history)
@@ -181,12 +182,34 @@ export function createSandbox(projectDir) {
         const sandboxFile = join(sandboxClaudeDir, file);
 
         if (existsSync(hostFile) && hostFile !== sandboxFile) {
+          if (VERBOSE_OUTPUT) {
+            console.log(`   Copying ${file}: ${hostFile} -> ${sandboxFile}`);
+          }
           cpSync(hostFile, sandboxFile);
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for copied settings
             const settings = JSON.parse(require('fs').readFileSync(hostFile, 'utf8'));
             if (settings.hooks) {
               console.log('📋 Hooks configured in copied settings:');
+              Object.keys(settings.hooks).forEach(hookType => {
+                const hookCount = settings.hooks[hookType].length;
+                console.log(`   ${hookType}: ${hookCount} hook(s)`);
+                settings.hooks[hookType].forEach((hook, index) => {
+                  const commandCount = hook.hooks ? hook.hooks.length : 0;
+                  console.log(`     ${index + 1}. ${hook.matcher || '*'} (${commandCount} commands)`);
+                });
+              });
+            }
+          }
+        } else if (existsSync(hostFile) && hostFile === sandboxFile) {
+          if (VERBOSE_OUTPUT) {
+            console.log(`   Skipping copy of ${file} - source and destination are the same`);
+          }
+          if (VERBOSE_OUTPUT && file === 'settings.json') {
+            // Show hook information for existing settings
+            const settings = JSON.parse(require('fs').readFileSync(hostFile, 'utf8'));
+            if (settings.hooks) {
+              console.log('📋 Hooks configured in existing settings:');
               Object.keys(settings.hooks).forEach(hookType => {
                 const hookCount = settings.hooks[hookType].length;
                 console.log(`   ${hookType}: ${hookCount} hook(s)`);
