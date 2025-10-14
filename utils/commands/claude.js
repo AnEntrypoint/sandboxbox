@@ -104,11 +104,6 @@ export async function claudeCommand(projectDir, prompt) {
         const lines = data.toString().split('\n').filter(line => line.trim());
 
         for (const line of lines) {
-          // Skip empty lines or lines that don't look like JSON
-          if (!line.trim() || !line.trim().startsWith('{')) {
-            continue;
-          }
-
           try {
             const event = JSON.parse(line);
 
@@ -150,12 +145,10 @@ export async function claudeCommand(projectDir, prompt) {
               }
             }
           } catch (jsonError) {
-            // Skip malformed JSON lines - might be incomplete chunks
-            // Only log debug info in development mode
-            if (process.env.DEBUG) {
-              console.log(color('yellow', `🔍 JSON parse error: ${jsonError.message.substring(0, 50)}...`));
-              console.log(color('yellow', `🔍 Problematic line: ${line.substring(0, 100)}...`));
-            }
+            // Log JSON parsing errors for troubleshooting
+            console.log(color('red', `🔍 JSON parse error: ${jsonError.message}`));
+            console.log(color('yellow', `🔍 Problematic line: ${line}`));
+            console.log(color('cyan', '🔍 This suggests an issue with the output stream formatting'));
           }
         }
       }
@@ -176,20 +169,6 @@ export async function claudeCommand(projectDir, prompt) {
 
       proc.stdout.on('data', (data) => {
         stdoutOutput += data.toString();
-
-        // Check for errors in JSON output with error handling
-        const lines = data.toString().split('\n').filter(l => l.trim());
-        for (const line of lines) {
-          try {
-            const event = JSON.parse(line);
-            if (event.type === 'result' && event.is_error) {
-              lastError = event.result;
-            }
-          } catch (jsonError) {
-            // Ignore JSON parsing errors - might be incomplete chunks
-            console.error('JSON parse error:', jsonError.message);
-          }
-        }
 
         handleStreamingOutput(data);
       });
