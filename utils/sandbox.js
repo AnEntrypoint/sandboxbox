@@ -37,7 +37,7 @@ export function createSandbox(projectDir) {
       windowsHide: true
     });
   } catch (error) {
-    console.log(`⚠️  Warning: Could not configure host repository: ${error.message}`);
+    // Silently skip repository configuration
   }
 
   // Copy/clone the project to workspace
@@ -71,7 +71,6 @@ export function createSandbox(projectDir) {
       stdio: 'pipe',
       shell: true
     });
-    console.log(`✅ Configured host directory as remote 'origin': ${projectDir}`);
   } catch (e) {
     // Remote already exists, update it
     execSync(`git remote set-url origin "${projectDir}"`, {
@@ -79,10 +78,7 @@ export function createSandbox(projectDir) {
       stdio: 'pipe',
       shell: true
     });
-    const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
-    if (VERBOSE_OUTPUT) {
-      console.log(`✅ Updated remote 'origin' to host directory: ${projectDir}`);
-    }
+    // Remote updated silently
   }
 
   // Set up upstream tracking for current branch
@@ -114,7 +110,6 @@ export function createSandbox(projectDir) {
     });
   } catch (e) {
     // Upstream may not exist yet, ignore error
-    console.log(`⚠️  Warning: Could not set up upstream tracking: ${e.message}`);
   }
 
   // Batch fetch git identity settings for efficiency
@@ -142,10 +137,8 @@ export function createSandbox(projectDir) {
     try {
       // Create symbolic link to host .claude directory
       symlinkSync(hostClaudeDir, sandboxClaudeDir, 'dir');
-      console.log('✅ Linked to host Claude settings directory');
     } catch (error) {
       // Fallback to copying if symlink fails
-      console.log('⚠️  Could not create symlink, copying Claude settings instead');
       mkdirSync(sandboxClaudeDir, { recursive: true });
 
       // Copy only essential files (avoid large files like history)
