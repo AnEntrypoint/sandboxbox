@@ -309,6 +309,29 @@ export function createSandbox(projectDir, options = {}) {
           cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
         }
       }
+
+      // Copy the glootie-cc plugin from host if it exists
+      const hostPluginDir = join(dirname(projectDir), 'plugin');
+      if (existsSync(hostPluginDir)) {
+        const sandboxPluginDir = join(sandboxDir, 'plugin');
+
+        if (VERBOSE_OUTPUT) {
+          console.log('📦 Copying glootie-cc plugin from host');
+        }
+
+        cpSync(hostPluginDir, sandboxPluginDir, { recursive: true });
+
+        // Make sure the hook scripts are executable
+        const startScript = join(sandboxPluginDir, 'start.sh');
+        const stopScript = join(sandboxPluginDir, 'stop.sh');
+
+        if (existsSync(startScript)) {
+          execSync(`chmod +x "${startScript}"`, { stdio: 'pipe' });
+        }
+        if (existsSync(stopScript)) {
+          execSync(`chmod +x "${stopScript}"`, { stdio: 'pipe' });
+        }
+      }
     }
   }
 
