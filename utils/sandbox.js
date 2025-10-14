@@ -110,6 +110,16 @@ export function createSandbox(projectDir) {
     if (existsSync(pluginsDir)) {
       const sandboxPluginsDir = join(sandboxClaudeDir, 'plugins');
       cpSync(pluginsDir, sandboxPluginsDir, { recursive: true });
+
+      // Verify the marketplace plugin was copied
+      const marketplacePlugin = join(sandboxPluginsDir, 'marketplaces', 'anentrypoint-plugins');
+      if (existsSync(marketplacePlugin)) {
+        console.error('DEBUG: Marketplace plugin copied successfully');
+      } else {
+        console.error('DEBUG: Marketplace plugin copy failed');
+      }
+    } else {
+      console.error('DEBUG: No plugins directory found at:', pluginsDir);
     }
   }
 
