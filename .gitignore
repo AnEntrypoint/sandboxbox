@@ -48,3 +48,11 @@ Thumbs.db
 .vscode/
 .idea/
 sandboxbox-test.tgz
+
+# Cache and database files
+*.db
+.vexify.db
+
+# Test files created during development
+index.html
+tools.txt
