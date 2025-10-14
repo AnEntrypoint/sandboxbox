@@ -85,10 +85,16 @@ export async function claudeCommand(projectDir, prompt) {
       const claudeStartTime = Date.now();
       console.log(color('cyan', '⏱️  Stage 3: Starting Claude Code...'));
 
-      const proc = spawn('sh', ['-c', `cd "${join(sandboxDir, 'workspace')}" && claude ${claudeArgs.join(' ')}`], {
+      const workspacePath = join(sandboxDir, 'workspace');
+
+      // Modify the prompt to include directory change instruction
+      const modifiedPrompt = `You are working in a sandboxed environment. Your working directory is "${workspacePath}". All operations should be performed in this directory. ${prompt}`;
+
+      const proc = spawn('claude', claudeArgs, {
+        cwd: workspacePath,  // Set working directory directly
         env: env,  // Use the environment directly without modification
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true,  // Use shell for proper directory handling
+        shell: false,  // Don't use shell since we're setting cwd directly
         detached: false
       });
 
@@ -151,8 +157,8 @@ export async function claudeCommand(projectDir, prompt) {
         reject(error);
       });
 
-      // Write prompt to stdin
-      proc.stdin.write(prompt);
+      // Write modified prompt to stdin
+      proc.stdin.write(modifiedPrompt);
       proc.stdin.end();
 
       let stdoutOutput = '';
