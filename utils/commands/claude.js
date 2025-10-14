@@ -3,7 +3,8 @@ import { resolve, join } from 'path';
 import { spawn, execSync } from 'child_process';
 import { color } from '../colors.js';
 import { createSandbox, createSandboxEnv } from '../sandbox.js';
-import { ClaudeOptimizer } from '../claude-optimizer.js';
+// ClaudeOptimizer disabled to preserve bundled hooks
+// import { ClaudeOptimizer } from '../claude-optimizer.js';
 import { SystemOptimizer } from '../system-optimizer.js';
 
 const ALLOWED_TOOLS = [
