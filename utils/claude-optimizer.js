@@ -21,34 +21,20 @@ export class ClaudeOptimizer {
       }
     }
 
-    // Apply startup optimizations
+    // Apply startup optimizations - preserve bundled hooks!
     const optimizedSettings = {
       ...settings,
       // Reduce plugin timeouts
-      pluginTimeout: 5000,
+      pluginTimeout: settings.pluginTimeout || 5000,
       // Disable unnecessary features for faster startup
-      alwaysThinkingEnabled: false,
-      // Optimize plugin loading
+      alwaysThinkingEnabled: settings.alwaysThinkingEnabled || false,
+      // Optimize plugin loading - preserve existing plugins
       enabledPlugins: {
         ...settings.enabledPlugins,
         // Only enable essential plugins for performance
         'glootie-cc@anentrypoint-plugins': true
-      },
-      // Add performance-focused hooks
-      hooks: {
-        ...(settings.hooks || {}),
-        SessionStart: [
-          {
-            matcher: "*",
-            hooks: [
-              {
-                type: "command",
-                command: "echo 'Claude optimized session started'"
-              }
-            ]
-          }
-        ]
       }
+      // Note: DO NOT override hooks - preserve bundled settings hooks!
     };
 
     // Ensure directory exists
