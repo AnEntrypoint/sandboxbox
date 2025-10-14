@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, readFileSync } from 'fs';
 import { tmpdir, homedir, platform } from 'os';
-import { join, resolve, fileURLToPath } from 'path';
+import { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
 
 export function createSandbox(projectDir, options = {}) {
@@ -139,7 +140,7 @@ export function createSandbox(projectDir, options = {}) {
     // Create sandbox Claude directory and copy bundled settings
     mkdirSync(sandboxClaudeDir, { recursive: true });
 
-    const bundledSettingsPath = join(resolve(), 'sandboxbox-settings.json');
+    const bundledSettingsPath = join(resolve(fileURLToPath(import.meta.url), '..'), '..', 'sandboxbox-settings.json');
     const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
 
     // Copy bundled settings to sandbox
