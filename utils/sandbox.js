@@ -143,7 +143,7 @@ export function createSandbox(projectDir) {
         // Show hook information in verbose mode
         const settingsPath = join(hostClaudeDir, 'settings.json');
         if (existsSync(settingsPath)) {
-          const settings = JSON.parse(require('fs').readFileSync(settingsPath, 'utf8'));
+          const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
           if (settings.hooks) {
             console.log('✅ Linked to host Claude settings directory');
             console.log('📋 Hooks configured:');
@@ -188,7 +188,7 @@ export function createSandbox(projectDir) {
           cpSync(hostFile, sandboxFile);
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for copied settings
-            const settings = JSON.parse(require('fs').readFileSync(hostFile, 'utf8'));
+            const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
             if (settings.hooks) {
               console.log('📋 Hooks configured in copied settings:');
               Object.keys(settings.hooks).forEach(hookType => {
@@ -207,7 +207,7 @@ export function createSandbox(projectDir) {
           }
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for existing settings
-            const settings = JSON.parse(require('fs').readFileSync(hostFile, 'utf8'));
+            const settings = JSON.parse(readFileSync(hostFile, 'utf8'));
             if (settings.hooks) {
               console.log('📋 Hooks configured in existing settings:');
               Object.keys(settings.hooks).forEach(hookType => {
