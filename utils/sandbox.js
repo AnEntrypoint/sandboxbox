@@ -180,7 +180,7 @@ export function createSandbox(projectDir) {
         const hostFile = join(hostClaudeDir, file);
         const sandboxFile = join(sandboxClaudeDir, file);
 
-        if (existsSync(hostFile)) {
+        if (existsSync(hostFile) && hostFile !== sandboxFile) {
           cpSync(hostFile, sandboxFile);
           if (VERBOSE_OUTPUT && file === 'settings.json') {
             // Show hook information for copied settings
