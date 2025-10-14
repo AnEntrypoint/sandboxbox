@@ -3,6 +3,8 @@ import { resolve, join } from 'path';
 import { spawn, execSync } from 'child_process';
 import { color } from '../colors.js';
 import { createSandbox, createSandboxEnv } from '../sandbox.js';
+import { ClaudeOptimizer } from '../claude-optimizer.js';
+import { SystemOptimizer } from '../system-optimizer.js';
 
 const ALLOWED_TOOLS = [
   'Task', 'Bash', 'Glob', 'Grep', 'Read', 'Edit', 'Write', 'NotebookEdit',
@@ -47,17 +49,37 @@ export async function claudeCommand(projectDir, prompt) {
     const envStartTime = Date.now();
     console.log(color('cyan', '⏱️  Stage 2: Setting up environment...'));
 
-    const env = createSandboxEnv(sandboxDir, {
+    // Apply Claude optimizations
+    const claudeOptimizer = new ClaudeOptimizer(sandboxDir);
+    claudeOptimizer.optimizeSettings();
+    await claudeOptimizer.prewarmPlugins();
+
+    // Apply system optimizations (with sudo access)
+    const systemOptimizer = new SystemOptimizer();
+    const systemOptimizationsApplied = await systemOptimizer.optimizeSystem();
+
+    // Create optimized environment
+    const baseEnv = createSandboxEnv(sandboxDir, {
       CLAUDECODE: '1'
     });
+
+    const env = systemOptimizationsApplied
+      ? { ...baseEnv, ...systemOptimizer.createOptimizedContainerEnv() }
+      : claudeOptimizer.createOptimizedEnv(baseEnv);
+
     const envCreateTime = Date.now() - envStartTime;
     console.log(color('green', `✅ Environment configured in ${envCreateTime}ms`));
+
+    if (systemOptimizationsApplied) {
+      console.log(color('yellow', `🚀 System-level optimizations applied`));
+    }
 
     console.log(color('cyan', `📦 Using host Claude settings with all available tools\n`));
 
     const claudeArgs = [
       '--verbose',
-      '--output-format', 'stream-json'
+      '--output-format', 'stream-json',
+      '--permission-mode', 'bypassPermissions'
     ];
 
     console.log(color('blue', `📝 Running Claude Code with host settings\n`));
