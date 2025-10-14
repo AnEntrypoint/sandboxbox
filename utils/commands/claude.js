@@ -65,11 +65,10 @@ export async function claudeCommand(projectDir, prompt) {
       const claudeStartTime = Date.now();
       console.log(color('cyan', '⏱️  Stage 3: Starting Claude Code...'));
 
-      const proc = spawn('claude', claudeArgs, {
-        cwd: join(sandboxDir, 'workspace'),
+      const proc = spawn('sh', ['-c', `cd "${join(sandboxDir, 'workspace')}" && claude ${claudeArgs.join(' ')}`], {
         env: env,  // Use the environment directly without modification
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true,  // Use shell to ensure environment variables are properly expanded
+        shell: false,  // Don't use nested shell
         detached: false
       });
 
@@ -79,36 +78,41 @@ export async function claudeCommand(projectDir, prompt) {
         const lines = data.toString().split('\n').filter(line => line.trim());
 
         for (const line of lines) {
-          const event = JSON.parse(line);
+          try {
+            const event = JSON.parse(line);
 
-          if (event.type === 'system' && event.subtype === 'init') {
-            if (!claudeStarted) {
-              const claudeCreateTime = Date.now() - claudeStartTime;
-              console.log(color('green', `✅ Claude Code started in ${claudeCreateTime}ms`));
-              claudeStarted = true;
-            }
-            console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
-            console.log(color('cyan', `📦 Model: ${event.model}`));
-            console.log(color('cyan', `🔧 Tools: ${event.tools.length} available\n`));
-          } else if (event.type === 'assistant' && event.message) {
-            const content = event.message.content;
-            if (Array.isArray(content)) {
-              for (const block of content) {
-                if (block.type === 'text') {
-                  process.stdout.write(block.text);
-                } else if (block.type === 'tool_use') {
-                  console.log(color('cyan', `\n🔧 Using tool: ${block.name}`));
+            if (event.type === 'system' && event.subtype === 'init') {
+              if (!claudeStarted) {
+                const claudeCreateTime = Date.now() - claudeStartTime;
+                console.log(color('green', `✅ Claude Code started in ${claudeCreateTime}ms`));
+                claudeStarted = true;
+              }
+              console.log(color('green', `✅ Session started (${event.session_id.substring(0, 8)}...)`));
+              console.log(color('cyan', `📦 Model: ${event.model}`));
+              console.log(color('cyan', `🔧 Tools: ${event.tools.length} available\n`));
+            } else if (event.type === 'assistant' && event.message) {
+              const content = event.message.content;
+              if (Array.isArray(content)) {
+                for (const block of content) {
+                  if (block.type === 'text') {
+                    process.stdout.write(block.text);
+                  } else if (block.type === 'tool_use') {
+                    console.log(color('cyan', `\n🔧 Using tool: ${block.name}`));
+                  }
                 }
               }
+            } else if (event.type === 'result') {
+              const usage = event.usage || {};
+              const cost = event.total_cost_usd || 0;
+              console.log(color('green', `\n\n✅ Completed in ${event.duration_ms}ms`));
+              console.log(color('yellow', `💰 Cost: $${cost.toFixed(4)}`));
+              if (usage.input_tokens) {
+                console.log(color('cyan', `📊 Tokens: ${usage.input_tokens} in, ${usage.output_tokens} out`));
+              }
             }
-          } else if (event.type === 'result') {
-            const usage = event.usage || {};
-            const cost = event.total_cost_usd || 0;
-            console.log(color('green', `\n\n✅ Completed in ${event.duration_ms}ms`));
-            console.log(color('yellow', `💰 Cost: $${cost.toFixed(4)}`));
-            if (usage.input_tokens) {
-              console.log(color('cyan', `📊 Tokens: ${usage.input_tokens} in, ${usage.output_tokens} out`));
-            }
+          } catch (jsonError) {
+            // Skip malformed JSON lines - might be incomplete chunks
+            // Silently continue to avoid breaking the stream
           }
         }
       }
@@ -130,12 +134,17 @@ export async function claudeCommand(projectDir, prompt) {
       proc.stdout.on('data', (data) => {
         stdoutOutput += data.toString();
 
-        // Check for errors in JSON output
+        // Check for errors in JSON output with error handling
         const lines = data.toString().split('\n').filter(l => l.trim());
         for (const line of lines) {
-          const event = JSON.parse(line);
-          if (event.type === 'result' && event.is_error) {
-            lastError = event.result;
+          try {
+            const event = JSON.parse(line);
+            if (event.type === 'result' && event.is_error) {
+              lastError = event.result;
+            }
+          } catch (jsonError) {
+            // Ignore JSON parsing errors - might be incomplete chunks
+            console.error('JSON parse error:', jsonError.message);
           }
         }
 
