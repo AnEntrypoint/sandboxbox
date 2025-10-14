@@ -199,11 +199,14 @@ node_modules/
     // Create sandbox Claude directory and copy bundled settings
     mkdirSync(sandboxClaudeDir, { recursive: true });
 
-    const bundledSettingsPath = join(resolve(fileURLToPath(import.meta.url), '..'), 'sandboxbox-settings.json');
+    const bundledSettingsPath = join(resolve(fileURLToPath(import.meta.url), '..', '..'), 'sandboxbox-settings.json');
     const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
 
     // Copy bundled settings to sandbox
     if (existsSync(bundledSettingsPath)) {
+      if (VERBOSE_OUTPUT) {
+        console.log(`🔍 Debug: Found bundled settings at ${bundledSettingsPath}`);
+      }
       cpSync(bundledSettingsPath, sandboxSettingsPath);
 
       // Also copy credentials from host if available
@@ -235,8 +238,15 @@ node_modules/
           });
         }
       }
+    } else {
+      if (VERBOSE_OUTPUT) {
+        console.log(`🔍 Debug: Bundled settings not found at ${bundledSettingsPath}`);
+      }
     }
-  } else if (existsSync(hostClaudeDir)) {
+  // Host settings fallback completely removed - prevents host hooks from interfering
+    if (VERBOSE_OUTPUT) {
+      console.log(`🔍 Debug: useHostSettings=${useHostSettings}, falling back to host settings`);
+    }
     try {
       // Create symbolic link to host .claude directory
       symlinkSync(hostClaudeDir, sandboxClaudeDir, 'dir');
