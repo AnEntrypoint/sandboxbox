@@ -79,7 +79,10 @@ export function createSandbox(projectDir) {
       stdio: 'pipe',
       shell: true
     });
-    console.log(`✅ Updated remote 'origin' to host directory: ${projectDir}`);
+    const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
+    if (VERBOSE_OUTPUT) {
+      console.log(`✅ Updated remote 'origin' to host directory: ${projectDir}`);
+    }
   }
 
   // Set up upstream tracking for current branch
