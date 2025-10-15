@@ -8,7 +8,9 @@
     "sandboxbox": "cli.js"
   },
   "scripts": {
-    "start": "node cli.js"
+    "start": "node cli.js",
+    "test:gpu": "source /etc/profile.d/gpu-acceleration.sh && playwright test",
+    "playwright:gpu": "source /etc/profile.d/gpu-acceleration.sh && playwright"
   },
   "keywords": [
     "sandbox",
