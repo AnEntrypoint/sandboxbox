@@ -56,3 +56,6 @@ sandboxbox-test.tgz
 # Test files created during development
 index.html
 tools.txt
+
+# Claude Code settings (project-specific, not to be committed)
+.claude/
