@@ -342,20 +342,11 @@ ${gitWorkflowGuidelines}
 
 ${prompt}`;
 
-      // Add network isolation environment variables for process-level isolation
-      const networkIsolatedEnv = {
-        ...env,
-        // Force network isolation through environment variables
-        SANDBOX_NETWORK_ISOLATED: 'true',
-        // Add unique sandbox identifier for port isolation
-        SANDBOX_ID: Math.random().toString(36).substr(2, 9),
-        // Restrict network binding to localhost when possible
-        NODE_OPTIONS: (env.NODE_OPTIONS || '') + ' --no-force-async-hooks-checks'
-      };
+      // Environment is now properly configured with same permissions as run command
 
       const proc = spawn('claude', claudeArgs, {
         cwd: workspacePath,  // Set working directory directly
-        env: networkIsolatedEnv,  // Use network-isolated environment
+        env: env,  // Use the same environment as run command for Git permissions
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,  // Don't use shell since we're setting cwd directly
         detached: false
@@ -506,51 +497,6 @@ ${prompt}`;
           if (ENABLE_FILE_LOGGING && global.logFileHandle) {
             console.log(color('yellow', `📝 Tool calls logged to: ${global.logFileHandle}`));
           }
-        }
-
-        // Git sync reminder for session end
-        if (VERBOSE_OUTPUT) {
-          console.log(color('yellow', `\n🔄 Git Sync Reminder: Check if any files need to be committed to the host repository`));
-        }
-
-        // Automatic Git sync to host repository
-        try {
-          const gitSyncResult = execSync('cd workspace && git status --porcelain', {
-            cwd: sandboxDir,
-            encoding: 'utf8',
-            stdio: 'pipe'
-          });
-
-          if (gitSyncResult.trim()) {
-            console.log(color('cyan', `\n📝 Changes detected, syncing to host repository...`));
-
-            // Add all changes
-            execSync('cd workspace && git add .', {
-              cwd: sandboxDir,
-              stdio: 'pipe'
-            });
-
-            // Commit with auto-generated message
-            const commitMessage = `Auto-sync changes from SandboxBox session at ${new Date().toISOString()}`;
-            execSync(`cd workspace && git commit -m "${commitMessage}"`, {
-              cwd: sandboxDir,
-              stdio: 'pipe'
-            });
-
-            // Push to host repository
-            execSync('cd workspace && git push host master', {
-              cwd: sandboxDir,
-              stdio: 'pipe'
-            });
-
-            console.log(color('green', `✅ Changes successfully synced to host repository`));
-          } else {
-            if (VERBOSE_OUTPUT) {
-              console.log(color('gray', `\n📝 No changes to sync`));
-            }
-          }
-        } catch (error) {
-          console.log(color('red', `\n⚠️  Git sync failed: ${error.message}`));
         }
 
         cleanup();
