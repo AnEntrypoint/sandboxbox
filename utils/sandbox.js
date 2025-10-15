@@ -310,6 +310,88 @@ export function createSandboxEnv(sandboxDir, options = {}) {
   // Ensure TERM is set with fallback
   env.TERM = process.env.TERM || 'xterm-256color';
 
+  // Preserve important host credentials and tool configurations
+  const hostHome = homedir();
+
+  // Firebase and Google Cloud credentials
+  const firebaseCredPath = join(hostHome, '.config', 'firebase');
+  const gcloudCredPath = join(hostHome, '.config', 'gcloud');
+  const googleCredPath = join(hostHome, '.config', 'google-cloud');
+
+  // GitHub credentials
+  const ghCredPath = join(hostHome, '.config', 'gh');
+
+  // Other development tools
+  const claspCredPath = join(hostHome, '.clasprc.json');
+  const awsCredPath = join(hostHome, '.aws');
+  const sshCredPath = join(hostHome, '.ssh');
+  const npmCredPath = join(hostHome, '.npmrc');
+
+  // Create symlinks to host credentials in sandbox
+  const sandboxConfigDir = join(sandboxDir, '.config');
+  mkdirSync(sandboxConfigDir, { recursive: true });
+
+  // Firebase
+  if (existsSync(firebaseCredPath)) {
+    symlinkSync(firebaseCredPath, join(sandboxConfigDir, 'firebase'), 'dir');
+  }
+
+  // Google Cloud
+  if (existsSync(gcloudCredPath)) {
+    symlinkSync(gcloudCredPath, join(sandboxConfigDir, 'gcloud'), 'dir');
+  }
+  if (existsSync(googleCredPath)) {
+    symlinkSync(googleCredPath, join(sandboxConfigDir, 'google-cloud'), 'dir');
+  }
+
+  // GitHub CLI
+  if (existsSync(ghCredPath)) {
+    symlinkSync(ghCredPath, join(sandboxConfigDir, 'gh'), 'dir');
+  }
+
+  // Google Apps Script (clasp)
+  if (existsSync(claspCredPath)) {
+    symlinkSync(claspCredPath, join(sandboxDir, '.clasprc.json'));
+  }
+
+  // AWS
+  if (existsSync(awsCredPath)) {
+    symlinkSync(awsCredPath, join(sandboxDir, '.aws'), 'dir');
+  }
+
+  // SSH (for git operations)
+  if (existsSync(sshCredPath)) {
+    symlinkSync(sshCredPath, join(sandboxDir, '.ssh'), 'dir');
+  }
+
+  // NPM
+  if (existsSync(npmCredPath)) {
+    symlinkSync(npmCredPath, join(sandboxDir, '.npmrc'));
+  }
+
+  // Preserve credential environment variables
+  const credEnvVars = [
+    'FIREBASE_TOKEN',
+    'GOOGLE_APPLICATION_CREDENTIALS',
+    'GCLOUD_PROJECT',
+    'GITHUB_TOKEN',
+    'GH_TOKEN',
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+    'AWS_DEFAULT_REGION',
+    'CLASP_CREDENTIALS',
+    'NPM_TOKEN',
+    'GIT_SSH_COMMAND',
+    'SSH_AUTH_SOCK'
+  ];
+
+  credEnvVars.forEach(varName => {
+    if (process.env[varName]) {
+      env[varName] = process.env[varName];
+    }
+  });
+
   // Apply any additional options
   Object.assign(env, options);
 
