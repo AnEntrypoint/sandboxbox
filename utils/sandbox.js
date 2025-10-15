@@ -20,17 +20,41 @@ export function createSandbox(projectDir, options = {}) {
     });
   }
 
-  // Configure global git safe directories
-  execSync(`git config --global --add safe.directory "${projectDir}"`, {
-    stdio: 'pipe',
-    shell: true,
-    windowsHide: true
-  });
-  execSync(`git config --global --add safe.directory "${projectDir}/.git"`, {
-    stdio: 'pipe',
-    shell: true,
-    windowsHide: true
-  });
+  // Configure global git safe directories with duplicate prevention
+  function addSafeDirectory(dir) {
+    try {
+      // Check if directory is already in safe.directory config
+      const existingDirs = execSync('git config --global --get-all safe.directory', {
+        encoding: 'utf8',
+        stdio: 'pipe'
+      }).trim().split('\n').filter(d => d.length > 0);
+
+      if (!existingDirs.includes(dir)) {
+        execSync(`git config --global --add safe.directory "${dir}"`, {
+          stdio: 'pipe',
+          shell: true,
+          windowsHide: true
+        });
+      }
+    } catch (error) {
+      // If get-all fails, try adding directly (might be first entry)
+      try {
+        execSync(`git config --global --add safe.directory "${dir}"`, {
+          stdio: 'pipe',
+          shell: true,
+          windowsHide: true
+        });
+      } catch (addError) {
+        // Silently fail if config is locked or directory already exists
+        if (VERBOSE_OUTPUT) {
+          console.log(`Warning: Could not add safe.directory ${dir}: ${addError.message}`);
+        }
+      }
+    }
+  }
+
+  addSafeDirectory(projectDir);
+  addSafeDirectory(`${projectDir}/.git`);
 
   // Configure host repository to accept pushes to current branch
   try {
