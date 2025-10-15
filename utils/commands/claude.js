@@ -283,6 +283,7 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
       '--verbose',
       '--output-format', 'stream-json',
       '--permission-mode', 'bypassPermissions',
+      '--dangerously-skip-permissions',
       '--allowed-tools', ALLOWED_TOOLS.join(',')
     ];
 
