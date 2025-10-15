@@ -513,6 +513,46 @@ ${prompt}`;
           console.log(color('yellow', `\n🔄 Git Sync Reminder: Check if any files need to be committed to the host repository`));
         }
 
+        // Automatic Git sync to host repository
+        try {
+          const gitSyncResult = execSync('cd workspace && git status --porcelain', {
+            cwd: sandboxDir,
+            encoding: 'utf8',
+            stdio: 'pipe'
+          });
+
+          if (gitSyncResult.trim()) {
+            console.log(color('cyan', `\n📝 Changes detected, syncing to host repository...`));
+
+            // Add all changes
+            execSync('cd workspace && git add .', {
+              cwd: sandboxDir,
+              stdio: 'pipe'
+            });
+
+            // Commit with auto-generated message
+            const commitMessage = `Auto-sync changes from SandboxBox session at ${new Date().toISOString()}`;
+            execSync(`cd workspace && git commit -m "${commitMessage}"`, {
+              cwd: sandboxDir,
+              stdio: 'pipe'
+            });
+
+            // Push to host repository
+            execSync('cd workspace && git push host master', {
+              cwd: sandboxDir,
+              stdio: 'pipe'
+            });
+
+            console.log(color('green', `✅ Changes successfully synced to host repository`));
+          } else {
+            if (VERBOSE_OUTPUT) {
+              console.log(color('gray', `\n📝 No changes to sync`));
+            }
+          }
+        } catch (error) {
+          console.log(color('red', `\n⚠️  Git sync failed: ${error.message}`));
+        }
+
         cleanup();
         resolve(true);
       });
