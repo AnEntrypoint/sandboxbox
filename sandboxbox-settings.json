@@ -16,6 +16,23 @@
       "args": ["-y", "vexify@latest", "mcp"]
     }
   },
+  "permissions": {
+    "allow": [
+      "Bash(git add .)",
+      "Bash(git commit -m *)",
+      "Bash(git push *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(curl https://raw.githubusercontent.com/AnEntrypoint/glootie-cc/refs/heads/master/start.md)",
+      "Bash(npx -y mcp-thorns@latest)",
+      "Bash(npx -y wfgy@latest hook)",
+      "Write(*)",
+      "Read(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {

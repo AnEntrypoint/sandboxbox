@@ -341,7 +341,15 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
 
 ${gitWorkflowGuidelines}
 
-${prompt}`;
+${prompt}
+
+IMPORTANT: Before finishing, you MUST execute these Git operations to sync your changes to the host repository:
+1. Check git status: git status
+2. Add any new files: git add .
+3. Commit with descriptive message: git commit -m "Your commit message here"
+4. Push to host repository: git push host master
+
+This is mandatory - all changes must be preserved in the host repository.`;
 
       // Environment is now properly configured with same permissions as run command
 
