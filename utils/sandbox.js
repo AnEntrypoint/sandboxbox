@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
 
 export function createSandbox(projectDir, options = {}) {
-  const { useHostSettings = false, headlessMode = false } = options;
+  const { useHostSettings = false, headlessMode = false, allocatedPort = null } = options;
   const sandboxDir = mkdtempSync(join(tmpdir(), 'sandboxbox-'));
   const workspaceDir = join(sandboxDir, 'workspace');
   const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
