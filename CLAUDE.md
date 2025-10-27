@@ -164,9 +164,9 @@ GPG_AGENT_INFO: process.env.GPG_AGENT_INFO
 Uses host HOME directory for Claude Code authentication. Workspace is isolated in sandbox but credentials remain on host.
 
 ### Tool Allow List
-Automatically configured with 25 allowed tools:
+Automatically configured with core tools via command line flags:
 - Core: Task, Bash, Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, TodoWrite, WebSearch, BashOutput, KillShell, SlashCommand, ExitPlanMode
-- MCP: glootie (execute, ast_tool, caveat), playwright (navigate, snapshot, click, type, evaluate, close), vexify (search_code)
+- MCP tools configured via Claude Code plugin (glootie, playwright, vexify) are available when plugin is installed
 
 ### Streaming Output
 Uses `--verbose -p --output-format stream-json` for real-time JSON streaming. Output parser extracts text content, tool usage, session info, and cost metrics from JSON stream.
@@ -197,4 +197,12 @@ Environment variable `XDG_CACHE_HOME` set to `${sandboxDir}/.cache` for Playwrig
 - All temporary directories auto-cleanup on exit
 - Error handling for cleanup failures (ignore errors)
 - Signal handlers ensure cleanup on interrupts
-- the only git operations we want is setting up the project, there should be no explicit git operations to end or merge the project work in the sandbox, the agent must have a hook as part of the plugin in ../plugin (which must be up to date) that is set up correctly to make it call a curl statement that will instruct it to do a git merge intelligently at the end, only claude must be doing the git merge there should be no automation around that
+
+## Settings Configuration
+
+### sandboxbox-settings.json
+Bundled Claude Code settings for sandbox environments:
+- Plugin timeout: 5000ms
+- Permissions: Git operations (add, commit, push, status, log), file operations (Write, Read, Edit, Glob, Grep)
+- No explicit MCP server configurations (handled by Claude Code plugin)
+- No explicit hooks (handled by Claude Code plugin)

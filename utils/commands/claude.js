@@ -322,34 +322,9 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
         }
       }
 
-      // Execute curl command to get Git workflow guidelines
-      let gitWorkflowGuidelines = '';
-      try {
-        const curlResult = execSync('curl https://raw.githubusercontent.com/AnEntrypoint/glootie-cc/refs/heads/master/start.md', {
-          cwd: workspacePath,
-          encoding: 'utf8',
-          timeout: 10000,
-          stdio: 'pipe'
-        });
-        gitWorkflowGuidelines = curlResult.trim();
-      } catch (error) {
-        gitWorkflowGuidelines = '## Git Workflow Guidelines\nAlways sync to the remote/upstream git repo when you\'re finished with your work.';
-      }
-
-      // Modify the prompt to include directory change instruction and Git workflow guidelines
       const modifiedPrompt = `You are working in a sandboxed environment. Your working directory is "${workspacePath}". All operations should be performed in this directory.
 
-${gitWorkflowGuidelines}
-
-${prompt}
-
-IMPORTANT: Before finishing, you MUST execute these Git operations to sync your changes to the repository:
-1. Check git status: git status
-2. Add any new files: git add .
-3. Commit with descriptive message: git commit -m "Your commit message here"
-4. Push to remote repository: git push origin master
-
-This is mandatory - all changes must be preserved in the repository.`;
+${prompt}`;
 
       // Environment is now properly configured with same permissions as run command
 
