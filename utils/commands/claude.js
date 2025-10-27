@@ -358,8 +358,12 @@ ${prompt}`;
           if (Array.isArray(content)) {
             for (const block of content) {
               if (block.type === 'text') {
-                // Always show conversational text immediately
-                process.stdout.write(block.text);
+                const text = block.text || '';
+                if (!text.endsWith('\n')) {
+                  process.stdout.write(text + '\n');
+                } else {
+                  process.stdout.write(text);
+                }
               } else if (block.type === 'tool_use') {
                 // Track the tool call for later result matching
                 if (block.id) {
