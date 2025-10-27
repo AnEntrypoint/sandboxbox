@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.0.64] - 2025-10-27
+
+### Fixed
+- Console output now properly displays on new lines instead of appending to the same line
+- Claude Code conversational text output now ensures trailing newlines for proper formatting
+
 ## [3.0.63] - 2025-10-27
 
 ### Removed
