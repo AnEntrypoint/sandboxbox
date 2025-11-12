@@ -258,6 +258,34 @@ node_modules/
           }
         }
 
+        // Update plugin paths in installed_plugins.json
+        const installedPluginsPath = join(sandboxPluginsDir, 'installed_plugins.json');
+        if (existsSync(installedPluginsPath)) {
+          const installedPlugins = JSON.parse(readFileSync(installedPluginsPath, 'utf8'));
+          if (installedPlugins.plugins) {
+            Object.keys(installedPlugins.plugins).forEach(pluginKey => {
+              const plugin = installedPlugins.plugins[pluginKey];
+              if (plugin.installPath) {
+                plugin.installPath = join(sandboxClaudeDir, 'plugins', 'marketplaces', 'anentrypoint-glootie-cc', '/');
+              }
+            });
+            writeFileSync(installedPluginsPath, JSON.stringify(installedPlugins, null, 2));
+          }
+        }
+
+        // Update plugin paths in known_marketplaces.json
+        const knownMarketplacesPath = join(sandboxPluginsDir, 'known_marketplaces.json');
+        if (existsSync(knownMarketplacesPath)) {
+          const knownMarketplaces = JSON.parse(readFileSync(knownMarketplacesPath, 'utf8'));
+          Object.keys(knownMarketplaces).forEach(marketplaceKey => {
+            const marketplace = knownMarketplaces[marketplaceKey];
+            if (marketplace.installLocation) {
+              marketplace.installLocation = join(sandboxClaudeDir, 'plugins', 'marketplaces', 'anentrypoint-glootie-cc');
+            }
+          });
+          writeFileSync(knownMarketplacesPath, JSON.stringify(knownMarketplaces, null, 2));
+        }
+
         if (VERBOSE_OUTPUT) {
           console.log('✅ Copied .claude-sandbox plugins to sandbox');
         }
