@@ -272,7 +272,7 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
       '--verbose',
       '--output-format', 'stream-json',
       '--dangerously-skip-permissions',
-      '--mcp-config', join(sandboxDir, '.claude', 'settings.json')
+      '--mcp-config', join(sandboxDir, '.claude', 'mcp.json')
     ];
 
     return new Promise((resolve, reject) => {
