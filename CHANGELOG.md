@@ -6,11 +6,18 @@
 - `.claude-sandbox/` directory structure for bundled Claude settings and plugins
 - Automatic plugin path rewriting during sandbox creation to point to sandbox locations
 - Bundled glootie-cc MCP plugin in `.claude-sandbox/plugins/marketplaces/`
+- MCP servers configuration in plugin.json and settings.json (glootie, playwright, vexify)
+- Automatic MCP server path rewriting to use absolute sandbox directory paths
 
 ### Changed
 - Sandbox creation now uses `.claude-sandbox/` configuration instead of `sandboxbox-settings.json`
 - Plugin paths in `config.json` are automatically updated to sandbox-relative paths
+- MCP server paths are rewritten from ${HOME} placeholders to actual sandbox paths
 - Simplified Claude settings management with repository-based configuration
+
+### Known Issues
+- MCP tools not loading in Claude Code CLI - configuration is correct but servers not starting
+- Requires investigation into Claude Code CLI MCP server loading mechanism
 
 ## [3.0.64] - 2025-10-27
 
