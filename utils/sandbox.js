@@ -220,52 +220,58 @@ node_modules/
 
   // Always use bundled SandboxBox settings unless host settings are requested
   if (!useHostSettings) {
-    // Create sandbox Claude directory and copy bundled settings
+    // Create sandbox Claude directory
     mkdirSync(sandboxClaudeDir, { recursive: true });
 
-    const bundledSettingsPath = join(resolve(fileURLToPath(import.meta.url), '..', '..'), 'sandboxbox-settings.json');
-    const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
+    const repoRoot = resolve(fileURLToPath(import.meta.url), '..', '..');
+    const claudeSandboxDir = join(repoRoot, '.claude-sandbox');
 
-    // Copy bundled settings to sandbox
-    if (existsSync(bundledSettingsPath)) {
-      if (VERBOSE_OUTPUT) {
-        console.log(`🔍 Debug: Found bundled settings at ${bundledSettingsPath}`);
+    // Copy .claude-sandbox configuration to sandbox
+    if (existsSync(claudeSandboxDir)) {
+      // Copy settings.json
+      const claudeSandboxSettingsPath = join(claudeSandboxDir, 'settings.json');
+      if (existsSync(claudeSandboxSettingsPath)) {
+        cpSync(claudeSandboxSettingsPath, join(sandboxClaudeDir, 'settings.json'));
+        if (VERBOSE_OUTPUT) {
+          console.log('✅ Copied .claude-sandbox settings to sandbox');
+        }
       }
-      cpSync(bundledSettingsPath, sandboxSettingsPath);
 
-      // Also copy credentials from host if available
+      // Copy plugins directory
+      const claudeSandboxPluginsDir = join(claudeSandboxDir, 'plugins');
+      if (existsSync(claudeSandboxPluginsDir)) {
+        const sandboxPluginsDir = join(sandboxClaudeDir, 'plugins');
+        cpSync(claudeSandboxPluginsDir, sandboxPluginsDir, { recursive: true });
+
+        // Update plugin paths in config.json to point to sandbox locations
+        const configPath = join(sandboxPluginsDir, 'config.json');
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, 'utf8'));
+          if (config.repositories) {
+            Object.keys(config.repositories).forEach(repo => {
+              const repoName = repo.toLowerCase();
+              config.repositories[repo].path = join(sandboxClaudeDir, 'plugins', 'marketplaces', repoName);
+            });
+            writeFileSync(configPath, JSON.stringify(config, null, 2));
+          }
+        }
+
+        if (VERBOSE_OUTPUT) {
+          console.log('✅ Copied .claude-sandbox plugins to sandbox');
+        }
+      }
+
+      // Copy credentials from host if available
       const hostCredentialsPath = join(hostClaudeDir, '.credentials.json');
       if (existsSync(hostCredentialsPath)) {
         cpSync(hostCredentialsPath, join(sandboxClaudeDir, '.credentials.json'));
       }
 
       if (VERBOSE_OUTPUT) {
-        console.log('✅ Using bundled SandboxBox settings with Git integration hooks and MCP servers');
-        // Show hook and MCP information
-        const settings = JSON.parse(readFileSync(bundledSettingsPath, 'utf8'));
-        if (settings.hooks) {
-          console.log('📋 Bundled hooks configured:');
-          Object.keys(settings.hooks).forEach(hookType => {
-            const hookCount = settings.hooks[hookType].length;
-            console.log(`   ${hookType}: ${hookCount} hook(s)`);
-            settings.hooks[hookType].forEach((hook, index) => {
-              const commandCount = hook.hooks ? hook.hooks.length : 0;
-              console.log(`     ${index + 1}. ${hook.matcher || '*'} (${commandCount} commands)`);
-            });
-          });
-        }
-        if (settings.mcpServers) {
-          console.log('🔧 MCP servers configured:');
-          Object.keys(settings.mcpServers).forEach(serverName => {
-            const server = settings.mcpServers[serverName];
-            console.log(`   ${serverName}: ${server.command} ${server.args.join(' ')}`);
-          });
-        }
+        console.log('✅ Using .claude-sandbox configuration');
       }
-    } else {
-      if (VERBOSE_OUTPUT) {
-        console.log(`🔍 Debug: Bundled settings not found at ${bundledSettingsPath}`);
-      }
+    } else if (VERBOSE_OUTPUT) {
+      console.log('⚠️  .claude-sandbox directory not found in repo');
     }
   }
 

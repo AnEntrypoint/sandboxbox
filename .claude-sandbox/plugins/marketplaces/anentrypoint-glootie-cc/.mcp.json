@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schemas.modelcontextprotocol.io/0.1.0/mcp.json",
+  "mcpServers": {
+    "glootie": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/node_modules/mcp-glootie/src/index.js"]
+    },
+    "playwright": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/node_modules/@playwright/mcp/cli.js"]
+    },
+    "vexify": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/node_modules/vexify/lib/bin/cli.js", "mcp"]
+    }
+  }
+}

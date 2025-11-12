@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `.claude-sandbox/` directory structure for bundled Claude settings and plugins
+- Automatic plugin path rewriting during sandbox creation to point to sandbox locations
+- Bundled glootie-cc MCP plugin in `.claude-sandbox/plugins/marketplaces/`
+
+### Changed
+- Sandbox creation now uses `.claude-sandbox/` configuration instead of `sandboxbox-settings.json`
+- Plugin paths in `config.json` are automatically updated to sandbox-relative paths
+- Simplified Claude settings management with repository-based configuration
+
 ## [3.0.64] - 2025-10-27
 
 ### Fixed

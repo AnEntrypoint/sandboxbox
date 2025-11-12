@@ -1,0 +1,8 @@
+{
+  "repositories": {
+    "AnEntrypoint-glootie-cc": {
+      "path": "/home/user/.claude/plugins/marketplaces/AnEntrypoint-glootie-cc",
+      "enabled": true
+    }
+  }
+}
