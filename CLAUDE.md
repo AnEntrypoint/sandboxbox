@@ -163,6 +163,23 @@ GPG_AGENT_INFO: process.env.GPG_AGENT_INFO
 ### Authentication
 Uses host HOME directory for Claude Code authentication. Workspace is isolated in sandbox but credentials remain on host.
 
+### Claude Settings Configuration (.claude-sandbox)
+Sandboxes use bundled Claude settings from `.claude-sandbox/` directory in the repository:
+- **settings.json**: Claude Code settings including environment variables, hooks, and enabled plugins
+- **plugins/config.json**: Plugin repository configuration with paths to marketplace plugins
+- **plugins/marketplaces/**: Contains installed MCP plugins (e.g., glootie-cc, playwright)
+
+Settings are copied to `~/.claude/` in sandbox with automatic path rewriting:
+```javascript
+// Plugin paths are automatically updated to point to sandbox locations
+config.repositories[repo].path = join(sandboxClaudeDir, 'plugins', 'marketplaces', repoName);
+```
+
+To update sandbox Claude settings:
+1. Copy from host: `cp ~/.claude/set.json .claude-sandbox/settings.json`
+2. Copy plugins: `cp -r ~/.claude/plugins .claude-sandbox/`
+3. Plugins and paths are automatically synced to sandbox on each run
+
 ### Tool Allow List
 Automatically configured with core tools via command line flags:
 - Core: Task, Bash, Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, TodoWrite, WebSearch, BashOutput, KillShell, SlashCommand, ExitPlanMode
