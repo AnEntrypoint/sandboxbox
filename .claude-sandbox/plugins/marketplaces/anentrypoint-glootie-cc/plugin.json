@@ -8,8 +8,21 @@
     "description": "Advanced Claude Code plugin with WFGY integration, MCP tools, and automated hooks",
     "author": "AnEntrypoint",
     "homepage": "https://github.com/AnEntrypoint/glootie-cc"
+  },
+  "mcpServers": {
+    "glootie": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/node_modules/mcp-glootie/src/index.js"]
+    },
+    "playwright": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/node_modules/@playwright/mcp/cli.js"]
+    },
+    "vexify": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/node_modules/vexify/lib/bin/cli.js", "mcp"]
+    }
   }
-
 }
 
 
