@@ -7,5 +7,19 @@
   "enabledPlugins": {
     "glootie-cc@anentrypoint-glootie-cc": true
   },
+  "mcpServers": {
+    "glootie": {
+      "command": "node",
+      "args": ["${HOME}/.claude/plugins/marketplaces/anentrypoint-glootie-cc/node_modules/mcp-glootie/src/index.js"]
+    },
+    "playwright": {
+      "command": "node",
+      "args": ["${HOME}/.claude/plugins/marketplaces/anentrypoint-glootie-cc/node_modules/@playwright/mcp/cli.js"]
+    },
+    "vexify": {
+      "command": "node",
+      "args": ["${HOME}/.claude/plugins/marketplaces/anentrypoint-glootie-cc/node_modules/vexify/lib/bin/cli.js", "mcp"]
+    }
+  },
   "alwaysThinkingEnabled": true
 }
