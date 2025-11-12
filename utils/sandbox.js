@@ -246,6 +246,11 @@ node_modules/
             }
           });
           writeFileSync(sandboxSettingsPath, JSON.stringify(settings, null, 2));
+
+          // Create separate mcp.json file for --mcp-config flag
+          const mcpConfigPath = join(sandboxClaudeDir, 'mcp.json');
+          const mcpConfig = { mcpServers: settings.mcpServers };
+          writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
         }
 
         if (VERBOSE_OUTPUT) {
