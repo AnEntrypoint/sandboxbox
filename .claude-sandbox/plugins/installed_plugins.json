@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "plugins": {
+    "glootie-cc@anentrypoint-glootie-cc": {
+      "version": "unknown",
+      "installedAt": "2025-11-03T17:24:49.912Z",
+      "lastUpdated": "2025-11-03T17:24:49.912Z",
+      "installPath": "/home/user/.claude/plugins/marketplaces/anentrypoint-glootie-cc/",
+      "gitCommitSha": "4df0d89e7a2f1708c913a7bccdb7ccb87123c37d",
+      "isLocal": true
+    }
+  }
+}

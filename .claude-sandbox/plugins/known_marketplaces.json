@@ -1,0 +1,10 @@
+{
+  "anentrypoint-glootie-cc": {
+    "source": {
+      "source": "github",
+      "repo": "AnEntrypoint/glootie-cc"
+    },
+    "installLocation": "/home/user/.claude/plugins/marketplaces/anentrypoint-glootie-cc",
+    "lastUpdated": "2025-10-31T08:33:29.549Z"
+  }
+}
