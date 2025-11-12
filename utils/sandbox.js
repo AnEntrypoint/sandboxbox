@@ -231,7 +231,23 @@ node_modules/
       // Copy settings.json
       const claudeSandboxSettingsPath = join(claudeSandboxDir, 'settings.json');
       if (existsSync(claudeSandboxSettingsPath)) {
-        cpSync(claudeSandboxSettingsPath, join(sandboxClaudeDir, 'settings.json'));
+        const sandboxSettingsPath = join(sandboxClaudeDir, 'settings.json');
+        cpSync(claudeSandboxSettingsPath, sandboxSettingsPath);
+
+        // Update MCP server paths to use actual sandbox directory
+        const settings = JSON.parse(readFileSync(sandboxSettingsPath, 'utf8'));
+        if (settings.mcpServers) {
+          Object.keys(settings.mcpServers).forEach(serverName => {
+            const server = settings.mcpServers[serverName];
+            if (server.args) {
+              server.args = server.args.map(arg =>
+                arg.replace('${HOME}', sandboxDir)
+              );
+            }
+          });
+          writeFileSync(sandboxSettingsPath, JSON.stringify(settings, null, 2));
+        }
+
         if (VERBOSE_OUTPUT) {
           console.log('✅ Copied .claude-sandbox settings to sandbox');
         }
