@@ -7,17 +7,6 @@ import { createSandbox, createSandboxEnv } from '../sandbox.js';
 // import { ClaudeOptimizer } from '../claude-optimizer.js';
 import { SystemOptimizer } from '../system-optimizer.js';
 
-const ALLOWED_TOOLS = [
-  'Task', 'Bash', 'Glob', 'Grep', 'Read', 'Edit', 'Write', 'NotebookEdit',
-  'WebFetch', 'TodoWrite', 'WebSearch', 'BashOutput', 'KillShell',
-  'SlashCommand', 'ExitPlanMode', 'mcp__glootie__execute',
-  'mcp__glootie__ast_tool', 'mcp__glootie__caveat',
-  'mcp__playwright__browser_navigate', 'mcp__playwright__browser_snapshot',
-  'mcp__playwright__browser_click', 'mcp__playwright__browser_type',
-  'mcp__playwright__browser_evaluate', 'mcp__playwright__browser_close',
-  'mcp__vexify__search_code'
-];
-
 // Console output configuration
 const MAX_CONSOLE_LINES = parseInt(process.env.SANDBOX_MAX_CONSOLE_LINES) || 5;
 const MAX_LOG_ENTRY_LENGTH = parseInt(process.env.SANDBOX_MAX_LOG_LENGTH) || 200;
@@ -282,9 +271,7 @@ export async function claudeCommand(projectDir, prompt, flags = {}) {
     const claudeArgs = [
       '--verbose',
       '--output-format', 'stream-json',
-      '--permission-mode', 'bypassPermissions',
-      '--dangerously-skip-permissions',
-      '--allowed-tools', ALLOWED_TOOLS.join(',')
+      '--dangerously-skip-permissions'
     ];
 
     return new Promise((resolve, reject) => {
