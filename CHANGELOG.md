@@ -1,23 +1,31 @@
 # Changelog
 
-## [Unreleased]
+## [3.0.74] - 2025-11-13
 
 ### Added
-- `.claude-sandbox/` directory structure for bundled Claude settings and plugins
-- Automatic plugin path rewriting during sandbox creation to point to sandbox locations
-- Bundled glootie-cc MCP plugin in `.claude-sandbox/plugins/marketplaces/`
-- MCP servers configuration in plugin.json and settings.json (glootie, playwright, vexify)
-- Automatic MCP server path rewriting to use absolute sandbox directory paths
+- MCP server mode: Run sandboxbox as an MCP server with `npx sandboxbox mcp`
+- `sandboxbox_run` MCP tool: Execute prompts in isolated sandboxbox environments via MCP protocol
+- `.mcp.json` configuration file for easy Claude Code integration
+- Fetch polyfill in container: undici package installed globally with automatic polyfill via NODE_OPTIONS
+- Build command implementation: `npx sandboxbox build` to rebuild container images
+- Plugin registry files: installed_plugins.json and known_marketplaces.json in .claude-sandbox/
+- Automatic path rewriting for all plugin configuration files during sandbox creation
 
 ### Changed
-- Sandbox creation now uses `.claude-sandbox/` configuration instead of `sandboxbox-settings.json`
-- Plugin paths in `config.json` are automatically updated to sandbox-relative paths
-- MCP server paths are rewritten from ${HOME} placeholders to actual sandbox paths
-- Simplified Claude settings management with repository-based configuration
+- Container claude wrapper uses NODE_OPTIONS to inject fetch polyfill automatically
+- Removed enabledPlugins from .claude-sandbox/settings.json (controlled by config.json)
+- Updated cli.js to support 'mcp' command
+- Added @modelcontextprotocol/sdk and undici dependencies
+- Dockerfile creates fetch-init.mjs for global fetch availability
 
-### Known Issues
-- MCP tools not loading in Claude Code CLI - configuration is correct but servers not starting
-- Requires investigation into Claude Code CLI MCP server loading mechanism
+### Fixed
+- Fetch API not available in container: Added undici polyfill loaded via NODE_OPTIONS
+- Plugin paths now correctly rewritten in installed_plugins.json and known_marketplaces.json
+- Build command now functional with proper podman integration
+
+### Removed
+- Manual MCP server configurations from settings.json (delegated to plugin's .mcp.json)
+- Firewall script from Dockerfile (not essential for core functionality)
 
 ## [3.0.64] - 2025-10-27
 

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schemas.modelcontextprotocol.io/0.1.0/mcp.json",
+  "mcpServers": {
+    "sandboxbox": {
+      "command": "npx",
+      "args": ["sandboxbox", "mcp"]
+    }
+  }
+}

@@ -1,23 +1,23 @@
+import { fetch } from 'undici';
+if (!globalThis.fetch) {
+  globalThis.fetch = fetch;
+}
+
 import { existsSync, writeFileSync, appendFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { spawn, execSync } from 'child_process';
 import { color } from '../colors.js';
 import { createSandbox, createSandboxEnv } from '../sandbox.js';
-// ClaudeOptimizer disabled to preserve bundled hooks
-// import { ClaudeOptimizer } from '../claude-optimizer.js';
 import { SystemOptimizer } from '../system-optimizer.js';
 
-// Console output configuration
 const MAX_CONSOLE_LINES = parseInt(process.env.SANDBOX_MAX_CONSOLE_LINES) || 5;
 const MAX_LOG_ENTRY_LENGTH = parseInt(process.env.SANDBOX_MAX_LOG_LENGTH) || 200;
 const ENABLE_FILE_LOGGING = process.env.SANDBOX_ENABLE_FILE_LOGGING === 'true';
 const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
 global.toolCallLog = [];
 global.logFileHandle = null;
-global.pendingToolCalls = new Map(); // Track tool calls by ID for result matching
-global.conversationalBuffer = ''; // Track conversational text between tool calls
-
-// Helper function to extract tool metadata without showing actual content
+global.pendingToolCalls = new Map();
+global.conversationalBuffer = '';
 function extractToolMetadata(toolUse) {
   const metadata = {
     name: toolUse.name || 'unknown',
@@ -316,10 +316,13 @@ ${prompt}`;
       // Environment is now properly configured with same permissions as run command
 
       const proc = spawn('claude', claudeArgs, {
-        cwd: workspacePath,  // Set working directory directly
-        env: env,  // Use the same environment as run command for Git permissions
+        cwd: workspacePath,
+        env: {
+          ...env,
+          NODE_OPTIONS: '--import=/usr/local/lib/fetch-init.mjs'
+        },
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false,  // Don't use shell since we're setting cwd directly
+        shell: false,
         detached: false
       });
 

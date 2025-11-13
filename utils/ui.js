@@ -18,6 +18,7 @@ export function showHelp() {
   console.log('  run <project-dir> [cmd]       Run project in container');
   console.log('  shell <project-dir>           Start interactive shell');
   console.log('  claude <project-dir> [prompt] [--host] [--headless]  Start Claude Code with Git integration');
+  console.log('  mcp                           Start as MCP server (stdio transport)');
   console.log('  version                       Show version information');
   console.log('');
   console.log(color('yellow', 'Claude Command Options:'));

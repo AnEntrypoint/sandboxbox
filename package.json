@@ -29,7 +29,10 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "undici": "^7.16.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AnEntrypoint/sandboxbox.git"

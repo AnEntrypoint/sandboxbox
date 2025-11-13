@@ -78,18 +78,27 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
 
-# Install Claude
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
-
-# Install playwright deps (commented out due to build issues)
-# RUN npx --yes playwright install-deps
+# Install Claude and dependencies
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} undici
 
 RUN npm i -g @playwright/mcp
 
-# Copy and set up firewall script
-COPY init-firewall.sh /usr/local/bin/
+# Switch to root to create wrapper scripts
 USER root
-RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
-  chmod 0440 /etc/sudoers.d/node-firewall
+
+# Create fetch polyfill init script
+RUN echo 'import { fetch, Headers, Request, Response } from "undici";\n\
+globalThis.fetch = fetch;\n\
+globalThis.Headers = Headers;\n\
+globalThis.Request = Request;\n\
+globalThis.Response = Response;\n\
+' > /usr/local/lib/fetch-init.mjs
+
+# Create wrapper script that uses the init
+RUN echo '#!/bin/bash\n\
+NODE_OPTIONS="--import=/usr/local/lib/fetch-init.mjs" exec /home/node/.local/bin/claude "$@"\n\
+' > /usr/local/bin/claude-with-fetch && \
+  chmod +x /usr/local/bin/claude-with-fetch && \
+  ln -sf /usr/local/bin/claude-with-fetch /usr/local/share/npm-global/bin/claude
+
 USER node
