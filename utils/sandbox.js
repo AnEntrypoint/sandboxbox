@@ -325,66 +325,6 @@ node_modules/
   }
 
   const cleanup = () => {
-    const VERBOSE_OUTPUT = process.env.SANDBOX_VERBOSE === 'true' || process.argv.includes('--verbose');
-
-    // Push any committed changes back to host before cleanup
-    try {
-      // Check if there are any uncommitted changes
-      const status = execSync(`git status --porcelain`, {
-        cwd: workspaceDir,
-        encoding: 'utf8',
-        stdio: 'pipe'
-      }).trim();
-
-      if (status) {
-        // Add all changes
-        execSync(`git add -A`, {
-          cwd: workspaceDir,
-          stdio: 'pipe',
-          shell: true
-        });
-
-        // Commit with timestamp
-        const commitMessage = `sandboxbox auto-commit: ${new Date().toISOString()}
-
-🤖 Generated with SandboxBox
-Changes made during sandboxbox session`;
-
-        execSync(`git commit -m "${commitMessage}"`, {
-          cwd: workspaceDir,
-          stdio: 'pipe',
-          shell: true
-        });
-
-        if (VERBOSE_OUTPUT) {
-          console.log('✅ Committed sandbox changes');
-        }
-      }
-
-      // Push to host repository (origin points to host)
-      try {
-        execSync(`git push origin HEAD`, {
-          cwd: workspaceDir,
-          stdio: 'pipe',
-          shell: true
-        });
-
-        if (VERBOSE_OUTPUT) {
-          console.log('✅ Pushed changes to host repository');
-        }
-      } catch (pushError) {
-        // Push might fail if there are no changes or network issues
-        if (VERBOSE_OUTPUT) {
-          console.log('⚠️  Could not push to host repository');
-        }
-      }
-    } catch (error) {
-      // Don't fail cleanup if git operations fail
-      if (VERBOSE_OUTPUT) {
-        console.log(`⚠️  Git sync failed: ${error.message}`);
-      }
-    }
-
     // Close any log files that might be open
     if (global.logFileHandle) {
       try {
@@ -394,6 +334,10 @@ Changes made during sandboxbox session`;
         // Don't fail on log cleanup
       }
     }
+
+    // Note: Git commits/pushes are handled by the agent via explicit instructions
+    // The sandbox has git configured with origin pointing to host and receive.denyCurrentBranch=updateInstead
+    // This allows agent-driven git push to work correctly
 
     rmSync(sandboxDir, { recursive: true, force: true });
   };

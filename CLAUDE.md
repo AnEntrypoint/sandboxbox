@@ -78,15 +78,16 @@ if (process.platform === 'win32') {
 1. Copy project to temporary directory (including .git)
 2. Mount temporary directory as /workspace in container
 3. Run commands in isolated environment
-4. Auto-commit and push changes to host repository
+4. Agent commits and pushes changes via explicit git commands
 5. Clean up temporary directory on exit
 
-### Auto-Commit & Push (v3.0.76+)
-- Cleanup function automatically detects uncommitted changes
-- Auto-commits with timestamped message: "sandboxbox auto-commit: {ISO timestamp}"
-- Auto-pushes to host repository before sandbox cleanup
-- Changes persist automatically without manual git operations
-- Graceful error handling - cleanup continues even if git operations fail
+### Agent-Controlled Git Workflow
+- Git remote `origin` points to host repository
+- Host configured with `receive.denyCurrentBranch=updateInstead`
+- Git identity (name, email, color) transferred from host
+- Agent decides when to commit and push via standard git commands
+- Example: Agent runs `git add .`, `git commit -m "message"`, `git push origin master`
+- Changes persist when agent explicitly pushes to host
 
 ### Pattern
 ```javascript
