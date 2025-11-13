@@ -1,10 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * SandboxBox CLI - Process Containment Sandbox
- * Lightweight process isolation for CLI tools
- */
-
 import { resolve } from 'path';
 import { color } from './utils/colors.js';
 import { showBanner, showHelp } from './utils/ui.js';
@@ -74,6 +69,23 @@ async function main() {
 
       case 'version':
         if (!versionCommand()) process.exit(1);
+        break;
+
+      case 'mcp':
+        const { spawn } = await import('child_process');
+        const { fileURLToPath } = await import('url');
+        const { dirname } = await import('path');
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+        const mcpServerPath = resolve(__dirname, 'utils', 'mcp-server.js');
+
+        const mcpProcess = spawn('node', [mcpServerPath], {
+          stdio: 'inherit'
+        });
+
+        mcpProcess.on('exit', (code) => {
+          process.exit(code || 0);
+        });
         break;
 
       default:
