@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.0.74] - 2025-11-13
+## [3.0.75] - 2025-11-13
 
 ### Added
 - MCP server mode: Run sandboxbox as an MCP server with `npx sandboxbox mcp`
