@@ -78,8 +78,15 @@ if (process.platform === 'win32') {
 1. Copy project to temporary directory (including .git)
 2. Mount temporary directory as /workspace in container
 3. Run commands in isolated environment
-4. Clean up temporary directory on exit
-5. Changes persist via git push to host repository
+4. Auto-commit and push changes to host repository
+5. Clean up temporary directory on exit
+
+### Auto-Commit & Push (v3.0.76+)
+- Cleanup function automatically detects uncommitted changes
+- Auto-commits with timestamped message: "sandboxbox auto-commit: {ISO timestamp}"
+- Auto-pushes to host repository before sandbox cleanup
+- Changes persist automatically without manual git operations
+- Graceful error handling - cleanup continues even if git operations fail
 
 ### Pattern
 ```javascript
