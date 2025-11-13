@@ -48,6 +48,6 @@
   "dependencies": {
     "@playwright/mcp": "^0.0.45",
     "mcp-glootie": "^3.4.67",
-    "vexify": "^0.16.28"
+    "vexify": "^0.19.1"
   }
 }
