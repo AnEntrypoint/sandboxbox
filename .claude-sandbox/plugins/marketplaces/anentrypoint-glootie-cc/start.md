@@ -1,5 +1,11 @@
 # MANDATORY DEV WORKFLOW - ABSOLUTE RULES
 
+## Git Workflow - CRITICAL
+- ALWAYS commit changes after completing work: `git add .` then `git commit -m "descriptive message"`
+- ALWAYS push commits to host immediately: `git push origin HEAD`
+- NEVER leave unpushed commits - the stop hook will block you
+- Git remote 'origin' points to the host repository - pushing here persists your changes
+
 ## Files
 - Maintain permanent structure ONLY - NO ephemeral/temp/mock/simulation files, use glootie mcp and playwright mcp execution instead
 - Single primary working implementations - ZERO failovers/fallbacks ever
